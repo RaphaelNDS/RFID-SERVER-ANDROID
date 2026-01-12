@@ -19,7 +19,6 @@ import com.example.rfid_server.view.TagView
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 
-
 class MainActivity : AppCompatActivity() {
 
     private lateinit var rfidManager: RfidManager

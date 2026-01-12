@@ -2,13 +2,18 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="6dp">
+    android:padding="8dp">
+
+    <TextView
+        android:id="@+id/txtCodigoInterno"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Código Interno"/>
 
     <TextView
         android:id="@+id/txtModelo"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textStyle="bold"
         android:text="Modelo"/>
 
     <TextView
@@ -22,12 +27,4 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Nº Série"/>
-
-    <TextView xmlns:android="http://schemas.android.com/apk/res/android"
-        android:id="@+id/txtTag"
-        android:padding="12dp"
-        android:textSize="16sp"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"/>
-
 </LinearLayout>

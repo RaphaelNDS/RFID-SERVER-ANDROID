@@ -40,6 +40,7 @@ class TagService {
 
                 val tag = TagView(
                     epc = epc,
+                    codigoInterno = json.getString("codigoInterno"),
                     modelo = json.getString("modelo"),
                     patrimonio = json.getString("patrimonio"),
                     numeroSerie = json.getString("numeroSerie")
