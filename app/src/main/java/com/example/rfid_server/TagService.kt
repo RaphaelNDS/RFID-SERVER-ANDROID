@@ -75,6 +75,38 @@ class TagService(private val context: Context) {
         })
     }
 
+    fun buscarTagPorPatrimonio(patrimonio: String, callback: (String?) -> Unit) {
+
+        val url = "${baseUrl()}/api/tags/patrimonio/$patrimonio"
+
+        val request = Request.Builder()
+            .url(url)
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+
+            override fun onFailure(call: Call, e: IOException) {
+                callback(null)
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+
+                if (!response.isSuccessful) {
+                    callback(null)
+                    return
+                }
+
+                val json = JSONObject(response.body!!.string())
+                val epc = json.getString("epc")
+
+                callback(epc)
+            }
+        })
+    }
+
+
+
     fun enviarNaoCadastrada(epc: String) {
 
         val url = "${baseUrl()}/api/tags/naocadastrada"

@@ -43,7 +43,7 @@ class MainActivity : AppCompatActivity() {
 
         tagService = TagService(this)
 
-        rfidManager = RfidManager(this) { epc ->
+        rfidManager = RfidManager(this) { epc, _ ->
             runOnUiThread { processaTag(epc) }
         }
 
@@ -59,13 +59,21 @@ class MainActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
+
+            R.id.menu_localizar -> {
+                startActivity(Intent(this, LocalizarActivity::class.java))
+                true
+            }
+
             R.id.menu_settings -> {
                 abrirConfiguracoes()
                 true
             }
+
             else -> super.onOptionsItemSelected(item)
         }
     }
+
 
     private fun abrirConfiguracoes() {
         startActivity(Intent(this, SettingsActivity::class.java))
@@ -78,6 +86,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun consultaServidor(epc: String) {
+
         tagService.buscarTag(epc) { tag ->
             runOnUiThread {
 
@@ -93,7 +102,6 @@ class MainActivity : AppCompatActivity() {
                     fragLeitura?.adicionarTag(tag)
                 } else {
                     fragNao?.adicionarTag(epc)
-                    tagService.enviarNaoCadastrada(epc)
                 }
             }
         }

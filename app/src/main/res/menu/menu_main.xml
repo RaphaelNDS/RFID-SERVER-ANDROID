@@ -7,4 +7,10 @@
         android:icon="@android:drawable/ic_menu_manage"
         app:showAsAction="always" />
 
+    <item
+        android:id="@+id/menu_localizar"
+        android:title="Localizar patrimônio"
+        android:icon="@android:drawable/ic_menu_search"
+        app:showAsAction="always" />
+
 </menu>

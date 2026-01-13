@@ -20,10 +20,8 @@ import java.util.logging.Handler
 
 class FragmentLeitura : Fragment(R.layout.frag_leitura) {
 
-    private lateinit var rfidManager: RfidManager
     private lateinit var tagService: TagService
 
-    private val lidas = mutableSetOf<String>()
     private val cadastradas = mutableListOf<TagView>()
     private val filaOffline = mutableListOf<String>()
 
@@ -38,76 +36,50 @@ class FragmentLeitura : Fragment(R.layout.frag_leitura) {
         recycler.adapter = adapter
 
         tagService = TagService(requireContext())
-
         testarServidor()
-
-        rfidManager = RfidManager(requireContext()) { epc ->
-            activity?.runOnUiThread {
-
-                if (lidas.contains(epc)) return@runOnUiThread
-                lidas.add(epc)
-
-                if (servidorOnline) {
-                    consultar(epc)
-                } else {
-                    modoOffline(epc)
-                }
-            }
-        }
-
-        rfidManager.connect()
     }
 
     private fun testarServidor() {
         tagService.testarConexao { conectado ->
             activity?.runOnUiThread {
                 servidorOnline = conectado
-
-                if (conectado) {
-                    sincronizarOffline()
-                }
+                if (conectado) sincronizarOffline()
             }
+        }
+    }
+
+    fun receberEpc(epc: String) {
+        if (servidorOnline) {
+            consultar(epc)
+        } else {
+            modoOffline(epc)
         }
     }
 
     private fun consultar(epc: String) {
         tagService.buscarTag(epc) { tag ->
             activity?.runOnUiThread {
-                if (tag != null) {
-                    adapter.add(tag)
-                }
+                if (tag != null) adapter.add(tag)
             }
         }
     }
 
     private fun modoOffline(epc: String) {
         filaOffline.add(epc)
-
-        Toast.makeText(
-            requireContext(),
+        Toast.makeText(requireContext(),
             "Modo offline: EPC salvo",
-            Toast.LENGTH_SHORT
-        ).show()
+            Toast.LENGTH_SHORT).show()
     }
 
     private fun sincronizarOffline() {
         if (filaOffline.isEmpty()) return
-
         val copia = filaOffline.toList()
         filaOffline.clear()
-
-        copia.forEach { epc ->
-            consultar(epc)
-        }
+        copia.forEach { consultar(it) }
     }
-
 
     fun adicionarTag(tag: TagView) {
         adapter.add(tag)
     }
-
-    override fun onDestroyView() {
-        super.onDestroyView()
-        rfidManager.disconnect()
-    }
 }
+
