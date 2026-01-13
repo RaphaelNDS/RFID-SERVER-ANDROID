@@ -1,21 +1,18 @@
 package com.example.rfid_server.activities
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import android.view.Menu
+import android.view.MenuItem
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.fragment.app.Fragment
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import androidx.viewpager2.adapter.FragmentStateAdapter
+import androidx.appcompat.widget.Toolbar
 import androidx.viewpager2.widget.ViewPager2
 import com.example.rfid_server.R
 import com.example.rfid_server.RfidManager
 import com.example.rfid_server.TagService
 import com.example.rfid_server.adapter.MainPagerAdapter
-import com.example.rfid_server.adapter.TagAdapter
-import com.example.rfid_server.adapter.TagNaoAdapter
-import com.example.rfid_server.view.TagView
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 
@@ -23,7 +20,6 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var rfidManager: RfidManager
     private lateinit var tagService: TagService
-
     private val lidas = mutableSetOf<String>()
 
     private lateinit var pager: ViewPager2
@@ -31,6 +27,10 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        val toolbar = findViewById<Toolbar>(R.id.toolbar)
+        setSupportActionBar(toolbar)
+        title = "RFID Server"
 
         pager = findViewById(R.id.pager)
         val tabs = findViewById<TabLayout>(R.id.tabs)
@@ -41,12 +41,10 @@ class MainActivity : AppCompatActivity() {
             tab.text = if (pos == 0) "Leitura" else "Não cadastradas"
         }.attach()
 
-        tagService = TagService()
+        tagService = TagService(this)
 
         rfidManager = RfidManager(this) { epc ->
-            runOnUiThread {
-                processaTag(epc)
-            }
+            runOnUiThread { processaTag(epc) }
         }
 
         if (!rfidManager.connect()) {
@@ -54,20 +52,33 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun processaTag(epc: String) {
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_main, menu)
+        return true
+    }
 
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.menu_settings -> {
+                abrirConfiguracoes()
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+
+    private fun abrirConfiguracoes() {
+        startActivity(Intent(this, SettingsActivity::class.java))
+    }
+
+    private fun processaTag(epc: String) {
         if (lidas.contains(epc)) return
         lidas.add(epc)
-
-        Log.d("MAIN", "Recebi EPC: $epc")
-
         consultaServidor(epc)
     }
 
     private fun consultaServidor(epc: String) {
-
         tagService.buscarTag(epc) { tag ->
-
             runOnUiThread {
 
                 val fragLeitura =

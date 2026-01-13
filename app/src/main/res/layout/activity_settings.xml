@@ -1,0 +1,41 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <TextView
+        android:text="Configurações"
+        android:textStyle="bold"
+        android:textSize="20sp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"/>
+
+    <TextView
+        android:id="@+id/txtStatusServidor"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Servidor: verificando..."
+        android:textStyle="bold"
+        android:padding="8dp"/>
+
+    <Button
+        android:id="@+id/btnTestarServidor"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Testar conexão"/>
+
+    <EditText
+        android:id="@+id/edtIp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="IP do servidor (ex: 182.17.10.130)"
+        android:inputType="text"/>
+
+    <Button
+        android:id="@+id/btnSalvar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Salvar"
+        android:layout_marginTop="16dp"/>
+</LinearLayout>

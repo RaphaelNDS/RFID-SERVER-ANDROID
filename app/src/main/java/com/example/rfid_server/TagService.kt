@@ -1,20 +1,45 @@
 package com.example.rfid_server
 
+import android.content.Context
 import android.util.Log
 import com.example.rfid_server.view.TagView
+import kotlinx.serialization.Contextual
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.IOException
 
-class TagService {
+class TagService(private val context: Context) {
 
     private val client = OkHttpClient()
 
+    private fun baseUrl() = AppConfig.getBaseUrl(context)
+
+    fun testarConexao(callback: (Boolean) -> Unit) {
+
+        val url = "${AppConfig.getBaseUrl(context)}/api/status"
+
+        val request = Request.Builder()
+            .url(url)
+            .get()
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+
+            override fun onFailure(call: Call, e: IOException) {
+                callback(false)
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                callback(response.isSuccessful)
+            }
+        })
+    }
+
     fun buscarTag(epc: String, callback: (TagView?) -> Unit) {
 
-        val url = "http://182.17.10.130:8082/api/tags/$epc"
+        val url = "${baseUrl()}/api/tags/$epc"
 
         val request = Request.Builder()
             .url(url)
@@ -31,7 +56,6 @@ class TagService {
             override fun onResponse(call: Call, response: Response) {
 
                 if (!response.isSuccessful) {
-                    Log.w("TAG_SERVICE", "Tag não encontrada: ${response.code}")
                     callback(null)
                     return
                 }
@@ -53,7 +77,7 @@ class TagService {
 
     fun enviarNaoCadastrada(epc: String) {
 
-        val url = "http://182.17.10.130:8082/api/tags/naocadastrada"
+        val url = "${baseUrl()}/api/tags/naocadastrada"
 
         val body = JSONObject()
             .put("tag", epc)
@@ -66,7 +90,6 @@ class TagService {
             .build()
 
         client.newCall(req).enqueue(object : Callback {
-
             override fun onFailure(call: Call, e: IOException) {
                 Log.e("TAG_SERVICE", "Erro ao enviar não cadastrada", e)
             }
@@ -77,3 +100,4 @@ class TagService {
         })
     }
 }
+

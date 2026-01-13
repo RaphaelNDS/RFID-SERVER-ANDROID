@@ -13,15 +13,19 @@ import com.example.rfid_server.adapter.TagNaoAdapter
 class FragmentNaoCadastradas : Fragment(R.layout.frag_nao_cadastradas) {
 
     private lateinit var rfidManager: RfidManager
+    private lateinit var tagService: TagService
+
     private val lidas = mutableSetOf<String>()
     private val lista = mutableListOf<String>()
     private lateinit var adapter: TagNaoAdapter
-    private val tagService = TagService()
 
     override fun onViewCreated(v: View, s: Bundle?) {
 
+        tagService = TagService(requireContext())
+
         val recycler = v.findViewById<RecyclerView>(R.id.recyclerNao)
         recycler.layoutManager = LinearLayoutManager(requireContext())
+
         adapter = TagNaoAdapter(lista)
         recycler.adapter = adapter
 
@@ -32,7 +36,6 @@ class FragmentNaoCadastradas : Fragment(R.layout.frag_nao_cadastradas) {
                 lidas.add(epc)
 
                 adapter.add(epc)
-
                 tagService.enviarNaoCadastrada(epc)
             }
         }
