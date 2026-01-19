@@ -6,7 +6,7 @@ object AppConfig {
 
     private const val PREFS = "rfid_prefs"
     private const val KEY_SERVER_IP = "server_ip"
-    private const val DEFAULT_IP = "182.17.10.130"
+    private const val DEFAULT_IP = "182.17.10.136"
 
     fun saveServerIp(context: Context, ip: String) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

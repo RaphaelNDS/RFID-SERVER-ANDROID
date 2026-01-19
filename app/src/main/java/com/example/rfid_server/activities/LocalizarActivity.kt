@@ -12,7 +12,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.rfid_server.R
 import com.example.rfid_server.RfidManager
-import com.example.rfid_server.TagService
+import com.example.rfid_server.service.TagService
 import android.os.*
 import androidx.annotation.RequiresPermission
 

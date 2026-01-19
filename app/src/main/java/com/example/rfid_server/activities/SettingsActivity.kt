@@ -9,7 +9,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.example.rfid_server.AppConfig
 import com.example.rfid_server.R
-import com.example.rfid_server.TagService
+import com.example.rfid_server.service.TagService
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.Request
