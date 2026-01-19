@@ -13,10 +13,13 @@ class TagAdapter(private val list: MutableList<TagView>) :
 
     class VH(view: View) : RecyclerView.ViewHolder(view) {
         val txtCodigoInterno: TextView = view.findViewById(R.id.txtCodigoInterno)
+        val txtTipo: TextView = view.findViewById(R.id.txtTipo)
+        val txtMarca: TextView = view.findViewById(R.id.txtMarca)
         val txtModelo: TextView = view.findViewById(R.id.txtModelo)
         val txtPatrimonio: TextView = view.findViewById(R.id.txtPatrimonio)
         val txtSerie: TextView = view.findViewById(R.id.txtSerie)
     }
+
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val v = LayoutInflater.from(parent.context)
@@ -30,9 +33,12 @@ class TagAdapter(private val list: MutableList<TagView>) :
         val t = list[position]
 
         holder.txtCodigoInterno.text = "Código: ${t.codigoInterno}"
-        holder.txtModelo.text = "Modelo: ${t.modelo}"
+        holder.txtTipo.text = "Tipo: ${t.tipo ?: "—"}"
+        holder.txtMarca.text = "Marca: ${t.marca ?: "—"}"
+        holder.txtModelo.text = "Modelo: ${t.modelo ?: "—"}"
         holder.txtPatrimonio.text = "Patrimônio: ${t.patrimonio}"
         holder.txtSerie.text = "Série: ${t.numeroSerie}"
+
     }
 
     fun add(item: TagView) {
