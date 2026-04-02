@@ -83,8 +83,12 @@ class MainActivity : AppCompatActivity() {
     private fun processaTag(epc: String) {
         if (lidas.contains(epc)) return
         lidas.add(epc)
+
+        tagService.enviarLeituraAndroid(epc)
+
         consultaServidor(epc)
     }
+
 
     private fun consultaServidor(epc: String) {
 

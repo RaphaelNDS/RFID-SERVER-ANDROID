@@ -137,4 +137,30 @@ class TagService(private val context: Context) {
             }
         })
     }
+
+    fun enviarLeituraAndroid(epc: String) {
+
+        val url = "${baseUrl()}/api/android/leitura"
+
+        val body = JSONObject()
+            .put("tag", epc)
+            .toString()
+            .toRequestBody("application/json".toMediaType())
+
+        val request = Request.Builder()
+            .url(url)
+            .post(body)
+            .build()
+
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                Log.e("TAG_SERVICE", "Erro ao enviar leitura", e)
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                Log.d("TAG_SERVICE", "Leitura enviada: ${response.code}")
+            }
+        })
+    }
+
 }

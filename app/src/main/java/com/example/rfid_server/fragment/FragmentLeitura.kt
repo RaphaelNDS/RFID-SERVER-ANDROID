@@ -42,12 +42,15 @@ class FragmentLeitura : Fragment(R.layout.frag_leitura) {
     }
 
     fun receberEpc(epc: String) {
+        tagService.enviarLeituraAndroid(epc)
+
         if (servidorOnline) {
             consultar(epc)
         } else {
             modoOffline(epc)
         }
     }
+
 
     private fun consultar(epc: String) {
         tagService.buscarTag(epc) { tag ->
