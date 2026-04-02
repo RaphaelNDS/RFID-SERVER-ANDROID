@@ -5,6 +5,6 @@ import retrofit2.http.POST
 
 interface TagNaoApi {
 
-    @POST("api/tags/naocadastrada")
+    @POST("api/rfid/naocadastrada")
     suspend fun enviarNaoCadastrada(@Body req: LeituraRequest)
 }

@@ -22,7 +22,7 @@ class TagService(private val context: Context) {
 
     fun testarConexao(callback: (Boolean) -> Unit) {
 
-        val url = "${AppConfig.getBaseUrl(context)}/api/status"
+        val url = "${AppConfig.getBaseUrl(context)}/api/tags/ping"
 
         val request = Request.Builder()
             .url(url)

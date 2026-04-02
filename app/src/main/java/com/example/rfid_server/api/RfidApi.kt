@@ -1,18 +1,19 @@
 package com.example.rfid_server.api
 
-import retrofit2.http.Body
-import retrofit2.http.POST
+import retrofit2.http.GET
+import retrofit2.http.Path
 
 interface RfidApi {
 
-    @POST("api/rfid/ler")
-    suspend fun lerTag(@Body req: LeituraRequest): TagResponse?
+    @GET("api/tags/{epc}")
+    suspend fun buscarTag(@Path("epc") epc: String): TagResponse?
 }
 
-data class LeituraRequest(val tag: String)
-
 data class TagResponse(
-    val modelo: String,
+    val codigoInterno: String,
+    val tipo: String?,
+    val marca: String?,
+    val modelo: String?,
     val patrimonio: String,
-    val numeroSerie: String
+    val numeroSerie: String,
 )
