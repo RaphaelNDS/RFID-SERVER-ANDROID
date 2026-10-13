@@ -19,6 +19,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "RFID-Server"
+rootProject.name = "RFID-Android"
 include(":app")
  

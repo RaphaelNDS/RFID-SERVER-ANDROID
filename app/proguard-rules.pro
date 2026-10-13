@@ -1,21 +1,25 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Regras do R8 (minificação do APK de release). OkHttp, Room e WorkManager trazem as
+# regras deles nas próprias bibliotecas; aqui fica só o que é específico deste app.
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# ---------- SDK do leitor Zebra (gradle/libs/*.aar) ----------
+# O SDK usa reflexão e código nativo, e várias AARs não trazem regras próprias.
+# Se o R8 renomear ou remover algo, o leitor deixa de conectar sem erro claro: mantém tudo.
+-keep class com.zebra.** { *; }
+-keep interface com.zebra.** { *; }
+-keep class vendor.zebra.** { *; }
+-dontwarn com.zebra.**
+-dontwarn vendor.zebra.**
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# ---------- Rastreamento de erros ----------
+# Mantém número de linha nos stack traces do release (o nome do arquivo vira "SourceFile").
+# Para traduzir um stack trace ofuscado: app/build/outputs/mapping/release/mapping.txt
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# ---------- Logs ----------
+# No release, remove Log.d e Log.v (detalhe para desenvolvimento, alguns por tag lida).
+# Log.i, Log.w e Log.e continuam: são os que ajudam a investigar problema em campo.
+-assumenosideeffects class android.util.Log {
+    public static int d(...);
+    public static int v(...);
+}

@@ -6,8 +6,9 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 
-class TagNaoAdapter(private val list: MutableList<String>) :
-    RecyclerView.Adapter<TagNaoAdapter.VH>() {
+class TagNaoAdapter : RecyclerView.Adapter<TagNaoAdapter.VH>() {
+
+    private var list: List<String> = emptyList()
 
     class VH(view: View) : RecyclerView.ViewHolder(view) {
         val txt = view.findViewById<TextView>(android.R.id.text1)
@@ -25,8 +26,8 @@ class TagNaoAdapter(private val list: MutableList<String>) :
         holder.txt.text = list[position]
     }
 
-    fun add(epc: String) {
-        list.add(0, epc)
-        notifyItemInserted(0)
+    fun atualizar(novaLista: List<String>) {
+        list = novaLista
+        notifyDataSetChanged()
     }
 }

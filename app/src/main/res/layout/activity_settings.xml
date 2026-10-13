@@ -29,8 +29,15 @@
         android:id="@+id/edtIp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="IP do servidor (ex: 182.17.10.130)"
+        android:hint="IP do servidor (ex: 192.168.0.10 ou 192.168.0.10:8443)"
         android:inputType="text"/>
+
+    <EditText
+        android:id="@+id/edtChave"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Chave do coletor (fornecida pelo administrador)"
+        android:inputType="textPassword"/>
 
     <Button
         android:id="@+id/btnSalvar"
@@ -38,4 +45,13 @@
         android:layout_height="wrap_content"
         android:text="Salvar"
         android:layout_marginTop="16dp"/>
+
+    <!-- Impressão digital do certificado HTTPS confirmado (conferir com a tela Status do servidor) -->
+    <TextView
+        android:id="@+id/txtCertificado"
+        android:typeface="monospace"
+        android:textSize="12sp"
+        android:layout_marginTop="16dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
 </LinearLayout>

@@ -2,6 +2,12 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <item
+        android:id="@+id/menu_nova_leitura"
+        android:title="Nova leitura"
+        android:icon="@android:drawable/ic_menu_revert"
+        app:showAsAction="always" />
+
+    <item
         android:id="@+id/menu_settings"
         android:title="Configurações"
         android:icon="@android:drawable/ic_menu_manage"
@@ -12,5 +18,18 @@
         android:title="Localizar patrimônio"
         android:icon="@android:drawable/ic_menu_search"
         app:showAsAction="always" />
+
+    <!-- Na barra se couber; senão, no menu de três pontos -->
+    <item
+        android:id="@+id/menu_inventario"
+        android:title="Inventário por local"
+        android:icon="@android:drawable/ic_menu_agenda"
+        app:showAsAction="ifRoom" />
+
+    <!-- Sempre no menu de três pontos, para não ser tocado sem querer -->
+    <item
+        android:id="@+id/menu_sair"
+        android:title="Sair (trocar operador)"
+        app:showAsAction="never" />
 
 </menu>

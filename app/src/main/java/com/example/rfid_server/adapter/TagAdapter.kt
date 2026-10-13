@@ -8,8 +8,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.rfid_server.R
 import com.example.rfid_server.view.TagView
 
-class TagAdapter(private val list: MutableList<TagView>) :
-    RecyclerView.Adapter<TagAdapter.VH>() {
+class TagAdapter : RecyclerView.Adapter<TagAdapter.VH>() {
+
+    private var list: List<TagView> = emptyList()
 
     class VH(view: View) : RecyclerView.ViewHolder(view) {
         val txtCodigoInterno: TextView = view.findViewById(R.id.txtCodigoInterno)
@@ -41,8 +42,8 @@ class TagAdapter(private val list: MutableList<TagView>) :
 
     }
 
-    fun add(item: TagView) {
-        list.add(0, item)
-        notifyItemInserted(0)
+    fun atualizar(novaLista: List<TagView>) {
+        list = novaLista
+        notifyDataSetChanged()
     }
 }

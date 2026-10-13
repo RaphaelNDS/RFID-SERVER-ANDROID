@@ -10,16 +10,22 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.example.rfid_server.Proximidade
 import com.example.rfid_server.R
 import com.example.rfid_server.RfidManager
+import com.example.rfid_server.service.RespostaServidor
 import com.example.rfid_server.service.TagService
 import android.os.*
+import android.util.Log
 import androidx.annotation.RequiresPermission
 
 
 class LocalizarActivity : AppCompatActivity() {
 
-    private var rfidManager: RfidManager? = null
+    // Leitor compartilhado com a tela principal (uma conexão só). Esta tela não desconecta
+    private lateinit var rfidManager: RfidManager
+    private var epcLocalizando: String? = null
+    private val ouvinte = RfidManager.OuvinteLeitura { _, rssi -> runOnUiThread { atualizarFeedback(rssi) } }
     private lateinit var txtStatus: TextView
     private lateinit var progress: ProgressBar
     private lateinit var edtPatrimonio: EditText
@@ -28,7 +34,8 @@ class LocalizarActivity : AppCompatActivity() {
     private lateinit var tagService: TagService
 
     private var lastFeedback = 0L
-    private lateinit var tone: ToneGenerator
+    // Nulo se o aparelho não liberar o gerador de som: a localização segue só com vibração
+    private var tone: ToneGenerator? = null
     private lateinit var vibrator: Vibrator
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,8 +48,9 @@ class LocalizarActivity : AppCompatActivity() {
         btnBuscar = findViewById(R.id.btnBuscar)
 
         tagService = TagService(this)
+        rfidManager = RfidManager.get(this)
 
-        tone = ToneGenerator(AudioManager.STREAM_MUSIC, 80)
+        tone = criarGeradorDeSom()
         vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
 
         btnBuscar.setOnClickListener {
@@ -62,17 +70,26 @@ class LocalizarActivity : AppCompatActivity() {
 
     private fun buscarEIniciar(patrimonio: String) {
 
-        tagService.buscarTagPorPatrimonio(patrimonio) { epc ->
+        tagService.buscarTagPorPatrimonio(patrimonio) { resposta ->
 
             runOnUiThread {
+                when (resposta) {
+                    is RespostaServidor.Sucesso -> {
+                        Log.i(TAG, "Patrimônio $patrimonio → tag ${resposta.valor}")
+                        txtStatus.text = "Localizando..."
+                        iniciarRFID(resposta.valor)
+                    }
 
-                if (epc == null) {
-                    txtStatus.text = "Patrimônio não encontrado"
-                    return@runOnUiThread
+                    RespostaServidor.NaoEncontrado -> {
+                        Log.i(TAG, "Patrimônio $patrimonio não encontrado no servidor")
+                        txtStatus.text = "Patrimônio não encontrado"
+                    }
+
+                    is RespostaServidor.Falha -> {
+                        Log.w(TAG, "Falha ao buscar o patrimônio $patrimonio: ${resposta.mensagem}")
+                        txtStatus.text = resposta.mensagem
+                    }
                 }
-
-                txtStatus.text = "Localizando..."
-                iniciarRFID(epc)
             }
         }
     }
@@ -81,46 +98,36 @@ class LocalizarActivity : AppCompatActivity() {
 
     private fun iniciarRFID(epc: String) {
 
-        if (rfidManager == null) {
+        epcLocalizando = epc
+        rfidManager.iniciarLocalizacao(epc)
 
-            rfidManager = RfidManager(this) { _, rssi ->
-                runOnUiThread { atualizarFeedback(rssi) }
-            }
-
-            if (rfidManager?.connect() != true) {
-                toast("Erro ao conectar RFID")
-                return
-            }
+        if (rfidManager.conectado) {
+            txtStatus.text = "Aperte o gatilho para localizar"
+            return
         }
 
-        rfidManager?.startLocating(epc)
-        txtStatus.text = "Aperte o gatilho para localizar"
+        txtStatus.text = "Conectando ao leitor RFID..."
+        rfidManager.conectar { ok ->
+            runOnUiThread {
+                if (ok) {
+                    txtStatus.text = "Aperte o gatilho para localizar"
+                } else {
+                    Log.e(TAG, "Leitor RFID não conectado: não é possível localizar")
+                    txtStatus.text = "Erro ao conectar RFID"
+                    toast("Erro ao conectar RFID")
+                }
+            }
+        }
     }
 
     // ================= FEEDBACK =================
 
     private fun atualizarFeedback(rssi: Int) {
 
-        val nivel = when {
-            rssi >= -35 -> 100
-            rssi >= -40 -> 85
-            rssi >= -45 -> 70
-            rssi >= -50 -> 55
-            rssi >= -55 -> 40
-            rssi >= -60 -> 25
-            else -> 10
-        }
+        val nivel = Proximidade.nivel(rssi)
 
         progress.progress = nivel
-
-        txtStatus.text = when {
-            nivel >= 90 -> "🔥 Tag muito próxima"
-            nivel >= 70 -> "Muito perto"
-            nivel >= 50 -> "Aproximando"
-            nivel >= 30 -> "Longe"
-            else -> "Muito longe"
-        }
-
+        txtStatus.text = Proximidade.descricao(nivel)
 
         emitirSomEVibracao(nivel)
     }
@@ -130,49 +137,65 @@ class LocalizarActivity : AppCompatActivity() {
 
         val agora = System.currentTimeMillis()
 
-        val intervalo = when {
-            nivel > 80 -> 120
-            nivel > 60 -> 250
-            nivel > 40 -> 450
-            nivel > 20 -> 700
-            else -> 1200
-        }
-
-        if (agora - lastFeedback < intervalo) return
+        if (agora - lastFeedback < Proximidade.intervaloFeedbackMs(nivel)) return
         lastFeedback = agora
 
         // 🔊 SOM
-        tone.startTone(ToneGenerator.TONE_PROP_BEEP, 80)
+        tone?.startTone(ToneGenerator.TONE_PROP_BEEP, 80)
 
         // 📳 VIBRAÇÃO
-        val duracao = when {
-            nivel > 80 -> 80
-            nivel > 60 -> 60
-            nivel > 40 -> 40
-            nivel > 20 -> 25
-            else -> 15
-        }
+        val duracao = Proximidade.duracaoVibracaoMs(nivel)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             vibrator.vibrate(
                 VibrationEffect.createOneShot(
-                    duracao.toLong(),
+                    duracao,
                     VibrationEffect.DEFAULT_AMPLITUDE
                 )
             )
         } else {
             @Suppress("DEPRECATION")
-            vibrator.vibrate(duracao.toLong())
+            vibrator.vibrate(duracao)
         }
     }
+
+    // O ToneGenerator usa um recurso nativo limitado do aparelho: se não for liberado, depois de
+    // abrir a tela várias vezes o construtor passa a lançar RuntimeException
+    private fun criarGeradorDeSom(): ToneGenerator? =
+        try {
+            ToneGenerator(AudioManager.STREAM_MUSIC, 80)
+        } catch (e: RuntimeException) {
+            Log.e(TAG, "Não foi possível criar o gerador de som: a localização vai funcionar só com vibração", e)
+            null
+        }
 
     private fun toast(msg: String) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
     }
 
+    // Enquanto esta tela está visível, as leituras vêm para cá (e não para a tela principal)
+    override fun onResume() {
+        super.onResume()
+        exigirSessao() ?: return
+        rfidManager.definirOuvinte(this, ouvinte)
+        epcLocalizando?.let { rfidManager.iniciarLocalizacao(it) }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        rfidManager.pararLocalizacao()
+        rfidManager.removerOuvinte(this)
+    }
+
     override fun onDestroy() {
         super.onDestroy()
-        rfidManager?.stopLocating()
-        rfidManager?.disconnect()
+
+        tone?.release()
+        tone = null
+        Log.d(TAG, "Tela de localização encerrada: gerador de som liberado")
+    }
+
+    companion object {
+        private const val TAG = "LOCALIZAR"
     }
 }

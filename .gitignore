@@ -13,3 +13,5 @@
 .externalNativeBuild
 .cxx
 local.properties
+# Cache de compilação do Kotlin 2.x (sessões e erros do daemon)
+.kotlin/

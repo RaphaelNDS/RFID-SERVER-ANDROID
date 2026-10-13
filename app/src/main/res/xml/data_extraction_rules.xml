@@ -1,19 +1,19 @@
-<?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
-   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
-   for details.
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Regras de backup para Android 12 (API 31) ou superior.
+   rfid_prefs.xml (AppConfig) guarda o IP do servidor e a CHAVE DO COLETOR: não pode ir para o
+   backup do Google nem ser copiado para outro aparelho, senão a chave sai do coletor.
+   rfid-local.db (BancoLocal) é a fila de leituras deste coletor: restaurada em outro aparelho,
+   reenviaria leituras antigas.
+   Para Android 8 a 11, as mesmas regras estão em backup_rules.xml.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <exclude domain="sharedpref" path="rfid_prefs.xml" />
+        <exclude domain="database" path="rfid-local.db" />
     </cloud-backup>
-    <!--
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <exclude domain="sharedpref" path="rfid_prefs.xml" />
+        <exclude domain="database" path="rfid-local.db" />
     </device-transfer>
-    -->
 </data-extraction-rules>

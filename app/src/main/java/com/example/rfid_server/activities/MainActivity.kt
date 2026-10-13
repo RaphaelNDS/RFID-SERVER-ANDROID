@@ -2,38 +2,73 @@ package com.example.rfid_server.activities
 
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
+import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
+import androidx.lifecycle.ViewModelProvider
 import androidx.viewpager2.widget.ViewPager2
+import com.example.rfid_server.AppConfig
+import com.example.rfid_server.BuildConfig
+import com.example.rfid_server.MainViewModel
 import com.example.rfid_server.R
 import com.example.rfid_server.RfidManager
+import com.example.rfid_server.SessaoAtual
 import com.example.rfid_server.service.TagService
 import com.example.rfid_server.adapter.MainPagerAdapter
-import com.example.rfid_server.fragment.FragmentLeitura
-import com.example.rfid_server.fragment.FragmentNaoCadastradas
+import com.example.rfid_server.dados.ContagemSessao
+import com.example.rfid_server.dados.RepositorioLeituras
+import com.example.rfid_server.sincronizacao.EstadoSincronizacao
+import com.example.rfid_server.sincronizacao.SincronizacaoWorker
+import com.example.rfid_server.sincronizacao.Sincronizador
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var rfidManager: RfidManager
-    private lateinit var tagService: TagService
-    private val lidas = mutableSetOf<String>()
+    private lateinit var repositorio: RepositorioLeituras
+    private lateinit var sincronizador: Sincronizador
+    private lateinit var viewModel: MainViewModel
 
     private lateinit var pager: ViewPager2
+    private lateinit var txtSincronizacao: TextView
+    private lateinit var txtContadores: TextView
+
+    // Com o app aberto, tenta enviar o que estiver pendente a cada minuto
+    private val handler = Handler(Looper.getMainLooper())
+    private val sincronizacaoPeriodica = object : Runnable {
+        override fun run() {
+            // A sessão pode expirar com a tela aberta (fim do turno): volta para o login
+            exigirSessao() ?: return
+            sincronizador.solicitar()
+            handler.postDelayed(this, INTERVALO_SINCRONIZACAO_MS)
+        }
+    }
+
+    // A leitura vai direto para o banco local; o Sincronizador cuida do servidor
+    private val ouvinte = RfidManager.OuvinteLeitura { epc, _ -> repositorio.registrar(epc) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val sessao = exigirSessao() ?: return
         setContentView(R.layout.activity_main)
 
         val toolbar = findViewById<Toolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
-        title = "RFID Server"
+        title = getString(R.string.app_name)
+        supportActionBar?.subtitle = "Operador: ${sessao.nome}"
 
         pager = findViewById(R.id.pager)
+        txtSincronizacao = findViewById(R.id.txtSincronizacao)
+        txtContadores = findViewById(R.id.txtContadores)
         val tabs = findViewById<TabLayout>(R.id.tabs)
 
         pager.adapter = MainPagerAdapter(this)
@@ -42,15 +77,73 @@ class MainActivity : AppCompatActivity() {
             tab.text = if (pos == 0) "Leitura" else "Não cadastradas"
         }.attach()
 
-        tagService = TagService(this)
+        repositorio = RepositorioLeituras.get(this)
+        sincronizador = Sincronizador.get(this)
+        viewModel = ViewModelProvider(this).get(MainViewModel::class.java)
+        rfidManager = RfidManager.get(this)
 
-        rfidManager = RfidManager(this) { epc, _ ->
-            runOnUiThread { processaTag(epc) }
+        // App aberto do zero: tela limpa, como antes. (Ao recriar por rotação, mantém a sessão.)
+        // O que não foi enviado continua na fila.
+        if (savedInstanceState == null) {
+            // Primeira linha útil do log ao investigar um problema: qual versão estava no coletor
+            Log.i(
+                TAG,
+                "${getString(R.string.app_name)} ${BuildConfig.VERSION_NAME} (código ${BuildConfig.VERSION_CODE}, " +
+                    "build ${BuildConfig.BUILD_TYPE}) iniciado — app ${BuildConfig.APPLICATION_ID}"
+            )
+            repositorio.iniciarNovaSessao("app aberto")
         }
 
-        if (!rfidManager.connect()) {
-            Toast.makeText(this, "Erro ao conectar RFID", Toast.LENGTH_LONG).show()
+        SincronizacaoWorker.agendarPeriodica(this)
+
+        viewModel.pendentes.observe(this) { atualizarAvisoSincronizacao() }
+        viewModel.estadoSincronizacao.observe(this) { atualizarAvisoSincronizacao() }
+        viewModel.contagem.observe(this) { txtContadores.text = it.resumo() }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        exigirSessao() ?: return
+
+        rfidManager.definirOuvinte(this, ouvinte)
+        conectarLeitor()
+
+        sincronizador.solicitar()
+        handler.postDelayed(sincronizacaoPeriodica, INTERVALO_SINCRONIZACAO_MS)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        rfidManager.removerOuvinte(this)
+        handler.removeCallbacks(sincronizacaoPeriodica)
+    }
+
+    private fun conectarLeitor() {
+        if (rfidManager.conectado) return
+
+        rfidManager.conectar { ok ->
+            if (!ok) {
+                runOnUiThread {
+                    Log.e(TAG, "Leitor RFID não conectado")
+                    Toast.makeText(this, "Erro ao conectar RFID", Toast.LENGTH_LONG).show()
+                }
+            }
         }
+    }
+
+    private fun atualizarAvisoSincronizacao() {
+        val pendentes = viewModel.pendentes.value ?: 0
+
+        if (pendentes == 0) {
+            txtSincronizacao.visibility = View.GONE
+            return
+        }
+
+        val estado = viewModel.estadoSincronizacao.value
+        val motivo = if (estado == null || estado == EstadoSincronizacao.SINCRONIZADO) "Enviando" else estado.descricao
+
+        txtSincronizacao.text = "$motivo — $pendentes leitura(s) guardada(s) no coletor, aguardando envio"
+        txtSincronizacao.visibility = View.VISIBLE
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -61,8 +154,18 @@ class MainActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
 
+            R.id.menu_nova_leitura -> {
+                confirmarNovaLeitura()
+                true
+            }
+
             R.id.menu_localizar -> {
                 startActivity(Intent(this, LocalizarActivity::class.java))
+                true
+            }
+
+            R.id.menu_inventario -> {
+                startActivity(Intent(this, InventarioActivity::class.java))
                 true
             }
 
@@ -71,49 +174,91 @@ class MainActivity : AppCompatActivity() {
                 true
             }
 
+            R.id.menu_sair -> {
+                confirmarSaida()
+                true
+            }
+
             else -> super.onOptionsItemSelected(item)
         }
     }
 
+    private fun confirmarSaida() {
+        val sessao = SessaoAtual.get(this) ?: return run { exigirSessao() }
+        val pendentes = viewModel.pendentes.value ?: 0
+
+        val mensagem = buildString {
+            append("Sair como ${sessao.nome}? O próximo operador entra com o próprio usuário.")
+            if (pendentes > 0) {
+                append("\n\n$pendentes registro(s) ainda não chegaram ao servidor: continuam guardados no coletor e serão enviados com o seu nome.")
+            }
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Sair do coletor")
+            .setMessage(mensagem)
+            .setPositiveButton("Sair") { _, _ -> sair(sessao.token, sessao.email) }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun sair(token: String, email: String) {
+        Log.i(TAG, "Operador $email saiu do coletor")
+        rfidManager.removerOuvinte(this)
+        TagService(this).sair(token)   // sem rede, a sessão expira sozinha no servidor
+        AppConfig.limparSessao(this)
+
+        startActivity(
+            Intent(this, LoginActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        )
+        finish()
+    }
+
+    private fun confirmarNovaLeitura() {
+        val contagem = viewModel.contagem.value ?: ContagemSessao()
+
+        if (contagem.lidas == 0) {
+            Toast.makeText(this, "A tela já está vazia", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val pendentes = viewModel.pendentes.value ?: 0
+        val mensagem = buildString {
+            append("As ${contagem.lidas} tag(s) lidas vão sair da tela, e a mesma tag poderá ser lida de novo.")
+            if (pendentes > 0) {
+                append("\n\n$pendentes leitura(s) ainda não chegaram ao servidor: elas continuam guardadas no coletor e serão enviadas assim que possível.")
+            }
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Começar nova leitura?")
+            .setMessage(mensagem)
+            .setPositiveButton("Nova leitura") { _, _ ->
+                Log.i(TAG, "Operador iniciou nova leitura (${contagem.lidas} tag(s) na tela, $pendentes aguardando envio)")
+                viewModel.novaLeitura()
+            }
+            .setNegativeButton("Cancelar") { _, _ ->
+                Log.d(TAG, "Nova leitura cancelada pelo operador")
+            }
+            .show()
+    }
 
     private fun abrirConfiguracoes() {
         startActivity(Intent(this, SettingsActivity::class.java))
     }
 
-    private fun processaTag(epc: String) {
-        if (lidas.contains(epc)) return
-        lidas.add(epc)
+    override fun onDestroy() {
+        super.onDestroy()
 
-        tagService.enviarLeituraAndroid(epc)
-
-        consultaServidor(epc)
-    }
-
-
-    private fun consultaServidor(epc: String) {
-
-        tagService.buscarTag(epc) { tag ->
-            runOnUiThread {
-
-                val fragLeitura =
-                    supportFragmentManager.findFragmentByTag("f0")
-                            as? FragmentLeitura
-
-                val fragNao =
-                    supportFragmentManager.findFragmentByTag("f1")
-                            as? FragmentNaoCadastradas
-
-                if (tag != null) {
-                    fragLeitura?.adicionarTag(tag)
-                } else {
-                    fragNao?.adicionarTag(epc)
-                }
-            }
+        // Só solta o leitor quando o app está saindo de verdade (não numa rotação de tela)
+        if (isFinishing) {
+            rfidManager.desconectar()
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        rfidManager.disconnect()
+    companion object {
+        private const val TAG = "MAIN"
+        private const val INTERVALO_SINCRONIZACAO_MS = 60_000L
     }
 }
