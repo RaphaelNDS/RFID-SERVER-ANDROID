@@ -11,6 +11,7 @@ import com.example.rfid_server.api.ConfiancaCertificado
 import com.example.rfid_server.dados.CadastroEntity
 import com.example.rfid_server.dados.CatalogoColetor
 import com.example.rfid_server.dados.EsperadoLocal
+import com.example.rfid_server.dados.VersaoPublicada
 import com.example.rfid_server.view.TagView
 import okhttp3.Call
 import okhttp3.Callback
@@ -24,7 +25,9 @@ import okhttp3.Response
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
+import java.io.File
 import java.io.IOException
+import java.security.MessageDigest
 import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneId
@@ -426,6 +429,95 @@ class TagService internal constructor(
                 })
             }
         })
+    }
+
+    // ================= ATUALIZAÇÃO DO APP =================
+
+    /** Versão publicada no servidor. NaoEncontrado = nenhuma publicada (ou servidor sem essa função). Sem operador. */
+    fun consultarAtualizacao(callback: (RespostaServidor<VersaoPublicada>) -> Unit) {
+        val url = url("atualizacao") ?: return callback(falhaEndereco())
+        val descricao = "consultar a versão publicada do app"
+
+        // Header de sessão em branco: a consulta acontece na tela de login, sem operador
+        val request = Request.Builder().url(url).header(HttpClient.HEADER_SESSAO, "").get().build()
+
+        client.newCall(request).enqueue(object : Callback {
+
+            override fun onFailure(call: Call, e: IOException) {
+                callback(falhaConexao(descricao, e))
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                callback(response.use {
+                    when {
+                        it.code == 204 || it.code == 404 -> RespostaServidor.NaoEncontrado
+                        !it.isSuccessful -> falhaHttp(it, descricao)
+                        else -> {
+                            val corpo = it.body?.string().orEmpty()
+                            try {
+                                RespostaServidor.Sucesso(VersaoPublicada.deJson(corpo))
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Resposta inválida ao $descricao: ${corpo.take(120)}", e)
+                                RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Resposta inválida do servidor")
+                            }
+                        }
+                    }
+                })
+            }
+        })
+    }
+
+    /**
+     * Baixa o APK da [versao] para [destino] e confere o SHA-256 antes de devolver. Arquivo truncado ou
+     * diferente é apagado e volta como falha. [progresso] recebe os bytes já baixados. Bloqueante.
+     */
+    fun baixarAtualizacaoAgora(versao: VersaoPublicada, destino: File, progresso: (Long) -> Unit = {}): RespostaServidor<File> {
+        val url = url("atualizacao", "apk") ?: return falhaEndereco()
+        val descricao = "baixar a versão ${versao.versaoNome} do app"
+        val request = Request.Builder().url(url).header(HttpClient.HEADER_SESSAO, "").get().build()
+
+        return try {
+            client.newCall(request).execute().use { response ->
+                when {
+                    response.code == 404 -> RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "A versão não está mais disponível no servidor")
+                    !response.isSuccessful -> falhaHttp(response, descricao)
+                    else -> salvarConferindo(response, versao, destino, progresso)
+                }
+            }
+        } catch (e: IOException) {
+            destino.delete()
+            falhaConexao(descricao, e)
+        }
+    }
+
+    private fun salvarConferindo(response: Response, versao: VersaoPublicada, destino: File, progresso: (Long) -> Unit): RespostaServidor<File> {
+        val digest = MessageDigest.getInstance("SHA-256")
+        var total = 0L
+
+        destino.parentFile?.mkdirs()
+        response.body!!.byteStream().use { entrada ->
+            destino.outputStream().use { saida ->
+                val buffer = ByteArray(64 * 1024)
+                while (true) {
+                    val lidos = entrada.read(buffer)
+                    if (lidos < 0) break
+                    saida.write(buffer, 0, lidos)
+                    digest.update(buffer, 0, lidos)
+                    total += lidos
+                    progresso(total)
+                }
+            }
+        }
+
+        val sha = digest.digest().joinToString("") { "%02x".format(it) }
+        if (sha != versao.sha256 || total != versao.tamanho) {
+            destino.delete()
+            Log.e(TAG, "APK da versão ${versao.versaoNome} baixado não confere ($total bytes, SHA-256 $sha; esperado ${versao.tamanho} bytes, ${versao.sha256}): descartado")
+            return RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "O arquivo baixado não confere (incompleto ou corrompido). Tente de novo")
+        }
+
+        Log.i(TAG, "APK da versão ${versao.versaoNome} (código ${versao.codigo}) baixado e conferido: $total bytes, SHA-256 confere")
+        return RespostaServidor.Sucesso(destino)
     }
 
     // ================= INVENTÁRIO POR LOCAL =================

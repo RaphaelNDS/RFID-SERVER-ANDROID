@@ -428,6 +428,60 @@ class TagServiceTest {
         assertEquals(RespostaServidor.NaoEncontrado, resposta)
     }
 
+    // ================= atualização do app =================
+
+    private val apkFalso = "conteúdo do APK".toByteArray()
+    private val shaApkFalso = java.security.MessageDigest.getInstance("SHA-256").digest(apkFalso).joinToString("") { "%02x".format(it) }
+    private fun versao(sha: String = shaApkFalso, tamanho: Long = apkFalso.size.toLong()) =
+        com.example.rfid_server.dados.VersaoPublicada("1.5.0", 20, tamanho, sha, null)
+
+    @Test
+    fun `consultarAtualizacao sem versao publicada volta NaoEncontrado e vai sem sessao`() {
+        servidor.enqueue(MockResponse().setResponseCode(204))
+
+        val resposta = aguardar<RespostaServidor<com.example.rfid_server.dados.VersaoPublicada>> { service.consultarAtualizacao(it) }
+
+        assertEquals(RespostaServidor.NaoEncontrado, resposta)
+        val requisicao = proximaRequisicao()
+        assertEquals("/api/android/atualizacao", requisicao.path)
+        assertNull(requisicao.getHeader(HttpClient.HEADER_SESSAO))
+    }
+
+    @Test
+    fun `consultarAtualizacao le a versao publicada`() {
+        servidor.enqueue(json(200, """{"versaoNome":"1.5.0","codigo":20,"tamanho":10,"sha256":"$shaApkFalso","notas":null}"""))
+
+        val resposta = aguardar<RespostaServidor<com.example.rfid_server.dados.VersaoPublicada>> { service.consultarAtualizacao(it) }
+
+        assertEquals(20, (resposta as RespostaServidor.Sucesso).valor.codigo)
+    }
+
+    @Test
+    fun `baixarAtualizacao confere o SHA-256 e devolve o arquivo`() {
+        servidor.enqueue(MockResponse().setResponseCode(200).setBody(okio.Buffer().write(apkFalso)))
+        val destino = java.io.File.createTempFile("atualizacao", ".apk").apply { delete() }
+        val progresso = mutableListOf<Long>()
+
+        val resposta = service.baixarAtualizacaoAgora(versao(), destino) { progresso += it }
+
+        assertTrue(resposta is RespostaServidor.Sucesso)
+        assertTrue(destino.readBytes().contentEquals(apkFalso))
+        assertEquals(apkFalso.size.toLong(), progresso.last())
+        assertEquals("/api/android/atualizacao/apk", proximaRequisicao().path)
+        destino.delete()
+    }
+
+    @Test
+    fun `arquivo baixado que nao confere e apagado`() {
+        servidor.enqueue(MockResponse().setResponseCode(200).setBody(okio.Buffer().write(apkFalso)))
+        val destino = java.io.File.createTempFile("atualizacao", ".apk").apply { delete() }
+
+        val resposta = service.baixarAtualizacaoAgora(versao(sha = "0".repeat(64)), destino)
+
+        assertTrue((resposta as RespostaServidor.Falha).mensagem.contains("não confere"))
+        assertTrue("Arquivo errado não fica no aparelho", !destino.exists())
+    }
+
     // ================= cadastro de etiqueta =================
 
     private fun cadastroCompleto() = com.example.rfid_server.dados.CadastroEntity(

@@ -77,6 +77,9 @@ class LoginActivity : AppCompatActivity() {
             }
             txtStatus.text.toString() in AVISOS_CONFIGURACAO -> txtStatus.visibility = View.GONE
         }
+
+        // Início do turno: oferece a versão nova do app, se o servidor publicou uma
+        if (falta == null) AtualizadorApp(this).verificar(manual = false)
     }
 
     /** O que falta configurar para o coletor conseguir falar com o servidor, ou null se está tudo certo. */

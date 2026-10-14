@@ -176,6 +176,21 @@ chave de debug de quem fez o build) **não** aceitam o APK de produção por cim
 principal que não há nada "aguardando envio", desinstale o app antigo e instale o novo. Depois disso, as
 próximas versões instalam por cima normalmente.
 
+### Atualização pelo servidor
+
+Depois da primeira instalação do APK assinado, as versões seguintes chegam pelo servidor:
+
+1. Gere o APK de produção (`./gradlew :app:assembleRelease`) e publique-o na tela **App dos coletores** do
+   servidor (somente ADMIN).
+2. Na tela de login (no máximo uma consulta a cada 30 min) ou em Configurações → **Procurar atualização do app**, o
+   coletor oferece a versão nova, com o que mudou e o tamanho.
+3. Na primeira vez, o Android pede para autorizar o app a instalar atualizações ("Permitir desta fonte").
+4. O app baixa o APK, confere o SHA-256 informado pelo servidor e abre o instalador do Android; o operador confirma.
+   O Android só aceita o APK assinado com a mesma chave do app instalado. A fila de leituras e as configurações
+   continuam depois da atualização.
+
+O servidor só publica o APK assinado com a chave da empresa e com código de versão maior que o publicado.
+
 Observação: o **KSP2** está ligado no `gradle.properties` porque o KSP1 quebra o Room 2.8 ao ler o esquema.
 
 Estrutura (`app/src/main/java/com/example/rfid_server`):

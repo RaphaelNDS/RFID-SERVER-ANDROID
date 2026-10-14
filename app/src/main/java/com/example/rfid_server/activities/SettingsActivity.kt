@@ -47,6 +47,10 @@ class SettingsActivity : AppCompatActivity() {
         edtChave.setText(AppConfig.getChaveDispositivo(this))
         mostrarCertificadoConfirmado()
         findViewById<TextView>(R.id.txtVersao).text = "${getString(R.string.app_name)} · ${VersaoApp.descricao()}"
+        findViewById<Button>(R.id.btnAtualizacao).setOnClickListener {
+            Log.i(TAG, "Operador pediu para procurar atualização do app")
+            AtualizadorApp(this).verificar(manual = true)
+        }
 
         findViewById<CheckBox>(R.id.chkAvisoLeitura).apply {
             isChecked = AppConfig.isAvisoLeitura(this@SettingsActivity)

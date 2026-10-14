@@ -17,6 +17,9 @@
     <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
+    <!-- Atualização pelo servidor: o app baixa o APK novo e pede ao Android para instalar (o operador confirma) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -56,6 +59,16 @@
 
         <activity android:name=".activities.CadastroTagActivity" />
 
+        <!-- Entrega ao instalador do Android o APK baixado (fica no cache do app, pasta atualizacao/) -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.atualizacao"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/arquivos_atualizacao" />
+        </provider>
 
     </application>
 
