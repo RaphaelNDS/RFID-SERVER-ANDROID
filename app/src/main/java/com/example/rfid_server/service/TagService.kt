@@ -312,6 +312,44 @@ class TagService internal constructor(
         })
     }
 
+    /**
+     * "Esqueceu a senha?": pede uma senha nova ao administrador. O servidor responde igual exista ou não o
+     * email; o [callback] recebe a mensagem para mostrar ao operador. Exige rede.
+     */
+    fun esqueciSenha(email: String, callback: (RespostaServidor<String>) -> Unit) {
+        val url = url("esqueci-senha") ?: return callback(falhaEndereco())
+        val corpo = JSONObject().put("email", email)
+
+        // Ninguém está logado na tela de login: o pedido vai sem sessão de operador
+        val request = Request.Builder().url(url).header(HttpClient.HEADER_SESSAO, "")
+            .post(corpo.toString().toRequestBody(json)).build()
+
+        client.newCall(request).enqueue(object : Callback {
+
+            override fun onFailure(call: Call, e: IOException) {
+                callback(falhaConexao("pedir nova senha para $email", e))
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                callback(response.use {
+                    when {
+                        it.isSuccessful -> {
+                            Log.i(TAG, "Pedido de nova senha para $email enviado ao administrador")
+                            RespostaServidor.Sucesso(mensagemDoServidor(it) ?: "Pedido enviado ao administrador.")
+                        }
+
+                        it.code == 404 -> {
+                            Log.e(TAG, "O servidor não conhece /api/android/esqueci-senha: servidor desatualizado?")
+                            RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Servidor desatualizado: peça a nova senha ao administrador")
+                        }
+
+                        else -> falhaHttp(it, "pedir nova senha")
+                    }
+                })
+            }
+        })
+    }
+
     // ================= INVENTÁRIO POR LOCAL =================
 
     /** Locais já usados em inventários (sugestões na tela do inventário). */

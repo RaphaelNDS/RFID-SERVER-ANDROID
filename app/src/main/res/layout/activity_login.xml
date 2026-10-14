@@ -54,6 +54,15 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
 
+        <!-- O pedido vai para o administrador, que gera uma senha temporária (trocada na web) -->
+        <Button
+            android:id="@+id/btnEsqueciSenha"
+            style="?android:attr/borderlessButtonStyle"
+            android:text="Esqueceu a senha?"
+            android:layout_marginTop="8dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"/>
+
         <!-- O IP e a chave do coletor precisam estar configurados antes do primeiro login -->
         <Button
             android:id="@+id/btnConfiguracoes"

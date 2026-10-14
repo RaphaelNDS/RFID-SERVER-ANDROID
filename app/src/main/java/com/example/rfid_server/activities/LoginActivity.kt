@@ -9,6 +9,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.example.rfid_server.AppConfig
 import com.example.rfid_server.R
@@ -52,6 +53,7 @@ class LoginActivity : AppCompatActivity() {
         edtSenha.setOnEditorActionListener { _, acao, _ ->
             if (acao == EditorInfo.IME_ACTION_DONE) { entrar(); true } else false
         }
+        findViewById<Button>(R.id.btnEsqueciSenha).setOnClickListener { esqueciSenha() }
         findViewById<Button>(R.id.btnConfiguracoes).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
@@ -92,6 +94,52 @@ class LoginActivity : AppCompatActivity() {
                     }
 
                     RespostaServidor.NaoEncontrado -> mostrarErro("Servidor não reconheceu o login")
+                }
+            }
+        }
+    }
+
+    /** "Esqueceu a senha?": confirma o email e manda o pedido ao administrador, que gera uma senha temporária. */
+    private fun esqueciSenha() {
+        val campoEmail = EditText(this).apply {
+            hint = "Email"
+            inputType = android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS or android.text.InputType.TYPE_CLASS_TEXT
+            setText(edtEmail.text.toString().trim())
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle("Esqueceu a senha?")
+            .setMessage("O pedido vai para o administrador do Sistema RFID, que vai te passar uma senha temporária.")
+            .setView(campoEmail)
+            .setPositiveButton("Pedir nova senha") { _, _ -> pedirNovaSenha(campoEmail.text.toString().trim()) }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun pedirNovaSenha(email: String) {
+        if (email.isEmpty()) {
+            mostrarErro("Informe o email para pedir uma senha nova")
+            return
+        }
+
+        txtStatus.visibility = View.GONE
+        Log.i(TAG, "Pedindo nova senha para $email")
+
+        TagService(this).esqueciSenha(email) { resposta ->
+            runOnUiThread {
+                when (resposta) {
+                    is RespostaServidor.Sucesso -> AlertDialog.Builder(this)
+                        .setTitle("Pedido enviado")
+                        .setMessage(resposta.valor)
+                        .setPositiveButton("OK", null)
+                        .show()
+
+                    is RespostaServidor.Falha -> {
+                        Log.w(TAG, "Pedido de nova senha para $email não foi enviado: ${resposta.mensagem}")
+                        mostrarErro("Não foi possível pedir a senha nova: ${resposta.mensagem}")
+                    }
+
+                    RespostaServidor.NaoEncontrado -> mostrarErro("Servidor não reconheceu o pedido de nova senha")
                 }
             }
         }
