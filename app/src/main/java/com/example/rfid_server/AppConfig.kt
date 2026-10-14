@@ -100,6 +100,24 @@ object AppConfig {
             .apply()
     }
 
+    // Esperado de cada local (JSON de /api/android/inventarios/esperado): o inventário mostra o que falta
+    // mesmo sem rede, com a última lista baixada. A chave ignora maiúsculas e espaços extras, como o servidor.
+    fun saveEsperadoJson(context: Context, local: String, json: String) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString(chaveEsperado(local), json)
+            .apply()
+    }
+
+    /** null se o esperado deste local nunca foi baixado neste coletor. */
+    fun getEsperadoJson(context: Context, local: String): String? {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return prefs.getString(chaveEsperado(local), null)
+    }
+
+    private fun chaveEsperado(local: String) =
+        KEY_ESPERADO_PREFIXO + local.trim().replace(Regex("\\s+"), " ").lowercase()
+
     // Bip e vibração a cada etiqueta nova na leitura e no inventário (ligado por padrão)
     fun setAvisoLeitura(context: Context, ligado: Boolean) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -157,5 +175,6 @@ object AppConfig {
     private const val KEY_SESSAO_CADASTRAR = "sessao_pode_cadastrar"
     private const val KEY_ULTIMO_EMAIL = "ultimo_email"
     private const val KEY_AVISO_LEITURA = "aviso_leitura"
+    private const val KEY_ESPERADO_PREFIXO = "esperado_"
 }
 

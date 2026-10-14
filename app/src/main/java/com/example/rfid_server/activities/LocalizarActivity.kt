@@ -67,6 +67,15 @@ class LocalizarActivity : AppCompatActivity() {
             txtStatus.text = "Buscando patrimônio..."
             buscarEIniciar(patrimonio)
         }
+
+        // Aberta pelo inventário (item que falta no local): já busca o patrimônio. Só na primeira criação,
+        // para não buscar de novo ao girar a tela
+        intent.getStringExtra(EXTRA_PATRIMONIO)?.takeIf { savedInstanceState == null && it.isNotBlank() }?.let { patrimonio ->
+            Log.i(TAG, "Localização do patrimônio $patrimonio aberta pelo inventário")
+            edtPatrimonio.setText(patrimonio)
+            txtStatus.text = "Buscando patrimônio..."
+            buscarEIniciar(patrimonio)
+        }
     }
 
     // ================= BUSCA =================
@@ -193,6 +202,8 @@ class LocalizarActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "LOCALIZAR"
 
+        /** Patrimônio a localizar assim que a tela abre (usado pelo inventário). */
+        const val EXTRA_PATRIMONIO = "patrimonio"
         private const val MSG_APERTE_GATILHO = "Aperte o gatilho para localizar"
         private const val MSG_AGUARDANDO_LEITOR = "Aguardando o leitor RFID conectar para localizar"
     }

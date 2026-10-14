@@ -380,6 +380,33 @@ class TagServiceTest {
         assertEquals("/api/android/inventarios/a%20b%2Fc/finalizar", proximaRequisicao().path)
     }
 
+    @Test
+    fun `buscarEsperado le a lista do local com o local codificado na url`() {
+        servidor.enqueue(json(200, """
+            {"local":"Sala 1/A","temReferencia":true,"inventarioReferencia":"inv-1",
+             "finalizadoEm":"2026-10-10T10:30:00-03:00","operador":"Ana",
+             "itens":[{"tag":"E1","patrimonio":"PAT-1","codigoInterno":null,"tipo":"Notebook","marca":"Dell","modelo":null}]}
+        """))
+
+        val resposta = aguardar<RespostaServidor<com.example.rfid_server.dados.EsperadoLocal>> { service.buscarEsperado("Sala 1/A", it) }
+
+        val esperado = (resposta as RespostaServidor.Sucesso).valor
+        assertTrue(esperado.temReferencia)
+        assertEquals("Ana", esperado.operador)
+        assertEquals("PAT-1", esperado.itens.single().patrimonio)
+        assertNull(esperado.itens.single().modelo)
+        assertEquals("/api/android/inventarios/esperado?local=Sala%201%2FA", proximaRequisicao().path)
+    }
+
+    @Test
+    fun `buscarEsperado em servidor antigo volta NaoEncontrado`() {
+        servidor.enqueue(json(404, "{}"))
+
+        val resposta = aguardar<RespostaServidor<com.example.rfid_server.dados.EsperadoLocal>> { service.buscarEsperado("Sala 1", it) }
+
+        assertEquals(RespostaServidor.NaoEncontrado, resposta)
+    }
+
     // ================= cadastro de etiqueta =================
 
     private fun cadastroCompleto() = com.example.rfid_server.dados.CadastroEntity(

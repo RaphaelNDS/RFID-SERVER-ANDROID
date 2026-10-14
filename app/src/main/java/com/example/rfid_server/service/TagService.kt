@@ -10,6 +10,7 @@ import com.example.rfid_server.api.CertificadoNaoConfirmadoException
 import com.example.rfid_server.api.ConfiancaCertificado
 import com.example.rfid_server.dados.CadastroEntity
 import com.example.rfid_server.dados.CatalogoColetor
+import com.example.rfid_server.dados.EsperadoLocal
 import com.example.rfid_server.view.TagView
 import okhttp3.Call
 import okhttp3.Callback
@@ -442,6 +443,27 @@ class TagService internal constructor(
 
             override fun onResponse(call: Call, response: Response) {
                 callback(response.use { interpretarLista(it, descricao) })
+            }
+        })
+    }
+
+    /**
+     * O que é esperado no [local] (o que foi encontrado no último inventário finalizado dele).
+     * NaoEncontrado = servidor de uma versão sem essa rota: o inventário segue sem a lista.
+     */
+    fun buscarEsperado(local: String, callback: (RespostaServidor<EsperadoLocal>) -> Unit) {
+        val url = url("inventarios", "esperado")?.newBuilder()?.addQueryParameter("local", local)?.build()
+            ?: return callback(falhaEndereco())
+        val descricao = "buscar o esperado do local '$local'"
+
+        client.newCall(Request.Builder().url(url).get().build()).enqueue(object : Callback {
+
+            override fun onFailure(call: Call, e: IOException) {
+                callback(falhaConexao(descricao, e))
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                callback(response.use { interpretarConsulta(it, descricao) { json -> EsperadoLocal.deJson(json.toString()) } })
             }
         })
     }
