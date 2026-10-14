@@ -43,6 +43,17 @@ class HttpClientTest {
     }
 
     @Test
+    fun `envia a versao instalada em toda requisicao`() {
+        servidor.enqueue(MockResponse().setResponseCode(200))
+
+        get(HttpClient.criar { "minha-chave-123" })
+
+        val recebida = servidor.takeRequest(5, TimeUnit.SECONDS)!!
+        assertEquals(com.example.rfid_server.BuildConfig.VERSION_NAME, recebida.getHeader(HttpClient.HEADER_VERSAO_APP))
+        assertEquals(com.example.rfid_server.BuildConfig.VERSION_CODE.toString(), recebida.getHeader(HttpClient.HEADER_VERSAO_CODIGO))
+    }
+
+    @Test
     fun `sem chave configurada nao envia o header`() {
         servidor.enqueue(MockResponse().setResponseCode(200))
 

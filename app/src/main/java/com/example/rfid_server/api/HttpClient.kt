@@ -3,6 +3,7 @@ package com.example.rfid_server.api
 import android.content.Context
 import android.util.Log
 import com.example.rfid_server.AppConfig
+import com.example.rfid_server.BuildConfig
 import com.example.rfid_server.SessaoAtual
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
@@ -26,6 +27,8 @@ object HttpClient {
     const val HEADER_CHAVE = "X-Chave-Dispositivo"
     const val HEADER_SESSAO = "X-Sessao-Operador"
     const val HEADER_MOMENTO = "X-Momento"
+    const val HEADER_VERSAO_APP = "X-Versao-App"
+    const val HEADER_VERSAO_CODIGO = "X-Versao-Codigo"
 
     private const val TAG = "HTTP_CLIENT"
 
@@ -73,6 +76,9 @@ object HttpClient {
                 val sessaoDoRegistro = original.header(HEADER_SESSAO)
                 val request = original.newBuilder()
                     .apply { if (chave.isNotBlank()) header(HEADER_CHAVE, chave) }
+                    // Versão instalada: o servidor mostra na tela Coletores quem está com o app desatualizado
+                    .header(HEADER_VERSAO_APP, BuildConfig.VERSION_NAME)
+                    .header(HEADER_VERSAO_CODIGO, BuildConfig.VERSION_CODE.toString())
                     .apply {
                         when {
                             sessaoDoRegistro == null -> sessaoAtual()?.let { header(HEADER_SESSAO, it) }
