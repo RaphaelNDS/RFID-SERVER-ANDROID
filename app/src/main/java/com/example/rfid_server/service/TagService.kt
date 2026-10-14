@@ -658,11 +658,16 @@ class TagService internal constructor(
     }
 
     private fun falhaEndereco() =
-        RespostaServidor.Falha(MotivoFalha.ENDERECO_INVALIDO, "Endereço do servidor inválido: verifique as Configurações")
+        if (baseUrl().isBlank()) RespostaServidor.Falha(MotivoFalha.ENDERECO_INVALIDO, MENSAGEM_NAO_CONFIGURADO)
+        else RespostaServidor.Falha(MotivoFalha.ENDERECO_INVALIDO, "Endereço do servidor inválido: verifique as Configurações")
 
     // Monta /api/android/<segmentos> codificando cada parte (EPC/patrimônio com "/" ou espaço não quebram a URL)
     private fun url(vararg segmentos: String): HttpUrl? {
         val endereco = baseUrl()
+        if (endereco.isBlank()) {
+            Log.w(TAG, "Servidor não configurado neste coletor: informe o IP nas Configurações do coletor")
+            return null
+        }
         val base = endereco.toHttpUrlOrNull() ?: run {
             Log.e(TAG, "Endereço do servidor inválido: $endereco")
             return null
@@ -688,6 +693,8 @@ class TagService internal constructor(
 
     companion object {
         private const val TAG = "TAG_SERVICE"
+
+        const val MENSAGEM_NAO_CONFIGURADO = "Servidor não configurado: informe o IP do servidor nas Configurações do coletor"
 
         /** Epoch em ms → ISO-8601 com o fuso do aparelho (ex.: 2026-10-13T13:03:51.337-03:00). */
         internal fun formatarDataHora(epochMs: Long): String =

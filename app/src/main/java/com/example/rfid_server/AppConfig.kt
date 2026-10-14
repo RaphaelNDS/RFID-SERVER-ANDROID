@@ -1,6 +1,7 @@
 package com.example.rfid_server
 
 import android.content.Context
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 object AppConfig {
 
@@ -11,7 +12,8 @@ object AppConfig {
     private const val KEY_CHAVE_DISPOSITIVO = "chave_dispositivo"
     private const val KEY_LOCAIS = "locais_inventario"
     private const val KEY_CATALOGO = "catalogo_json"
-    private const val DEFAULT_IP = "182.17.10.174"
+    // Sem IP padrão: antes ficava aqui o IP da máquina de desenvolvimento (182.17.10.x), e um coletor novo
+    // tentava falar com ele. Agora o coletor só conversa com o servidor depois de configurado.
 
     fun saveServerIp(context: Context, ip: String) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -22,7 +24,7 @@ object AppConfig {
 
     fun getServerIp(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        return prefs.getString(KEY_SERVER_IP, DEFAULT_IP) ?: DEFAULT_IP
+        return prefs.getString(KEY_SERVER_IP, "").orEmpty().trim()
     }
 
     // Chave cadastrada no servidor (rfid.dispositivos.chaves) para este coletor
@@ -137,7 +139,21 @@ object AppConfig {
         return prefs.getString(KEY_ULTIMO_EMAIL, "").orEmpty()
     }
 
-    fun getBaseUrl(context: Context): String = montarEndereco(getServerIp(context))
+    /** Endereço HTTPS do servidor, ou "" se o IP ainda não foi configurado neste coletor. */
+    fun getBaseUrl(context: Context): String =
+        getServerIp(context).takeIf { it.isNotBlank() }?.let(::montarEndereco).orEmpty()
+
+    /** IP do servidor e chave do coletor informados nas Configurações (sem isso não dá nem para fazer login). */
+    fun servidorConfigurado(context: Context): Boolean = getServerIp(context).isNotBlank()
+
+    fun chaveConfigurada(context: Context): Boolean = getChaveDispositivo(context).isNotBlank()
+
+    /** O que foi digitado no campo do servidor vira um endereço utilizável? (IP, nome, IP:porta ou http://...) */
+    fun enderecoValido(entrada: String): Boolean {
+        if (entrada.isBlank() || entrada.trim().any { it.isWhitespace() }) return false
+        val url = montarEndereco(entrada).toHttpUrlOrNull() ?: return false
+        return url.host.isNotBlank() && url.encodedPath == "/"
+    }
 
     /** Porta do HTTPS do servidor quando o endereço não informa outra (rfid.https.porta no servidor). */
     const val PORTA_HTTPS_PADRAO = 8443

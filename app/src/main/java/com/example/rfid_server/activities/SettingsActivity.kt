@@ -60,27 +60,55 @@ class SettingsActivity : AppCompatActivity() {
             testarServidor()
         }
 
-        btnSalvar.setOnClickListener {
-            val ip = edtIp.text.toString().trim()
+        btnSalvar.setOnClickListener { salvar() }
+    }
 
-            if (ip.isEmpty()) {
-                Toast.makeText(this, "Informe o IP do servidor", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
+    private fun salvar() {
+        val ip = edtIp.text.toString().trim()
+        val chave = edtChave.text.toString().trim()
 
-            AppConfig.saveServerIp(this, ip)
-            AppConfig.saveChaveDispositivo(this, edtChave.text.toString().trim())
-            Log.i(TAG, "Configurações salvas: servidor ${AppConfig.montarEndereco(ip)}")
-            Toast.makeText(this, "Configurações salvas!", Toast.LENGTH_SHORT).show()
-
-            // Leituras guardadas por falta de conexão ou chave errada podem ir agora
-            Sincronizador.get(this).solicitar()
-
-            testarServidor()
+        if (ip.isEmpty()) {
+            Toast.makeText(this, "Informe o IP do servidor", Toast.LENGTH_SHORT).show()
+            return
         }
+        if (!AppConfig.enderecoValido(ip)) {
+            Log.w(TAG, "Configurações não salvas: endereço do servidor inválido '$ip'")
+            Toast.makeText(this, "Endereço inválido. Use o IP (ex.: 192.168.0.10) ou IP:porta (ex.: 192.168.0.10:8443)", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val anterior = AppConfig.getServerIp(this)
+        AppConfig.saveServerIp(this, ip)
+        AppConfig.saveChaveDispositivo(this, chave)
+
+        val endereco = AppConfig.montarEndereco(ip)
+        when {
+            anterior.isBlank() -> Log.i(TAG, "Servidor configurado neste coletor: $endereco")
+            anterior != ip -> Log.i(TAG, "Servidor do coletor alterado de ${AppConfig.montarEndereco(anterior)} para $endereco")
+            else -> Log.i(TAG, "Configurações salvas: servidor $endereco")
+        }
+        if (chave.isEmpty()) {
+            Log.w(TAG, "Configurações salvas sem a chave do coletor: o servidor vai recusar as chamadas")
+            Toast.makeText(this, "Salvo, mas sem a chave do coletor o servidor recusa as chamadas", Toast.LENGTH_LONG).show()
+        } else {
+            Toast.makeText(this, "Configurações salvas!", Toast.LENGTH_SHORT).show()
+        }
+
+        // Leituras guardadas por falta de conexão ou chave errada podem ir agora
+        Sincronizador.get(this).solicitar()
+
+        testarServidor()
     }
 
     private fun testarServidor() {
+        // Coletor novo: não há servidor para testar (antes testava o IP de desenvolvimento que ficava no código)
+        if (!AppConfig.servidorConfigurado(this)) {
+            Log.i(TAG, "Coletor sem servidor configurado: aguardando o IP e a chave")
+            txtStatus.text = "Servidor: não configurado. Informe o IP do servidor e a chave do coletor e toque em Salvar"
+            txtStatus.setTextColor(Color.parseColor("#E65100"))
+            return
+        }
+
         txtStatus.text = "Servidor: testando..."
         txtStatus.setTextColor(Color.GRAY)
 

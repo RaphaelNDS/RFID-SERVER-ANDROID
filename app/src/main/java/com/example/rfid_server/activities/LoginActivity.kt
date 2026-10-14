@@ -59,7 +59,35 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
+    // Também ao voltar das Configurações: o aviso some assim que o coletor fica configurado
+    override fun onResume() {
+        super.onResume()
+        if (!::txtStatus.isInitialized) return   // sessão válida: a tela já foi para a leitura
+
+        val falta = faltaConfiguracao()
+        when {
+            falta != null -> {
+                Log.w(TAG, "Coletor sem configuração completa: $falta")
+                mostrarErro(falta)
+            }
+            txtStatus.text.toString() in AVISOS_CONFIGURACAO -> txtStatus.visibility = View.GONE
+        }
+    }
+
+    /** O que falta configurar para o coletor conseguir falar com o servidor, ou null se está tudo certo. */
+    private fun faltaConfiguracao(): String? = when {
+        !AppConfig.servidorConfigurado(this) -> AVISO_SEM_SERVIDOR
+        !AppConfig.chaveConfigurada(this) -> AVISO_SEM_CHAVE
+        else -> null
+    }
+
     private fun entrar() {
+        faltaConfiguracao()?.let {
+            Log.w(TAG, "Login não tentado: $it")
+            mostrarErro(it)
+            return
+        }
+
         val email = edtEmail.text.toString().trim()
         val senha = edtSenha.text.toString()
 
@@ -117,6 +145,11 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun pedirNovaSenha(email: String) {
+        faltaConfiguracao()?.let {
+            Log.w(TAG, "Pedido de nova senha não enviado: $it")
+            mostrarErro(it)
+            return
+        }
         if (email.isEmpty()) {
             mostrarErro("Informe o email para pedir uma senha nova")
             return
@@ -158,5 +191,11 @@ class LoginActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "LOGIN"
         const val EXTRA_MOTIVO = "motivo"
+
+        private const val AVISO_SEM_SERVIDOR =
+            "Coletor ainda não configurado: toque em \"Configurações do coletor\" e informe o IP do servidor e a chave do coletor"
+        private const val AVISO_SEM_CHAVE =
+            "Falta a chave do coletor: toque em \"Configurações do coletor\" e informe a chave fornecida pelo administrador"
+        private val AVISOS_CONFIGURACAO = setOf(AVISO_SEM_SERVIDOR, AVISO_SEM_CHAVE)
     }
 }

@@ -41,12 +41,12 @@ README com a API, a segurança e a instalação do lado do servidor.
 
 | Tela | O que faz |
 |---|---|
-| **Login** (tela inicial) | Email e senha do Sistema RFID. Botão "Configurações do coletor" para configurar antes do primeiro login. |
+| **Login** (tela inicial) | Email e senha do Sistema RFID. Botão "Configurações do coletor" para configurar antes do primeiro login: o app não tem IP de servidor padrão, e enquanto o IP e a chave não forem informados a tela avisa o que falta. |
 | **Principal** | Abas **Leitura** e **Não cadastradas**. Contadores: Lidas · Cadastradas · Não cadastradas · Aguardando. Uma faixa laranja avisa quando há registros aguardando envio. Menu: Nova leitura, Configurações, Localizar patrimônio, Inventário por local, Sair. |
 | **Localizar patrimônio** | Busca o equipamento pelo patrimônio e indica a proximidade pela força do sinal (RSSI), com bip e vibração. |
 | **Inventário por local** | Escolhe ou digita o local (com sugestões dos locais já usados), inicia, lê com o gatilho e finaliza. |
 | **Cadastrar etiqueta** | Ao tocar numa etiqueta não cadastrada: código interno (obrigatório), patrimônio, nº de série e tipo → marca → modelo em cascata. Avisa se o cadastro ficar incompleto. |
-| **Configurações** | Endereço do servidor (IP ou IP:porta), chave do coletor, testar conexão e confirmar o certificado. |
+| **Configurações** | Endereço do servidor (IP ou IP:porta, conferido antes de salvar), chave do coletor, testar conexão e confirmar o certificado. |
 
 ---
 
@@ -114,7 +114,8 @@ configurado no servidor). **Um coletor que fique mais tempo que isso sem rede pe
 
 Feita na tela **Configurações** (acessível também pela tela de login):
 
-1. **Endereço do servidor:** informe o IP (ou IP:porta). O app usa sempre `https://IP:8443`.
+1. **Endereço do servidor:** informe o IP (ou IP:porta). O app usa sempre `https://IP:8443`. Não há IP padrão:
+   um coletor novo só fala com o servidor depois de configurado.
 2. **Chave do coletor:** a mesma configurada para este coletor no servidor em `RFID_CHAVES_DISPOSITIVOS`
    (`nome:chave`). Vai no header `X-Chave-Dispositivo`.
 3. **Testar conexão:** no primeiro teste, o app mostra a **impressão digital SHA-256** do certificado do servidor.

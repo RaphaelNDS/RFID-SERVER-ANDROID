@@ -265,6 +265,27 @@ class TagServiceTest {
     }
 
     @Test
+    fun `coletor sem servidor configurado falha com mensagem propria e sem requisicao`() {
+        val naoConfigurado = TagService(HttpClient.criar { chave }) { "" }
+
+        val falha = naoConfigurado.buscarTagAgora("E1") as RespostaServidor.Falha
+        assertEquals(MotivoFalha.ENDERECO_INVALIDO, falha.motivo)
+        assertEquals(TagService.MENSAGEM_NAO_CONFIGURADO, falha.mensagem)
+
+        val lote = naoConfigurado.enviarLoteAgora(listOf("E1" to 0L), "sessao") as RespostaServidor.Falha
+        assertEquals(TagService.MENSAGEM_NAO_CONFIGURADO, lote.mensagem)
+        assertEquals(0, servidor.requestCount)
+    }
+
+    @Test
+    fun `endereco invalido configurado continua com a mensagem de endereco invalido`() {
+        val invalido = TagService(HttpClient.criar { chave }) { "isto não é uma url" }
+
+        val falha = invalido.buscarTagAgora("E1") as RespostaServidor.Falha
+        assertTrue(falha.mensagem.startsWith("Endereço do servidor inválido"))
+    }
+
+    @Test
     fun `testarConexao com endereco invalido indica endereco invalido`() {
         val semEndereco = TagService(HttpClient.criar { chave }) { "" }
 
