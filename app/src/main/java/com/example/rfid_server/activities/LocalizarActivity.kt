@@ -33,6 +33,7 @@ class LocalizarActivity : AppCompatActivity() {
     private lateinit var btnBuscar: Button
 
     private lateinit var tagService: TagService
+    private val avisoSessao = AvisoSessao(this)
 
     private var lastFeedback = 0L
     // Nulo se o aparelho não liberar o gerador de som: a localização segue só com vibração
@@ -183,12 +184,14 @@ class LocalizarActivity : AppCompatActivity() {
         exigirSessao() ?: return
         rfidManager.definirOuvinte(this, ouvinte)
         epcLocalizando?.let { rfidManager.iniciarLocalizacao(it) }
+        avisoSessao.iniciar()
     }
 
     override fun onPause() {
         super.onPause()
         rfidManager.pararLocalizacao()
         rfidManager.removerOuvinte(this)
+        avisoSessao.parar()
     }
 
     override fun onDestroy() {

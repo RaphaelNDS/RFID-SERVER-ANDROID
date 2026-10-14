@@ -56,6 +56,10 @@ README com a API, a segurança e a instalação do lado do servidor.
   desse usuário**: Leituras para ler e inventariar, RFID · Criar para cadastrar.
 - **Sessão de 12 h** (definida no servidor). Entrar exige rede; depois disso a sessão vale **mesmo offline**.
   Ao fim das 12 h o app volta para a tela de login. **Sair** encerra a sessão no servidor.
+- **Aviso antes de acabar:** a tela principal mostra até que horas a sessão vale ("sessão até 18:30"). Nas telas de
+  Leitura, Inventário e Localizar, o app avisa com 30 min e de novo com 5 min, e deixa **renovar** com a senha sem
+  sair da tela (é um login novo: renovar exige rede). O que está na tela e o que ainda não foi enviado continuam:
+  cada leitura guardada vai para o servidor com a sessão em que foi feita.
 - O token da sessão fica nas preferências do app (fora do backup do Android).
 - Cada leitura, inventário (quem abriu, quem leu cada etiqueta, quem finalizou) e cadastro guarda **quem fez**.
 - Login bloqueado por excesso de senhas erradas (regra do servidor): o app mostra quanto tempo esperar.

@@ -70,6 +70,9 @@ class InventarioActivity : AppCompatActivity() {
 
     private lateinit var aviso: AvisoLeitura
 
+    // Inventário costuma ser longo: avisa antes de a sessão acabar e deixa renovar sem sair da tela
+    private val avisoSessao = AvisoSessao(this)
+
     // Etiqueta nova no inventário: bip/vibração
     private val ouvinte = RfidManager.OuvinteLeitura { epc, _ -> repositorio.registrar(epc) { aviso.tagNova() } }
 
@@ -122,11 +125,13 @@ class InventarioActivity : AppCompatActivity() {
         super.onResume()
         exigirSessao() ?: return
         if (inventarioAtual != null) ativarLeitor()
+        avisoSessao.iniciar()
     }
 
     override fun onPause() {
         super.onPause()
         rfidManager.removerOuvinte(this)
+        avisoSessao.parar()
     }
 
     // Conecta o leitor, se preciso, e reconecta sozinho se cair; a situação aparece na faixa do topo

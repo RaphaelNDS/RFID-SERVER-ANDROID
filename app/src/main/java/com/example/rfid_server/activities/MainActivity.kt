@@ -57,6 +57,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var aviso: AvisoLeitura
 
     // A leitura vai direto para o banco local; o Sincronizador cuida do servidor. Tag nova: bip/vibração
+    // Avisa antes de a sessão acabar e deixa renovar sem sair da tela
+    private val avisoSessao = AvisoSessao(this) { mostrarOperador(it) }
+
     private val ouvinte = RfidManager.OuvinteLeitura { epc, _ -> repositorio.registrar(epc) { aviso.tagNova() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,7 +70,7 @@ class MainActivity : AppCompatActivity() {
         val toolbar = findViewById<Toolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
         title = getString(R.string.app_name)
-        supportActionBar?.subtitle = "Operador: ${sessao.nome}"
+        mostrarOperador(sessao)
 
         pager = findViewById(R.id.pager)
         txtSincronizacao = findViewById(R.id.txtSincronizacao)
@@ -114,12 +117,18 @@ class MainActivity : AppCompatActivity() {
 
         sincronizador.solicitar()
         handler.postDelayed(sincronizacaoPeriodica, INTERVALO_SINCRONIZACAO_MS)
+        avisoSessao.iniciar()
     }
 
     override fun onPause() {
         super.onPause()
         rfidManager.removerOuvinte(this)
         handler.removeCallbacks(sincronizacaoPeriodica)
+        avisoSessao.parar()
+    }
+
+    private fun mostrarOperador(sessao: com.example.rfid_server.SessaoOperador) {
+        supportActionBar?.subtitle = "Operador: ${sessao.nome} · sessão até ${AvisoSessao.horario(sessao.expiraEm)}"
     }
 
     private fun atualizarAvisoSincronizacao() {
