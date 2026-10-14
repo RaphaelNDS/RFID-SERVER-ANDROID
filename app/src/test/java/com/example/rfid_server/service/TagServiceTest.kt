@@ -428,6 +428,29 @@ class TagServiceTest {
         assertEquals(RespostaServidor.NaoEncontrado, resposta)
     }
 
+    // ================= erros do app =================
+
+    @Test
+    fun `enviarErrosAgora manda o lote sem sessao de operador`() {
+        servidor.enqueue(json(202, """{"recebidos":1,"novos":1,"descartados":0}"""))
+        val itens = org.json.JSONArray().put(JSONObject().put("id", "x").put("tipo", "FALHA_GERAL").put("mensagem", "m"))
+
+        val resposta = service.enviarErrosAgora(itens)
+
+        assertTrue(resposta is RespostaServidor.Sucesso)
+        val requisicao = proximaRequisicao()
+        assertEquals("/api/android/erros", requisicao.path)
+        assertNull(requisicao.getHeader(HttpClient.HEADER_SESSAO))
+        assertEquals(1, JSONObject(requisicao.body.readUtf8()).getJSONArray("itens").length())
+    }
+
+    @Test
+    fun `enviarErrosAgora em servidor antigo volta NaoEncontrado`() {
+        servidor.enqueue(json(404, "{}"))
+
+        assertEquals(RespostaServidor.NaoEncontrado, service.enviarErrosAgora(org.json.JSONArray()))
+    }
+
     // ================= atualização do app =================
 
     private val apkFalso = "conteúdo do APK".toByteArray()

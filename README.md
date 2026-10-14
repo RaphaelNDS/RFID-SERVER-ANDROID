@@ -212,7 +212,13 @@ SessaoOperador.kt, AppConfig.kt        sessão do operador e configurações
 Em português, filtráveis no Logcat pelas tags:
 
 `MAIN` · `LOGIN` · `SESSAO` · `LEITURAS` · `INVENTARIO` · `CADASTRO` · `SINCRONIZACAO` · `TAG_SERVICE` ·
-`HTTP_CLIENT` · `CERTIFICADO` · `RfidManager` · `BANCO_LOCAL`
+`HTTP_CLIENT` · `CERTIFICADO` · `RfidManager` · `BANCO_LOCAL` · `ERROS_APP` · `ATUALIZACAO` · `APP`
+
+**Erros enviados ao servidor.** Além do Logcat, o app guarda os travamentos e as falhas relevantes (envio recusado,
+erro do servidor, leitor RFID que não conecta, atualização que não baixou) num arquivo próprio e envia ao servidor
+quando há rede: aparecem na tela **Coletores → Erros** do servidor. Repetidos em sequência viram um registro com o
+número de vezes; token, chave do coletor e senhas são mascarados antes de guardar. Ficam no máximo 200 guardados
+no coletor enquanto não há rede.
 
 ---
 

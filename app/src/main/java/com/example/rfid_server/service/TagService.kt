@@ -431,6 +431,30 @@ class TagService internal constructor(
         })
     }
 
+    // ================= ERROS DO APP =================
+
+    /**
+     * Envia ao servidor um lote de erros do app (FilaErros). NaoEncontrado = servidor sem essa rota. Sem operador:
+     * o erro pode ter acontecido antes do login. Bloqueante.
+     */
+    fun enviarErrosAgora(itens: JSONArray): RespostaServidor<Unit> {
+        val url = url("erros") ?: return falhaEndereco()
+        val request = Request.Builder().url(url).header(HttpClient.HEADER_SESSAO, "")
+            .post(JSONObject().put("itens", itens).toString().toRequestBody(json)).build()
+
+        return try {
+            client.newCall(request).execute().use {
+                when {
+                    it.isSuccessful -> RespostaServidor.Sucesso(Unit)
+                    it.code == 404 -> RespostaServidor.NaoEncontrado
+                    else -> falhaHttp(it, "enviar ${itens.length()} erro(s) do app")
+                }
+            }
+        } catch (e: IOException) {
+            falhaConexao("enviar os erros do app", e)
+        }
+    }
+
     // ================= ATUALIZAÇÃO DO APP =================
 
     /** Versão publicada no servidor. NaoEncontrado = nenhuma publicada (ou servidor sem essa função). Sem operador. */

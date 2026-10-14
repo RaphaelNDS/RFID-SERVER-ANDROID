@@ -13,6 +13,8 @@ import androidx.core.content.FileProvider
 import com.example.rfid_server.AppConfig
 import com.example.rfid_server.BuildConfig
 import com.example.rfid_server.dados.VersaoPublicada
+import com.example.rfid_server.erros.RegistroErros
+import com.example.rfid_server.erros.TipoErro
 import com.example.rfid_server.service.RespostaServidor
 import com.example.rfid_server.service.TagService
 import java.io.File
@@ -136,6 +138,8 @@ class AtualizadorApp(private val activity: AppCompatActivity) {
                     is RespostaServidor.Sucesso -> instalar(versao, resposta.valor)
                     is RespostaServidor.Falha -> {
                         Log.e(TAG, "Atualização para a versão ${versao.versaoNome} não baixada: ${resposta.mensagem}")
+                        RegistroErros.registrar(activity, TipoErro.ATUALIZACAO,
+                            "Atualização para a versão ${versao.versaoNome} (código ${versao.codigo}) não baixada: ${resposta.mensagem}")
                         AlertDialog.Builder(activity)
                             .setTitle("Atualização não baixada")
                             .setMessage(resposta.mensagem)

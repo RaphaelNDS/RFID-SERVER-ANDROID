@@ -2,6 +2,8 @@ package com.example.rfid_server
 
 import android.content.Context
 import android.util.Log
+import com.example.rfid_server.erros.RegistroErros
+import com.example.rfid_server.erros.TipoErro
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import com.zebra.rfid.api3.ENUM_TRANSPORT
@@ -54,6 +56,10 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
     private var tentativasSemSucesso = 0
     private var proximaTentativa: ScheduledFuture<*>? = null
 
+    // Motivo da última falha de conexão (vai para o servidor na primeira falha de cada sequência)
+    private var motivoFalhaConexao = "motivo desconhecido"
+    private var erroFalhaConexao: Throwable? = null
+
     @Volatile
     private var dono: Any? = null
 
@@ -99,6 +105,10 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         }
 
         tentativasSemSucesso++
+        // Primeira falha de uma sequência: registra para a tela de erros do coletor no servidor (não a cada tentativa)
+        if (tentativasSemSucesso == 1) {
+            RegistroErros.registrar(appContext, TipoErro.LEITOR_RFID, "Leitor RFID não conectou: $motivoFalhaConexao", erroFalhaConexao)
+        }
         atualizarEstado(EstadoLeitor.DESCONECTADO)
         agendarNovaTentativa(ReconexaoLeitor.esperaMs(tentativasSemSucesso))
     }
@@ -133,6 +143,8 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
             val lista = readers?.GetAvailableRFIDReaderList()
 
             if (lista.isNullOrEmpty()) {
+                motivoFalhaConexao = "nenhum leitor RFID encontrado"
+                erroFalhaConexao = null
                 if (ReconexaoLeitor.deveRegistrar(tentativasSemSucesso + 1)) Log.e(TAG, "Nenhum leitor RFID encontrado")
                 return false
             }
@@ -147,6 +159,8 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
             true
 
         } catch (e: Exception) {
+            motivoFalhaConexao = "${e.javaClass.simpleName}: ${e.message.orEmpty()}"
+            erroFalhaConexao = e
             if (ReconexaoLeitor.deveRegistrar(tentativasSemSucesso + 1)) Log.e(TAG, "Erro ao conectar no leitor RFID", e)
             false
         }

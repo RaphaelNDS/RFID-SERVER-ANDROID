@@ -20,7 +20,9 @@
     <!-- Atualização pelo servidor: o app baixa o APK novo e pede ao Android para instalar (o operador confirma) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- RfidApp: guarda os travamentos do app para enviar ao servidor (tela Coletores → Erros) -->
     <application
+        android:name=".RfidApp"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"

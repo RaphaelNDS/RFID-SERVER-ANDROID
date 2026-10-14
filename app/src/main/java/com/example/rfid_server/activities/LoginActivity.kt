@@ -15,6 +15,7 @@ import com.example.rfid_server.AppConfig
 import com.example.rfid_server.R
 import com.example.rfid_server.SessaoAtual
 import com.example.rfid_server.VersaoApp
+import com.example.rfid_server.erros.RegistroErros
 import com.example.rfid_server.service.RespostaServidor
 import com.example.rfid_server.service.TagService
 
@@ -78,8 +79,13 @@ class LoginActivity : AppCompatActivity() {
             txtStatus.text.toString() in AVISOS_CONFIGURACAO -> txtStatus.visibility = View.GONE
         }
 
-        // Início do turno: oferece a versão nova do app, se o servidor publicou uma
-        if (falta == null) AtualizadorApp(this).verificar(manual = false)
+        if (falta == null) {
+            // Início do turno: oferece a versão nova do app, se o servidor publicou uma
+            AtualizadorApp(this).verificar(manual = false)
+            // Erros guardados (ex.: o app travou antes do login): vão para o servidor sem esperar a sincronização
+            val app = applicationContext
+            Thread { RegistroErros.enviarPendentes(app) }.start()
+        }
     }
 
     /** O que falta configurar para o coletor conseguir falar com o servidor, ou null se está tudo certo. */

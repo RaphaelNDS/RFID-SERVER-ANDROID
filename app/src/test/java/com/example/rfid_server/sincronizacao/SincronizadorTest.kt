@@ -50,12 +50,55 @@ class SincronizadorTest {
         servidor.shutdown()
     }
 
+    // Erros que o Sincronizador mandou guardar para o servidor (tipo, mensagem) e envios dos erros guardados
+    private val errosRegistrados = mutableListOf<Pair<String, String>>()
+    private var enviosDeErros = 0
+
     private fun sincronizador(executor: Executor = executorDireto) = Sincronizador(
         dao = dao,
         tagService = TagService(HttpClient.criar { "chave-teste" }) { servidor.url("/").toString().trimEnd('/') },
         executor = executor,
-        agendarNovaTentativa = { novasTentativasAgendadas++ }
+        agendarNovaTentativa = { novasTentativasAgendadas++ },
+        registrarErro = { tipo, mensagem -> errosRegistrados += tipo to mensagem },
+        enviarErros = { enviosDeErros++ }
     )
+
+    // ---------- Erros do app para o servidor ----------
+
+    @Test(timeout = 10_000)
+    fun `recusa definitiva fica registrada como erro para o servidor e os erros sao enviados`() {
+        dao.inserir(LeituraEntity(epc = "RUIM", lidoEm = 0))
+        servidor.enqueue(json(400, """{"status":400,"mensagem":"Informe a TAG RFID"}"""))
+
+        sincronizador().processarPendentes()
+
+        val (tipo, mensagem) = errosRegistrados.single()
+        assertEquals(com.example.rfid_server.erros.TipoErro.ENVIO_RECUSADO, tipo)
+        assertTrue("Sem o EPC, para recusas iguais se agruparem", mensagem.startsWith("Servidor recusou uma leitura:") && !mensagem.contains("RUIM"))
+        assertEquals("Sincronizou: aproveita para enviar os erros guardados", 1, enviosDeErros)
+    }
+
+    @Test(timeout = 10_000)
+    fun `erro do servidor fica registrado e os erros guardados ainda sao enviados`() {
+        dao.inserir(LeituraEntity(epc = "E1", lidoEm = 0))
+        servidor.enqueue(json(503))
+
+        sincronizador().processarPendentes()
+
+        assertEquals(com.example.rfid_server.erros.TipoErro.ERRO_SERVIDOR, errosRegistrados.single().first)
+        assertEquals(1, enviosDeErros)
+    }
+
+    @Test(timeout = 10_000)
+    fun `sem conexao nao registra erro nem tenta enviar os erros`() {
+        dao.inserir(LeituraEntity(epc = "E1", lidoEm = 0))
+        servidor.shutdown()
+
+        sincronizador().processarPendentes()
+
+        assertTrue(errosRegistrados.isEmpty())
+        assertEquals(0, enviosDeErros)
+    }
 
     private fun json(codigo: Int, corpo: String = "{}") =
         MockResponse().setResponseCode(codigo).setHeader("Content-Type", "application/json").setBody(corpo)

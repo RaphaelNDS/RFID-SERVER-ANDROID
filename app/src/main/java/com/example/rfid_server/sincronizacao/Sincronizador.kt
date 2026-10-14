@@ -8,6 +8,8 @@ import com.example.rfid_server.dados.BancoLocal
 import com.example.rfid_server.dados.LeituraDao
 import com.example.rfid_server.dados.LeituraEntity
 import com.example.rfid_server.dados.Situacao
+import com.example.rfid_server.erros.RegistroErros
+import com.example.rfid_server.erros.TipoErro
 import com.example.rfid_server.service.Autoria
 import com.example.rfid_server.service.MotivoFalha
 import com.example.rfid_server.service.RespostaServidor
@@ -43,7 +45,11 @@ class Sincronizador internal constructor(
     /** Etapa 3, depois das leituras avulsas: inventários por local. */
     private val inventarios: SincronizadorInventarios? = null,
     /** Etapa 1, antes das leituras: cadastros de etiqueta feitos no coletor. */
-    private val cadastros: SincronizadorCadastros? = null
+    private val cadastros: SincronizadorCadastros? = null,
+    /** Guarda um erro para o servidor (tipo, mensagem): recusas definitivas e erros do servidor. */
+    private val registrarErro: (String, String) -> Unit = { _, _ -> },
+    /** Envia ao servidor os erros do app guardados (no fim de cada passada com o servidor respondendo). */
+    private val enviarErros: () -> Unit = {}
 ) {
 
     private val _estado = MutableLiveData<EstadoSincronizacao>()
@@ -69,6 +75,13 @@ class Sincronizador internal constructor(
         // Ordem: cadastros (a leitura de uma etiqueta recém-cadastrada já chega como cadastrada) →
         // leituras avulsas → inventários. Uma falha de comunicação para tudo.
         val falha = cadastros?.processar() ?: processarLeituras() ?: inventarios?.processar()
+
+        // Erro do servidor (5xx, resposta inválida): vai para a tela de erros do coletor no servidor.
+        // Sem conexão, chave, endereço ou certificado não: são do ambiente e já aparecem na tela do coletor
+        if (falha?.motivo == MotivoFalha.ERRO_SERVIDOR) registrarErro(TipoErro.ERRO_SERVIDOR, "Sincronização interrompida: ${falha.mensagem}")
+
+        // O servidor está respondendo: aproveita para mandar os erros do app guardados
+        if (falha == null || falha.motivo == MotivoFalha.ERRO_SERVIDOR || falha.motivo == MotivoFalha.SESSAO_INVALIDA) enviarErros()
 
         if (falha != null) {
             agendarNovaTentativa()
@@ -193,6 +206,8 @@ class Sincronizador internal constructor(
                     val motivo = resultado.mensagem ?: "Recusada pelo servidor"
                     Log.e(TAG, "Servidor recusou a tag ${leitura.epc} ($motivo): ela não será reenviada")
                     dao.marcarRecusada(leitura.id, motivo)
+                    // Sem o EPC na mensagem: recusas iguais de várias tags viram um registro só, com o número de vezes
+                    registrarErro(TipoErro.ENVIO_RECUSADO, "Servidor recusou uma leitura: $motivo")
                     recusadas++
                 }
 
@@ -258,6 +273,7 @@ class Sincronizador internal constructor(
         if (falha.motivo == MotivoFalha.REQUISICAO_RECUSADA || falha.motivo == MotivoFalha.SESSAO_INVALIDA) {
             Log.e(TAG, "Servidor recusou a tag ${leitura.epc} (${falha.mensagem}): ela não será reenviada")
             dao.marcarRecusada(leitura.id, falha.mensagem)
+            registrarErro(TipoErro.ENVIO_RECUSADO, "Servidor recusou uma leitura: ${falha.mensagem}")
             return null
         }
 
@@ -298,7 +314,9 @@ class Sincronizador internal constructor(
                         executor = Executors.newSingleThreadExecutor(),
                         agendarNovaTentativa = { SincronizacaoWorker.agendarNovaTentativa(app) },
                         inventarios = SincronizadorInventarios(banco.inventarioDao(), tagService),
-                        cadastros = SincronizadorCadastros(banco.cadastroDao(), banco.leituraDao(), tagService)
+                        cadastros = SincronizadorCadastros(banco.cadastroDao(), banco.leituraDao(), tagService),
+                        registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) },
+                        enviarErros = { RegistroErros.enviarPendentes(app) }
                     )
                 }.also { instancia = it }
             }
