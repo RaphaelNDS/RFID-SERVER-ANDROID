@@ -13,6 +13,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.example.rfid_server.AppConfig
 import com.example.rfid_server.R
+import com.example.rfid_server.VersaoApp
 import com.example.rfid_server.service.ResultadoConexao
 import com.example.rfid_server.service.StatusConexao
 import com.example.rfid_server.sincronizacao.Sincronizador
@@ -45,6 +46,7 @@ class SettingsActivity : AppCompatActivity() {
         edtIp.setText(AppConfig.getServerIp(this))
         edtChave.setText(AppConfig.getChaveDispositivo(this))
         mostrarCertificadoConfirmado()
+        findViewById<TextView>(R.id.txtVersao).text = "${getString(R.string.app_name)} · ${VersaoApp.descricao()}"
 
         findViewById<CheckBox>(R.id.chkAvisoLeitura).apply {
             isChecked = AppConfig.isAvisoLeitura(this@SettingsActivity)

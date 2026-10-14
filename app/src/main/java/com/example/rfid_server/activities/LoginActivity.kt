@@ -14,6 +14,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.example.rfid_server.AppConfig
 import com.example.rfid_server.R
 import com.example.rfid_server.SessaoAtual
+import com.example.rfid_server.VersaoApp
 import com.example.rfid_server.service.RespostaServidor
 import com.example.rfid_server.service.TagService
 
@@ -43,6 +44,10 @@ class LoginActivity : AppCompatActivity() {
         edtSenha = findViewById(R.id.edtSenha)
         btnEntrar = findViewById(R.id.btnEntrar)
         txtStatus = findViewById(R.id.txtStatus)
+        findViewById<TextView>(R.id.txtVersao).text = VersaoApp.descricao()
+
+        // Primeira linha útil do log antes do login: qual versão está neste coletor
+        if (savedInstanceState == null) Log.i(TAG, "${getString(R.string.app_name)} aberto na tela de login: ${VersaoApp.descricao()}")
 
         edtEmail.setText(AppConfig.getUltimoEmail(this))
         if (edtEmail.text.isNotEmpty()) edtSenha.requestFocus()

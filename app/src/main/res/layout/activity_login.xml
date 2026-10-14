@@ -71,5 +71,14 @@
             android:layout_marginTop="24dp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"/>
+
+        <!-- Versão instalada (para o suporte saber se o coletor está atualizado) -->
+        <TextView
+            android:id="@+id/txtVersao"
+            android:textSize="12sp"
+            android:textColor="#888888"
+            android:layout_marginTop="16dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"/>
     </LinearLayout>
 </ScrollView>

@@ -134,15 +134,47 @@ Gradle para um JDK 17/21.
 
 ```bash
 ./gradlew :app:assembleDebug          # APK de desenvolvimento
-./gradlew :app:testDebugUnitTest      # 130 testes JVM (MockWebServer, inclusive HTTPS com okhttp-tls; DAOs falsos)
-./gradlew :app:assembleRelease        # APK de produção (não assinado)
+./gradlew :app:testDebugUnitTest      # testes JVM (MockWebServer, inclusive HTTPS com okhttp-tls; DAOs falsos)
+./gradlew :app:assembleRelease        # APK de produção, assinado
 ```
 
-Release:
+### APK de produção
+
+Sai em `app/build/outputs/apk/release/RFID-Android-<versão>-release.apk`, **assinado** com a chave da empresa:
 
 - R8 com minify e shrink; remove `Log.d`/`Log.v`; mantém `com.zebra.**`.
-- Gera `app-release-unsigned.apk`, que precisa ser **assinado com a keystore da empresa** (não fica no repositório).
-- **Guarde o `mapping.txt` de cada versão** — sem ele não dá para ler os erros de produção.
+- **Guarde o `mapping.txt` de cada versão** (`app/build/outputs/mapping/release/`): sem ele não dá para ler os
+  erros de produção.
+
+**Versão.** O `versionName` fica em `app/build.gradle.kts` (`versaoApp`) e é mudado à mão a cada entrega
+(1.4.0 → 1.4.1 correção, 1.5.0 funcionalidade nova). O `versionCode` é o **número de commits do git** e sobe
+sozinho, então o Android sempre aceita instalar por cima. Por isso o build precisa do histórico completo do git:
+num clone raso (ex.: CI com `fetch-depth: 1`) o build para com mensagem, e dá para forçar com
+`./gradlew assembleRelease -Prfid.codigoVersao=N`. A versão aparece na tela de login, nas Configurações e na
+primeira linha do log.
+
+**Assinatura.** A chave fica **fora do git**, em `keystore/rfid-android.jks`, com as senhas em
+`keystore.properties` na raiz do projeto:
+
+```properties
+storeFile=keystore/rfid-android.jks
+storePassword=...
+keyAlias=rfid-android
+keyPassword=...
+```
+
+Em vez do arquivo, dá para usar as variáveis `RFID_KEYSTORE_ARQUIVO`, `RFID_KEYSTORE_SENHA`, `RFID_KEYSTORE_ALIAS`
+e `RFID_KEYSTORE_SENHA_CHAVE`. Sem nenhum dos dois, o build avisa e o APK de produção sai sem assinatura (o
+Android não instala).
+
+> **Guarde o `.jks` e o `keystore.properties` num lugar seguro fora do computador de build** (cofre de senhas,
+> backup da empresa). O Android só instala uma atualização assinada com a **mesma** chave: se ela se perder, cada
+> coletor precisa desinstalar o app (perdendo o que estiver guardado nele) e instalar de novo.
+
+**Primeira instalação do APK assinado.** Os coletores que estão com o APK de desenvolvimento (assinado com a
+chave de debug de quem fez o build) **não** aceitam o APK de produção por cima. Em cada um: confira na tela
+principal que não há nada "aguardando envio", desinstale o app antigo e instale o novo. Depois disso, as
+próximas versões instalam por cima normalmente.
 
 Observação: o **KSP2** está ligado no `gradle.properties` porque o KSP1 quebra o Room 2.8 ao ler o esquema.
 
