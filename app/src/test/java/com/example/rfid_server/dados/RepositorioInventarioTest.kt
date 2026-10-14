@@ -73,6 +73,19 @@ class RepositorioInventarioTest {
     }
 
     @Test
+    fun `aviso de etiqueta nova so toca na primeira leitura e com inventario aberto`() {
+        val repositorio = repositorio()
+        var avisos = 0
+
+        repositorio.registrar("E0") { avisos++ }   // sem inventário aberto: ignorada, sem aviso
+        repositorio.abrir("Sala 101")
+        repeat(3) { repositorio.registrar("E1") { avisos++ } }
+        repositorio.registrar("E2") { avisos++ }
+
+        assertEquals(2, avisos)
+    }
+
+    @Test
     fun `leitura sem inventario aberto e ignorada`() {
         repositorio().registrar("E1")
 

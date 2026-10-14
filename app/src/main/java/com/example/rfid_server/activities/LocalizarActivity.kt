@@ -10,6 +10,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.example.rfid_server.EstadoLeitor
 import com.example.rfid_server.Proximidade
 import com.example.rfid_server.R
 import com.example.rfid_server.RfidManager
@@ -49,6 +50,8 @@ class LocalizarActivity : AppCompatActivity() {
 
         tagService = TagService(this)
         rfidManager = RfidManager.get(this)
+        mostrarEstadoLeitor(rfidManager)
+        rfidManager.estado.observe(this) { aoMudarEstadoLeitor(it) }
 
         tone = criarGeradorDeSom()
         vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
@@ -101,22 +104,14 @@ class LocalizarActivity : AppCompatActivity() {
         epcLocalizando = epc
         rfidManager.iniciarLocalizacao(epc)
 
-        if (rfidManager.conectado) {
-            txtStatus.text = "Aperte o gatilho para localizar"
-            return
-        }
+        // A conexão do leitor é feita (e refeita, se cair) pelo RfidManager; a situação aparece na faixa do topo
+        txtStatus.text = if (rfidManager.conectado) MSG_APERTE_GATILHO else MSG_AGUARDANDO_LEITOR
+    }
 
-        txtStatus.text = "Conectando ao leitor RFID..."
-        rfidManager.conectar { ok ->
-            runOnUiThread {
-                if (ok) {
-                    txtStatus.text = "Aperte o gatilho para localizar"
-                } else {
-                    Log.e(TAG, "Leitor RFID não conectado: não é possível localizar")
-                    txtStatus.text = "Erro ao conectar RFID"
-                    toast("Erro ao conectar RFID")
-                }
-            }
+    // Leitor conectou depois de o patrimônio ser encontrado: troca o "aguardando" pela instrução
+    private fun aoMudarEstadoLeitor(estado: EstadoLeitor) {
+        if (estado == EstadoLeitor.CONECTADO && txtStatus.text.toString() == MSG_AGUARDANDO_LEITOR) {
+            txtStatus.text = MSG_APERTE_GATILHO
         }
     }
 
@@ -197,5 +192,8 @@ class LocalizarActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "LOCALIZAR"
+
+        private const val MSG_APERTE_GATILHO = "Aperte o gatilho para localizar"
+        private const val MSG_AGUARDANDO_LEITOR = "Aguardando o leitor RFID conectar para localizar"
     }
 }

@@ -100,6 +100,19 @@ object AppConfig {
             .apply()
     }
 
+    // Bip e vibração a cada etiqueta nova na leitura e no inventário (ligado por padrão)
+    fun setAvisoLeitura(context: Context, ligado: Boolean) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putBoolean(KEY_AVISO_LEITURA, ligado)
+            .apply()
+    }
+
+    fun isAvisoLeitura(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return prefs.getBoolean(KEY_AVISO_LEITURA, true)
+    }
+
     /** Email do último operador que entrou, para já vir preenchido na tela de login. */
     fun getUltimoEmail(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -143,5 +156,6 @@ object AppConfig {
     private const val KEY_SESSAO_LER = "sessao_pode_ler"
     private const val KEY_SESSAO_CADASTRAR = "sessao_pode_cadastrar"
     private const val KEY_ULTIMO_EMAIL = "ultimo_email"
+    private const val KEY_AVISO_LEITURA = "aviso_leitura"
 }
 

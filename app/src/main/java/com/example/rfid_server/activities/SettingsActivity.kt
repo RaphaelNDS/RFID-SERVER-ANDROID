@@ -5,6 +5,7 @@ import android.graphics.Typeface
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
@@ -44,6 +45,14 @@ class SettingsActivity : AppCompatActivity() {
         edtIp.setText(AppConfig.getServerIp(this))
         edtChave.setText(AppConfig.getChaveDispositivo(this))
         mostrarCertificadoConfirmado()
+
+        findViewById<CheckBox>(R.id.chkAvisoLeitura).apply {
+            isChecked = AppConfig.isAvisoLeitura(this@SettingsActivity)
+            setOnCheckedChangeListener { _, ligado ->
+                AppConfig.setAvisoLeitura(this@SettingsActivity, ligado)
+                Log.i(TAG, "Bip e vibração a cada etiqueta nova ${if (ligado) "ligados" else "desligados"} pelo operador")
+            }
+        }
 
         testarServidor()
 

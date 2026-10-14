@@ -15,6 +15,7 @@ import androidx.lifecycle.LiveData
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.rfid_server.AppConfig
+import com.example.rfid_server.AvisoLeitura
 import com.example.rfid_server.R
 import com.example.rfid_server.RfidManager
 import com.example.rfid_server.adapter.TagNaoAdapter
@@ -49,7 +50,10 @@ class InventarioActivity : AppCompatActivity() {
     private var totalLidas = 0
     private var naoEnviadas = 0
 
-    private val ouvinte = RfidManager.OuvinteLeitura { epc, _ -> repositorio.registrar(epc) }
+    private lateinit var aviso: AvisoLeitura
+
+    // Etiqueta nova no inventário: bip/vibração
+    private val ouvinte = RfidManager.OuvinteLeitura { epc, _ -> repositorio.registrar(epc) { aviso.tagNova() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,6 +62,7 @@ class InventarioActivity : AppCompatActivity() {
         repositorio = RepositorioInventario.get(this)
         rfidManager = RfidManager.get(this)
         tagService = TagService(this)
+        aviso = AvisoLeitura(this)
 
         painelInicio = findViewById(R.id.painelInicio)
         painelAndamento = findViewById(R.id.painelAndamento)
@@ -75,6 +80,7 @@ class InventarioActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnIniciar).setOnClickListener { iniciar() }
         findViewById<Button>(R.id.btnFinalizar).setOnClickListener { confirmarFinalizacao() }
 
+        mostrarEstadoLeitor(rfidManager)
         carregarLocais()
 
         repositorio.inventarioAberto.observe(this) { mostrar(it) }
@@ -92,17 +98,14 @@ class InventarioActivity : AppCompatActivity() {
         rfidManager.removerOuvinte(this)
     }
 
+    // Conecta o leitor, se preciso, e reconecta sozinho se cair; a situação aparece na faixa do topo
     private fun ativarLeitor() {
         rfidManager.definirOuvinte(this, ouvinte)
+    }
 
-        if (rfidManager.conectado) return
-        txtStatus.text = "Conectando ao leitor RFID..."
-        rfidManager.conectar { ok ->
-            runOnUiThread {
-                txtStatus.text = if (ok) "Aperte o gatilho para ler as etiquetas do local" else "Erro ao conectar RFID"
-                if (!ok) Log.e(TAG, "Leitor RFID não conectado: inventário sem leitura")
-            }
-        }
+    override fun onDestroy() {
+        super.onDestroy()
+        aviso.liberar()
     }
 
     // ================= TELA =================

@@ -76,8 +76,11 @@ class RepositorioInventario internal constructor(
         }
     }
 
-    /** Chamado a cada tag lida durante o inventário. Repetições no mesmo inventário são ignoradas. */
-    fun registrar(epc: String) {
+    /**
+     * Chamado a cada tag lida durante o inventário. Repetições no mesmo inventário são ignoradas.
+     * [aoNova] roda (na thread do repositório) só quando a tag é nova no inventário: bip/vibração na tela.
+     */
+    fun registrar(epc: String, aoNova: (() -> Unit)? = null) {
         val lidoEm = relogio()
         val sessao = sessaoAtual() ?: run {
             Log.w(TAG, "Tag $epc lida no inventário sem operador logado: ignorada")
@@ -93,6 +96,7 @@ class RepositorioInventario internal constructor(
 
             dao.inserirItem(InventarioItemEntity(inventarioId = id, epc = epc, lidoEm = lidoEm, sessaoOperador = sessao))
             Log.d(TAG, "Tag $epc registrada no inventário (${epcsLidos.size} no total)")
+            aoNova?.invoke()
 
             solicitarSincronizacao()
         }

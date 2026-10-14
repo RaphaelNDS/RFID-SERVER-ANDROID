@@ -46,6 +46,14 @@
         android:text="Salvar"
         android:layout_marginTop="16dp"/>
 
+    <!-- Vale na hora (sem precisar do botão Salvar), para quem está no campo -->
+    <CheckBox
+        android:id="@+id/chkAvisoLeitura"
+        android:text="Bip e vibração a cada etiqueta nova"
+        android:layout_marginTop="16dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
     <!-- Impressão digital do certificado HTTPS confirmado (conferir com a tela Status do servidor) -->
     <TextView
         android:id="@+id/txtCertificado"

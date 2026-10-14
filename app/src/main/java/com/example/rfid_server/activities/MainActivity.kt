@@ -16,6 +16,7 @@ import androidx.appcompat.widget.Toolbar
 import androidx.lifecycle.ViewModelProvider
 import androidx.viewpager2.widget.ViewPager2
 import com.example.rfid_server.AppConfig
+import com.example.rfid_server.AvisoLeitura
 import com.example.rfid_server.BuildConfig
 import com.example.rfid_server.MainViewModel
 import com.example.rfid_server.R
@@ -53,8 +54,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // A leitura vai direto para o banco local; o Sincronizador cuida do servidor
-    private val ouvinte = RfidManager.OuvinteLeitura { epc, _ -> repositorio.registrar(epc) }
+    private lateinit var aviso: AvisoLeitura
+
+    // A leitura vai direto para o banco local; o Sincronizador cuida do servidor. Tag nova: bip/vibração
+    private val ouvinte = RfidManager.OuvinteLeitura { epc, _ -> repositorio.registrar(epc) { aviso.tagNova() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -81,6 +84,8 @@ class MainActivity : AppCompatActivity() {
         sincronizador = Sincronizador.get(this)
         viewModel = ViewModelProvider(this).get(MainViewModel::class.java)
         rfidManager = RfidManager.get(this)
+        aviso = AvisoLeitura(this)
+        mostrarEstadoLeitor(rfidManager)
 
         // App aberto do zero: tela limpa, como antes. (Ao recriar por rotação, mantém a sessão.)
         // O que não foi enviado continua na fila.
@@ -105,8 +110,7 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         exigirSessao() ?: return
 
-        rfidManager.definirOuvinte(this, ouvinte)
-        conectarLeitor()
+        rfidManager.definirOuvinte(this, ouvinte)   // conecta o leitor, se preciso, e reconecta sozinho se cair
 
         sincronizador.solicitar()
         handler.postDelayed(sincronizacaoPeriodica, INTERVALO_SINCRONIZACAO_MS)
@@ -116,19 +120,6 @@ class MainActivity : AppCompatActivity() {
         super.onPause()
         rfidManager.removerOuvinte(this)
         handler.removeCallbacks(sincronizacaoPeriodica)
-    }
-
-    private fun conectarLeitor() {
-        if (rfidManager.conectado) return
-
-        rfidManager.conectar { ok ->
-            if (!ok) {
-                runOnUiThread {
-                    Log.e(TAG, "Leitor RFID não conectado")
-                    Toast.makeText(this, "Erro ao conectar RFID", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
     }
 
     private fun atualizarAvisoSincronizacao() {
@@ -250,6 +241,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (::aviso.isInitialized) aviso.liberar()
 
         // Só solta o leitor quando o app está saindo de verdade (não numa rotação de tela)
         if (isFinishing) {

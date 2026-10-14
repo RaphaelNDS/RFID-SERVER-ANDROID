@@ -53,6 +53,29 @@ class RepositorioLeiturasTest {
     }
 
     @Test
+    fun `aviso de tag nova so toca na primeira leitura de cada tag`() {
+        val repositorio = repositorio(FakeLeituraDao())
+        var avisos = 0
+
+        repeat(5) { repositorio.registrar("E1") { avisos++ } }
+        repositorio.registrar("E2") { avisos++ }
+
+        assertEquals(2, avisos)
+    }
+
+    @Test
+    fun `sem operador logado a tag nao e guardada nem avisa`() {
+        val dao = FakeLeituraDao()
+        sessao = null
+        var avisos = 0
+
+        repositorio(dao).registrar("E1") { avisos++ }
+
+        assertEquals(0, avisos)
+        assertTrue(dao.leituras.isEmpty())
+    }
+
+    @Test
     fun `tags ja lidas antes da recriacao da tela continuam valendo`() {
         // Ex.: processo do app recriado no meio da sessão: o que está no banco conta como lido
         val dao = FakeLeituraDao(LeituraEntity(epc = "E1", lidoEm = 0))

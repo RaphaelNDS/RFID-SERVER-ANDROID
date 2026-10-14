@@ -10,6 +10,8 @@
         android:background="?attr/colorPrimary"
         android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"/>
 
+    <include layout="@layout/include_estado_leitor"/>
+
     <!-- Aparece só quando há leituras guardadas no aparelho aguardando envio -->
     <TextView
         android:id="@+id/txtSincronizacao"

@@ -36,8 +36,11 @@ class RepositorioLeituras internal constructor(
     val pendentes: LiveData<Int> = dao.contarPendentes()
     val contagemSessao: LiveData<ContagemSessao> = dao.contarSessao()
 
-    /** Chamado a cada tag lida (de qualquer thread). Repetições na mesma sessão são ignoradas. */
-    fun registrar(epc: String) {
+    /**
+     * Chamado a cada tag lida (de qualquer thread). Repetições na mesma sessão são ignoradas.
+     * [aoNova] roda (na thread do repositório) só quando a tag é nova na sessão: bip/vibração na tela.
+     */
+    fun registrar(epc: String, aoNova: (() -> Unit)? = null) {
         val lidoEm = relogio()
         val sessao = sessaoAtual() ?: run {
             // O login é obrigatório: sem operador a leitura não teria autoria e o servidor recusaria
@@ -50,6 +53,7 @@ class RepositorioLeituras internal constructor(
 
             dao.inserir(LeituraEntity(epc = epc, lidoEm = lidoEm, sessaoOperador = sessao))
             Log.d(TAG, "Tag $epc lida e guardada no aparelho")
+            aoNova?.invoke()
 
             solicitarSincronizacao()
         }
