@@ -56,6 +56,19 @@ enum class MotivoFalha {
  */
 data class Autoria(val sessao: String?, val momento: Long)
 
+/** Resultado de uma leitura enviada em lote (POST /api/android/leituras/lote). */
+enum class StatusLote {
+    CADASTRADA,
+    NAO_CADASTRADA,
+    /** Recusa definitiva desta leitura: não adianta reenviar. */
+    RECUSADA,
+    /** Falha passageira no servidor: tenta de novo depois. */
+    ERRO
+}
+
+/** [indice] = posição da leitura no lote enviado; [tag] vem preenchida quando é CADASTRADA. */
+data class ResultadoLote(val indice: Int, val status: StatusLote, val tag: TagView?, val mensagem: String?)
+
 enum class StatusConexao(val descricao: String) {
     CONECTADO("conectado"),
     CHAVE_INVALIDA("chave do coletor inválida ou não configurada"),
@@ -169,6 +182,70 @@ class TagService internal constructor(
 
     fun enviarNaoCadastradaAgora(epc: String, autoria: Autoria? = null): RespostaServidor<Unit> =
         enviarAgora(listOf("naocadastrada"), JSONObject().put("tag", epc), "a tag não cadastrada $epc", autoria = autoria)
+
+    /**
+     * Várias leituras do MESMO operador ([sessao]) numa requisição só: o servidor classifica e registra cada uma
+     * e devolve o resultado de cada uma (na ordem de [leituras]).
+     * NaoEncontrado = servidor antigo, sem a rota de lote: use as rotas individuais.
+     */
+    fun enviarLoteAgora(leituras: List<Pair<String, Long>>, sessao: String): RespostaServidor<List<ResultadoLote>> {
+        val url = url("leituras", "lote") ?: return falhaEndereco()
+        val descricao = "o lote de ${leituras.size} leitura(s)"
+
+        val itens = JSONArray()
+        leituras.forEach { (epc, lidoEm) -> itens.put(JSONObject().put("tag", epc).put("lidoEm", formatarDataHora(lidoEm))) }
+
+        // X-Momento = leitura mais recente; o servidor confere a hora de cada leitura item a item
+        val autoria = Autoria(sessao, leituras.maxOf { it.second })
+        val request = Request.Builder().url(url).comAutoria(autoria)
+            .post(JSONObject().put("itens", itens).toString().toRequestBody(json)).build()
+
+        return try {
+            client.newCall(request).execute().use {
+                when {
+                    it.code == 404 -> {
+                        Log.w(TAG, "O servidor não conhece /api/android/leituras/lote (versão antiga): enviando uma leitura por vez")
+                        RespostaServidor.NaoEncontrado
+                    }
+
+                    !it.isSuccessful -> falhaHttp(it, "enviar $descricao")
+
+                    else -> interpretarLote(it.body?.string().orEmpty(), leituras.size, descricao)
+                }
+            }
+        } catch (e: IOException) {
+            falhaConexao("enviar $descricao", e)
+        }
+    }
+
+    private fun interpretarLote(corpo: String, quantidade: Int, descricao: String): RespostaServidor<List<ResultadoLote>> =
+        try {
+            val array = JSONObject(corpo).getJSONArray("resultados")
+            val resultados = (0 until array.length()).map { i ->
+                val item = array.getJSONObject(i)
+                val status = StatusLote.values().firstOrNull { it.name == item.optString("status") } ?: StatusLote.ERRO
+                val dados = item.optJSONObject("dados")?.let { d ->
+                    TagView(
+                        epc = item.optString("tag"),
+                        codigoInterno = d.getString("codigoInterno"),
+                        tipo = d.optStringOrNull("tipo"),
+                        marca = d.optStringOrNull("marca"),
+                        modelo = d.optStringOrNull("modelo"),
+                        patrimonio = d.getString("patrimonio"),
+                        numeroSerie = d.getString("numeroSerie")
+                    )
+                }
+                ResultadoLote(item.getInt("indice"), status, dados, item.optStringOrNull("mensagem"))
+            }
+
+            if (resultados.size != quantidade) {
+                Log.w(TAG, "Resposta ao enviar $descricao com ${resultados.size} resultado(s) para $quantidade leitura(s)")
+            }
+            RespostaServidor.Sucesso(resultados)
+        } catch (e: JSONException) {
+            Log.e(TAG, "Resposta inválida ao enviar $descricao. Esperado JSON, recebido: ${corpo.take(120)}", e)
+            RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Resposta inválida do servidor")
+        }
 
     // ================= CADASTRO DE ETIQUETA =================
 

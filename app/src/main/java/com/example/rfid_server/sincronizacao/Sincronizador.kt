@@ -11,6 +11,8 @@ import com.example.rfid_server.dados.Situacao
 import com.example.rfid_server.service.Autoria
 import com.example.rfid_server.service.MotivoFalha
 import com.example.rfid_server.service.RespostaServidor
+import com.example.rfid_server.service.ResultadoLote
+import com.example.rfid_server.service.StatusLote
 import com.example.rfid_server.service.TagService
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
@@ -76,31 +78,135 @@ class Sincronizador internal constructor(
         return atualizarEstado(EstadoSincronizacao.SINCRONIZADO)
     }
 
-    /** Etapa 2: leituras avulsas. Devolve a falha que deve interromper a sincronização, ou null. */
+    /**
+     * Etapa 2: leituras avulsas. Devolve a falha que deve interromper a sincronização, ou null.
+     *
+     * Leituras com operador vão em lotes de até [TAMANHO_LOTE], um operador por lote (uma requisição por lote,
+     * em vez de 2 por tag). Vão uma por vez (rotas individuais): as de antes do login de operador (o servidor
+     * só as aceita nessas rotas), as de um lote que o servidor recusou pela sessão (cada uma é conferida
+     * sozinha) e todas, se o servidor for de uma versão sem a rota de lote.
+     */
     private fun processarLeituras(): RespostaServidor.Falha? {
         val pendentes = dao.pendentes()
         if (pendentes.isEmpty()) return null
 
         Log.i(TAG, "Sincronização iniciada: ${pendentes.size} leitura(s) pendente(s)")
 
-        var enviadas = 0
-        for (leitura in pendentes) {
+        val (comOperador, semOperador) = pendentes.partition { it.sessaoOperador != null }
+        val lotes = comOperador.groupBy { it.sessaoOperador!! }.flatMap { (sessao, leituras) ->
+            leituras.chunked(TAMANHO_LOTE).map { sessao to it }
+        }
+
+        val umaPorVez = semOperador.toMutableList()
+        var errosNoServidor = 0
+        var lotesEnviados = 0
+        var loteDisponivel = true
+
+        for ((sessao, lote) in lotes) {
+            if (!loteDisponivel) {
+                umaPorVez += lote
+                continue
+            }
+
+            when (val resposta = tagService.enviarLoteAgora(lote.map { it.epc to it.lidoEm }, sessao)) {
+                is RespostaServidor.Sucesso -> {
+                    errosNoServidor += aplicarResultados(lote, resposta.valor)
+                    lotesEnviados++
+                }
+
+                RespostaServidor.NaoEncontrado -> {
+                    loteDisponivel = false
+                    umaPorVez += lote
+                }
+
+                is RespostaServidor.Falha -> {
+                    // Lote inteiro recusado (sessão que não vale para a leitura mais recente, operador sem permissão):
+                    // cada leitura é conferida sozinha, e as recusadas saem da fila sem travar as outras
+                    if (resposta.motivo == MotivoFalha.SESSAO_INVALIDA || resposta.motivo == MotivoFalha.REQUISICAO_RECUSADA) {
+                        Log.w(TAG, "Servidor recusou um lote de ${lote.size} leitura(s) (${resposta.mensagem}): enviando uma por vez")
+                        umaPorVez += lote
+                        continue
+                    }
+
+                    lote.forEach { dao.registrarErro(it.id, resposta.mensagem) }
+                    Log.w(TAG, "Sincronização interrompida: ${resposta.mensagem}. ${pendentes.size} leitura(s) continuam guardadas no aparelho")
+                    return resposta
+                }
+            }
+        }
+
+        // Ordem original da fila (a mais antiga primeiro)
+        umaPorVez.sortBy { it.id }
+        var enviadasUmaPorVez = 0
+        for (leitura in umaPorVez) {
             val falha = processar(leitura)
 
             if (falha != null) {
-                val restantes = pendentes.size - enviadas
+                val restantes = umaPorVez.size - enviadasUmaPorVez
                 Log.w(TAG, "Sincronização interrompida: ${falha.mensagem}. $restantes leitura(s) continuam guardadas no aparelho")
                 return falha
             }
 
-            enviadas++
+            enviadasUmaPorVez++
         }
 
         val apagadas = dao.apagarArquivadasConcluidas()
-        Log.i(TAG, "Sincronização concluída: $enviadas leitura(s) processada(s)" +
+        Log.i(TAG, "Sincronização concluída: ${pendentes.size} leitura(s) processada(s)" +
+            (if (lotesEnviados > 0) " ($lotesEnviados lote(s)" + (if (enviadasUmaPorVez > 0) " e $enviadasUmaPorVez uma por vez)" else ")") else "") +
             if (apagadas > 0) "; $apagadas leitura(s) de sessões anteriores removidas do aparelho" else "")
 
+        // Falha passageira em algumas leituras: ficam na fila e a nova tentativa é agendada
+        if (errosNoServidor > 0) {
+            return RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "O servidor não conseguiu processar $errosNoServidor leitura(s): nova tentativa depois")
+        }
         return null
+    }
+
+    /** Grava o resultado de cada leitura do lote. Devolve quantas tiveram falha passageira (continuam na fila). */
+    private fun aplicarResultados(lote: List<LeituraEntity>, resultados: List<ResultadoLote>): Int {
+        val porIndice = resultados.associateBy { it.indice }
+        var cadastradas = 0
+        var naoCadastradas = 0
+        var recusadas = 0
+        var erros = 0
+
+        lote.forEachIndexed { indice, leitura ->
+            val resultado = porIndice[indice]
+
+            when (resultado?.status) {
+                StatusLote.CADASTRADA -> {
+                    val tag = resultado.tag
+                    if (tag != null) {
+                        dao.marcarCadastrada(leitura.id, tag.codigoInterno, tag.tipo, tag.marca, tag.modelo, tag.patrimonio, tag.numeroSerie)
+                    }
+                    dao.marcarEnviada(leitura.id)
+                    cadastradas++
+                }
+
+                StatusLote.NAO_CADASTRADA -> {
+                    dao.marcarNaoCadastrada(leitura.id)
+                    dao.marcarEnviada(leitura.id)
+                    naoCadastradas++
+                }
+
+                StatusLote.RECUSADA -> {
+                    val motivo = resultado.mensagem ?: "Recusada pelo servidor"
+                    Log.e(TAG, "Servidor recusou a tag ${leitura.epc} ($motivo): ela não será reenviada")
+                    dao.marcarRecusada(leitura.id, motivo)
+                    recusadas++
+                }
+
+                StatusLote.ERRO, null -> {
+                    dao.registrarErro(leitura.id, resultado?.mensagem ?: "Sem resposta do servidor para esta leitura")
+                    erros++
+                }
+            }
+        }
+
+        Log.i(TAG, "Lote de ${lote.size} leitura(s) enviado: $cadastradas cadastrada(s), $naoCadastradas não cadastrada(s)" +
+            (if (recusadas > 0) ", $recusadas recusada(s)" else "") +
+            if (erros > 0) ", $erros com erro no servidor (ficam para a próxima tentativa)" else "")
+        return erros
     }
 
     /** Leva uma leitura até o fim. Devolve a falha que deve interromper a sincronização, ou null. */
@@ -174,6 +280,9 @@ class Sincronizador internal constructor(
 
     companion object {
         private const val TAG = "SINCRONIZACAO"
+
+        /** Leituras por requisição (o servidor aceita até 500). */
+        internal const val TAMANHO_LOTE = 100
 
         @Volatile
         private var instancia: Sincronizador? = null

@@ -232,26 +232,167 @@ class SincronizadorTest {
         assertEquals(1, dao.consultasPendentes)
     }
 
+    // ---------- Envio em lote (leituras com operador) ----------
+
+    private fun lote(vararg resultados: String) = json(200, """{"resultados":[${resultados.joinToString(",")}]}""")
+
+    private fun cadastradaNoLote(indice: Int, tag: String) =
+        """{"indice":$indice,"tag":"$tag","status":"CADASTRADA","dados":$tagCadastrada}"""
+
+    private fun noLote(indice: Int, tag: String, status: String, mensagem: String? = null): String {
+        val item = JSONObject().put("indice", indice).put("tag", tag).put("status", status)
+        if (mensagem != null) item.put("mensagem", mensagem)
+        return item.toString()
+    }
+
     @Test(timeout = 10_000)
-    fun `cada leitura vai com a sessao de quem leu`() {
+    fun `leituras com operador vao num lote so e cada uma recebe o resultado`() {
+        dao.inserir(LeituraEntity(epc = "E1", lidoEm = 1_760_371_431_000L, sessaoOperador = "sessao-ana"))
+        dao.inserir(LeituraEntity(epc = "E2", lidoEm = 1_760_371_432_000L, sessaoOperador = "sessao-ana"))
+        dao.inserir(LeituraEntity(epc = "E3", lidoEm = 1_760_371_433_000L, sessaoOperador = "sessao-ana"))
+        servidor.enqueue(lote(cadastradaNoLote(0, "E1"), noLote(1, "E2", "NAO_CADASTRADA"), noLote(2, "E3", "RECUSADA", "Informe a TAG RFID")))
+
+        val estado = sincronizador().processarPendentes()
+
+        assertEquals(EstadoSincronizacao.SINCRONIZADO, estado)
+        val envio = servidor.takeRequest(1, TimeUnit.SECONDS)!!
+        assertEquals("Uma requisição para as 3 leituras", 1, servidor.requestCount)
+        assertEquals("/api/android/leituras/lote", envio.path)
+        assertEquals("sessao-ana", envio.getHeader("X-Sessao-Operador"))
+        assertEquals("X-Momento = leitura mais recente", 1_760_371_433_000L,
+            OffsetDateTime.parse(envio.getHeader("X-Momento")).toInstant().toEpochMilli())
+
+        val itens = JSONObject(envio.body.readUtf8()).getJSONArray("itens")
+        assertEquals(3, itens.length())
+        assertEquals("E1", itens.getJSONObject(0).getString("tag"))
+        assertEquals(1_760_371_431_000L, OffsetDateTime.parse(itens.getJSONObject(0).getString("lidoEm")).toInstant().toEpochMilli())
+
+        with(dao.porEpc("E1")) {
+            assertEquals(Situacao.CADASTRADA, situacao)
+            assertEquals("PAT-100", patrimonio)
+            assertTrue(envioConcluido)
+        }
+        with(dao.porEpc("E2")) {
+            assertEquals(Situacao.NAO_CADASTRADA, situacao)
+            assertTrue(envioConcluido)
+        }
+        with(dao.porEpc("E3")) {
+            assertEquals(Situacao.ERRO, situacao)
+            assertTrue("Recusada sai da fila", envioConcluido)
+            assertEquals("Informe a TAG RFID", ultimoErro)
+        }
+    }
+
+    @Test(timeout = 10_000)
+    fun `cada lote leva so as leituras de um operador`() {
         dao.inserir(LeituraEntity(epc = "E1", lidoEm = 0, sessaoOperador = "sessao-ana"))
+        dao.inserir(LeituraEntity(epc = "E2", lidoEm = 0, sessaoOperador = "sessao-bruno"))
+        dao.inserir(LeituraEntity(epc = "E3", lidoEm = 0, sessaoOperador = "sessao-ana"))
+        servidor.enqueue(lote(noLote(0, "E1", "NAO_CADASTRADA"), noLote(1, "E3", "NAO_CADASTRADA")))
+        servidor.enqueue(lote(noLote(0, "E2", "NAO_CADASTRADA")))
+
+        sincronizador().processarPendentes()
+
+        val (daAna, doBruno) = (1..2).map { servidor.takeRequest(1, TimeUnit.SECONDS)!! }
+        assertEquals("sessao-ana", daAna.getHeader("X-Sessao-Operador"))
+        assertEquals(2, JSONObject(daAna.body.readUtf8()).getJSONArray("itens").length())
+        assertEquals("sessao-bruno", doBruno.getHeader("X-Sessao-Operador"))
+        assertTrue(dao.leituras.all { it.envioConcluido })
+    }
+
+    @Test(timeout = 10_000)
+    fun `fila grande e dividida em lotes de 100`() {
+        repeat(150) { dao.inserir(LeituraEntity(epc = "E$it", lidoEm = 0, sessaoOperador = "sessao-ana")) }
+        servidor.enqueue(lote(*Array(100) { noLote(it, "E$it", "NAO_CADASTRADA") }))
+        servidor.enqueue(lote(*Array(50) { noLote(it, "E${it + 100}", "NAO_CADASTRADA") }))
+
+        sincronizador().processarPendentes()
+
+        assertEquals(2, servidor.requestCount)
+        assertTrue(dao.leituras.all { it.envioConcluido })
+    }
+
+    @Test(timeout = 10_000)
+    fun `servidor sem a rota de lote recebe uma leitura por vez`() {
+        dao.inserir(LeituraEntity(epc = "E1", lidoEm = 0, sessaoOperador = "sessao-ana"))
+        dao.inserir(LeituraEntity(epc = "E2", lidoEm = 0, sessaoOperador = "sessao-bruno"))
+        servidor.enqueue(json(404))   // lote: servidor antigo
+        servidor.enqueue(json(404))   // consulta E1
+        servidor.enqueue(json(200))   // E1 como não cadastrada
+        servidor.enqueue(json(404))   // consulta E2
+        servidor.enqueue(json(200))   // E2 como não cadastrada
+
+        val estado = sincronizador().processarPendentes()
+
+        assertEquals(EstadoSincronizacao.SINCRONIZADO, estado)
+        assertEquals(
+            "Depois do 404 não tenta o lote do outro operador",
+            listOf("/api/android/leituras/lote", "/api/android/tags/E1", "/api/android/naocadastrada",
+                "/api/android/tags/E2", "/api/android/naocadastrada"),
+            caminhosRecebidos()
+        )
+        assertTrue(dao.leituras.all { it.envioConcluido })
+    }
+
+    @Test(timeout = 10_000)
+    fun `erro passageiro numa leitura do lote mantem ela na fila e agenda nova tentativa`() {
+        dao.inserir(LeituraEntity(epc = "E1", lidoEm = 0, sessaoOperador = "sessao-ana"))
+        dao.inserir(LeituraEntity(epc = "E2", lidoEm = 0, sessaoOperador = "sessao-ana"))
+        servidor.enqueue(lote(noLote(0, "E1", "ERRO", "Erro no servidor ao processar a tag"), noLote(1, "E2", "NAO_CADASTRADA")))
+
+        val estado = sincronizador().processarPendentes()
+
+        assertEquals(EstadoSincronizacao.ERRO_SERVIDOR, estado)
+        assertEquals(1, novasTentativasAgendadas)
+        with(dao.porEpc("E1")) {
+            assertEquals(Situacao.PENDENTE, situacao)
+            assertFalse(envioConcluido)
+            assertEquals("Erro no servidor ao processar a tag", ultimoErro)
+        }
+        assertTrue(dao.porEpc("E2").envioConcluido)
+    }
+
+    @Test(timeout = 10_000)
+    fun `servidor fora do ar no lote mantem tudo guardado`() {
+        dao.inserir(LeituraEntity(epc = "E1", lidoEm = 0, sessaoOperador = "sessao-ana"))
+        dao.inserir(LeituraEntity(epc = "E2", lidoEm = 0, sessaoOperador = "sessao-ana"))
+        servidor.enqueue(json(503))
+
+        val estado = sincronizador().processarPendentes()
+
+        assertEquals(EstadoSincronizacao.ERRO_SERVIDOR, estado)
+        assertEquals(1, novasTentativasAgendadas)
+        dao.leituras.forEach {
+            assertEquals(Situacao.PENDENTE, it.situacao)
+            assertFalse(it.envioConcluido)
+            assertNotNull(it.ultimoErro)
+        }
+    }
+
+    @Test(timeout = 10_000)
+    fun `leituras sem operador e com operador vao cada uma pelo seu caminho`() {
+        dao.inserir(LeituraEntity(epc = "ANTIGA", lidoEm = 0))   // de antes do login de operador
+        dao.inserir(LeituraEntity(epc = "E1", lidoEm = 0, sessaoOperador = "sessao-ana"))
+        servidor.enqueue(lote(noLote(0, "E1", "NAO_CADASTRADA")))
         servidor.enqueue(json(404))
         servidor.enqueue(json(200))
 
         sincronizador().processarPendentes()
 
-        val (consulta, envio) = (1..2).map { servidor.takeRequest(1, TimeUnit.SECONDS)!! }
-        assertEquals("sessao-ana", consulta.getHeader("X-Sessao-Operador"))
-        assertEquals("sessao-ana", envio.getHeader("X-Sessao-Operador"))
+        assertEquals(
+            listOf("/api/android/leituras/lote", "/api/android/tags/ANTIGA", "/api/android/naocadastrada"),
+            caminhosRecebidos()
+        )
     }
 
     @Test(timeout = 10_000)
-    fun `sessao invalida numa leitura nao trava a fila`() {
+    fun `sessao invalida num lote faz cada leitura ser conferida sozinha sem travar a fila`() {
         dao.inserir(LeituraEntity(epc = "SEM-SESSAO", lidoEm = 0, sessaoOperador = "sessao-de-usuario-excluido"))
         dao.inserir(LeituraEntity(epc = "E2", lidoEm = 0, sessaoOperador = "sessao-ana"))
-        servidor.enqueue(json(401, """{"status":401,"codigo":"SESSAO_OPERADOR","mensagem":"O usuário desta sessão não existe mais"}"""))
-        servidor.enqueue(json(404))   // E2: não cadastrada
-        servidor.enqueue(json(200))
+        val sessaoRecusada = """{"status":401,"codigo":"SESSAO_OPERADOR","mensagem":"O usuário desta sessão não existe mais"}"""
+        servidor.enqueue(json(401, sessaoRecusada))                // lote da sessão excluída
+        servidor.enqueue(lote(noLote(0, "E2", "NAO_CADASTRADA")))  // lote da Ana
+        servidor.enqueue(json(401, sessaoRecusada))                // SEM-SESSAO sozinha: recusada de vez
 
         val estado = sincronizador().processarPendentes()
 
@@ -260,5 +401,9 @@ class SincronizadorTest {
         assertEquals(Situacao.ERRO, recusada.situacao)
         assertEquals("O usuário desta sessão não existe mais", recusada.ultimoErro)
         assertTrue(dao.porEpc("E2").envioConcluido)
+        assertEquals(
+            listOf("/api/android/leituras/lote", "/api/android/leituras/lote", "/api/android/tags/SEM-SESSAO"),
+            caminhosRecebidos()
+        )
     }
 }
