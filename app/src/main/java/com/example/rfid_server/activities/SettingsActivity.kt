@@ -1,6 +1,5 @@
 package com.example.rfid_server.activities
 
-import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Bundle
 import android.util.Log
@@ -11,6 +10,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import com.example.rfid_server.AppConfig
 import com.example.rfid_server.R
 import com.example.rfid_server.VersaoApp
@@ -111,12 +111,12 @@ class SettingsActivity : AppCompatActivity() {
         if (!AppConfig.servidorConfigurado(this)) {
             Log.i(TAG, "Coletor sem servidor configurado: aguardando o IP e a chave")
             txtStatus.text = "Servidor: não configurado. Informe o IP do servidor e a chave do coletor e toque em Salvar"
-            txtStatus.setTextColor(Color.parseColor("#E65100"))
+            txtStatus.setTextColor(ContextCompat.getColor(this, R.color.atencao))
             return
         }
 
         txtStatus.text = "Servidor: testando..."
-        txtStatus.setTextColor(Color.GRAY)
+        txtStatus.setTextColor(ContextCompat.getColor(this, R.color.texto_secundario))
 
         tagService.testarConexao { resultado ->
             runOnUiThread { mostrarResultado(resultado) }
@@ -126,12 +126,12 @@ class SettingsActivity : AppCompatActivity() {
     private fun mostrarResultado(resultado: ResultadoConexao) {
         if (resultado.status == StatusConexao.CONECTADO) {
             txtStatus.text = "Servidor: conectado com segurança (HTTPS) ✅"
-            txtStatus.setTextColor(Color.parseColor("#2E7D32"))
+            txtStatus.setTextColor(ContextCompat.getColor(this, R.color.sucesso))
             return
         }
 
         txtStatus.text = "Servidor: ${resultado.status.descricao} ❌"
-        txtStatus.setTextColor(Color.parseColor("#C62828"))
+        txtStatus.setTextColor(ContextCompat.getColor(this, R.color.erro))
 
         val impressao = resultado.impressaoDigital ?: return
         when (resultado.status) {

@@ -5,6 +5,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.example.rfid_server.R
 import com.example.rfid_server.dados.ItemNaoCadastrada
 
 /** Aba "Não cadastradas": EPC + situação do cadastro. Tocar abre o cadastro da etiqueta. */
@@ -21,7 +22,7 @@ class NaoCadastradaAdapter(
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val v = LayoutInflater.from(parent.context)
-            .inflate(android.R.layout.simple_list_item_2, parent, false)
+            .inflate(R.layout.item_nao_cadastrado, parent, false)
         return VH(v)
     }
 

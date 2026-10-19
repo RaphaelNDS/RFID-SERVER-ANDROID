@@ -1,24 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Etiqueta esperada no local e ainda não lida (InventarioActivity, aba "Faltando"). Tocar abre o Localizar. -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
-    android:padding="8dp"
-    android:background="?android:attr/selectableItemBackground"
+<!-- Item esperado no local do inventário (EsperadoAdapter): patrimônio e descrição -->
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_marginTop="4dp"
+    android:layout_marginBottom="4dp"
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 
-    <TextView
-        android:id="@+id/txtPatrimonio"
-        android:textStyle="bold"
-        android:textSize="16sp"
+    <LinearLayout
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:background="?android:attr/selectableItemBackground"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"/>
+        android:layout_height="wrap_content">
 
-    <TextView
-        android:id="@+id/txtDescricao"
-        android:textSize="14sp"
-        android:textColor="#666666"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"/>
+        <TextView
+            android:id="@+id/txtPatrimonio"
+            android:textColor="@color/marinho"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
 
-</LinearLayout>
+        <TextView
+            android:id="@+id/txtDescricao"
+            android:textAppearance="@style/Texto.RFID.Secundario"
+            android:layout_marginTop="2dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

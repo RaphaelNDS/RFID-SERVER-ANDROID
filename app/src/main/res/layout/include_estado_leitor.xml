@@ -4,22 +4,31 @@
     android:id="@+id/painelEstadoLeitor"
     android:orientation="horizontal"
     android:gravity="center_vertical"
-    android:paddingStart="8dp"
+    android:paddingStart="16dp"
     android:paddingEnd="8dp"
-    android:minHeight="36dp"
+    android:minHeight="40dp"
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
+
+    <!-- Bolinha na cor da situação (IndicadorLeitor pinta junto com o texto) -->
+    <View
+        android:id="@+id/marcaEstadoLeitor"
+        android:background="@drawable/marca_estado"
+        android:layout_marginEnd="10dp"
+        android:layout_width="10dp"
+        android:layout_height="10dp"/>
 
     <TextView
         android:id="@+id/txtEstadoLeitor"
         android:textStyle="bold"
+        android:textSize="14sp"
         android:layout_width="0dp"
         android:layout_weight="1"
         android:layout_height="wrap_content"/>
 
     <Button
         android:id="@+id/btnReconectarLeitor"
-        style="@style/Widget.Material3.Button.TextButton"
+        style="@style/Widget.RFID.Botao.Texto"
         android:text="Reconectar"
         android:visibility="gone"
         android:layout_width="wrap_content"

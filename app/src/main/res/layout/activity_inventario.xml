@@ -1,41 +1,62 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="vertical"
-    android:padding="16dp"
+    android:background="@color/fundo"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <TextView
-        android:text="Inventário por local"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:layout_width="wrap_content"
+    <com.google.android.material.appbar.MaterialToolbar
+        style="@style/Widget.RFID.Barra"
+        app:title="Inventário por local"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
-    <!-- Sem inventário em andamento: escolher o local e iniciar -->
-    <LinearLayout
+    <!-- Antes de começar: escolher o local -->
+    <com.google.android.material.card.MaterialCardView
         android:id="@+id/painelInicio"
-        android:orientation="vertical"
+        android:layout_margin="16dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
-        <AutoCompleteTextView
-            android:id="@+id/edtLocal"
-            android:hint="Local (ex.: Sala 101, Almoxarifado)"
-            android:inputType="textCapSentences"
-            android:completionThreshold="1"
+        <LinearLayout
+            android:orientation="vertical"
+            android:padding="16dp"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"/>
+            android:layout_height="wrap_content">
 
-        <Button
-            android:id="@+id/btnIniciar"
-            android:text="Iniciar inventário"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"/>
-    </LinearLayout>
+            <TextView
+                android:text="Local do inventário"
+                android:textAppearance="@style/Texto.RFID.Secao"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
 
-    <!-- Inventário em andamento: ler com o gatilho e finalizar -->
+            <!-- Estilo de lista: dá ao campo com sugestões o mesmo espaçamento dos outros -->
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.RFID.Campo.Lista"
+                android:hint="Local"
+                app:endIconMode="none"
+                app:helperText="Ex.: Sala 101, Almoxarifado"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                    android:id="@+id/edtLocal"
+                    android:inputType="textCapSentences"
+                    android:completionThreshold="1"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"/>
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <Button
+                android:id="@+id/btnIniciar"
+                android:text="Iniciar inventário"
+                android:layout_marginTop="16dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Inventário em andamento -->
     <LinearLayout
         android:id="@+id/painelAndamento"
         android:orientation="vertical"
@@ -45,61 +66,73 @@
 
         <include
             layout="@layout/include_estado_leitor"
-            android:layout_marginTop="12dp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
 
-        <TextView
-            android:id="@+id/txtLocal"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:layout_marginTop="12dp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
-
-        <TextView
-            android:id="@+id/txtResumo"
-            android:textSize="16sp"
-            android:layout_marginTop="4dp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
-
-        <!-- Com o que o inventário está sendo comparado (último inventário finalizado do local) -->
-        <TextView
-            android:id="@+id/txtReferencia"
-            android:textSize="13sp"
-            android:textColor="#666666"
-            android:layout_marginTop="2dp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
-
-        <TextView
-            android:id="@+id/txtStatus"
-            android:text="Aperte o gatilho para ler as etiquetas do local"
-            android:layout_marginTop="4dp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
-
-        <Button
-            android:id="@+id/btnFinalizar"
-            android:text="Finalizar inventário"
+        <LinearLayout
+            android:orientation="vertical"
+            android:background="@color/superficie"
+            android:padding="16dp"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"/>
+            android:layout_height="wrap_content">
 
-        <!-- "Faltando" só aparece quando há lista do esperado -->
+            <TextView
+                android:id="@+id/txtLocal"
+                android:textColor="@color/marinho"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
+
+            <TextView
+                android:id="@+id/txtResumo"
+                android:textColor="@color/texto"
+                android:textSize="15sp"
+                android:layout_marginTop="4dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
+
+            <TextView
+                android:id="@+id/txtReferencia"
+                android:textAppearance="@style/Texto.RFID.Secundario"
+                android:layout_marginTop="2dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
+
+            <TextView
+                android:id="@+id/txtStatus"
+                android:text="Aperte o gatilho para ler as etiquetas do local"
+                android:textAppearance="@style/Texto.RFID.Secundario"
+                android:layout_marginTop="4dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
+
+            <Button
+                android:id="@+id/btnFinalizar"
+                android:text="Finalizar inventário"
+                android:layout_marginTop="12dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+        </LinearLayout>
+
+        <View
+            android:background="@color/borda"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"/>
+
         <com.google.android.material.tabs.TabLayout
             android:id="@+id/tabsInventario"
             android:visibility="gone"
-            android:layout_marginTop="8dp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recyclerItens"
-            android:layout_marginTop="8dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="8dp"
+            android:clipToPadding="false"
             android:layout_width="match_parent"
             android:layout_height="match_parent"/>
     </LinearLayout>
-
 </LinearLayout>

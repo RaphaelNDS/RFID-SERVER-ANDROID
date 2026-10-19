@@ -1,24 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
-    android:padding="8dp"
+<!-- Etiqueta não cadastrada (NaoCadastradaAdapter): EPC e situação; tocar abre o cadastro -->
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_marginTop="4dp"
+    android:layout_marginBottom="4dp"
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 
-    <TextView
-        android:id="@+id/txtTag"
-        android:text="EPC"
-        android:textStyle="bold"
-        android:textSize="16sp"
+    <LinearLayout
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="12dp"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"/>
+        android:layout_height="wrap_content">
 
-    <TextView
-        android:id="@+id/txtData"
-        android:text="Data/Hora"
-        android:textSize="14sp"
-        android:textColor="#666666"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"/>
+        <LinearLayout
+            android:orientation="vertical"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content">
 
-</LinearLayout>
+            <TextView
+                android:id="@android:id/text1"
+                android:typeface="monospace"
+                android:textColor="@color/texto"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+
+            <TextView
+                android:id="@android:id/text2"
+                android:textAppearance="@style/Texto.RFID.Secundario"
+                android:layout_marginTop="2dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+        </LinearLayout>
+
+        <!-- Indica que o item abre outra tela -->
+        <TextView
+            android:text="›"
+            android:textColor="@color/texto_terciario"
+            android:textSize="24sp"
+            android:layout_marginStart="8dp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"/>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

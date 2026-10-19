@@ -1,59 +1,71 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:orientation="vertical"
+    android:background="@color/fundo"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <androidx.appcompat.widget.Toolbar
+    <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
+        style="@style/Widget.RFID.Barra"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="?attr/colorPrimary"
-        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"/>
+        android:layout_height="wrap_content"/>
 
     <include layout="@layout/include_estado_leitor"/>
 
-    <!-- Operador e até quando vale a sessão (na barra de cima não cabe, com os ícones do menu) -->
-    <TextView
-        android:id="@+id/txtSessao"
-        android:textSize="13sp"
-        android:textColor="#555555"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp"
-        android:paddingTop="4dp"
+    <!-- Operador, sessão e contadores da leitura atual -->
+    <LinearLayout
+        android:orientation="vertical"
+        android:background="@color/superficie"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="10dp"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"/>
+        android:layout_height="wrap_content">
+
+        <!-- Operador e até quando vale a sessão (na barra de cima não cabe, com os ícones do menu) -->
+        <TextView
+            android:id="@+id/txtSessao"
+            android:textAppearance="@style/Texto.RFID.Secundario"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+
+        <!-- Contadores da leitura atual (zeram no botão "Nova leitura") -->
+        <TextView
+            android:id="@+id/txtContadores"
+            android:textColor="@color/marinho"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:layout_marginTop="4dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+    </LinearLayout>
 
     <!-- Aparece só quando há leituras guardadas no aparelho aguardando envio -->
     <TextView
         android:id="@+id/txtSincronizacao"
+        style="@style/Texto.RFID.Aviso"
+        android:visibility="gone"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="#FFF3E0"
-        android:padding="8dp"
-        android:textColor="#E65100"
-        android:textStyle="bold"
-        android:visibility="gone"/>
+        android:layout_height="wrap_content"/>
 
-    <!-- Contadores da leitura atual (zeram no botão "Nova leitura") -->
-    <TextView
-        android:id="@+id/txtContadores"
+    <View
+        android:background="@color/borda"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp"
-        android:paddingTop="6dp"
-        android:paddingBottom="6dp"
-        android:textStyle="bold"/>
+        android:layout_height="1dp"/>
 
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tabs"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
+    <View
+        android:background="@color/borda"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"/>
+
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/pager"
         android:layout_width="match_parent"
         android:layout_height="match_parent"/>
-
 </LinearLayout>

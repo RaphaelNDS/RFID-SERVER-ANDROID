@@ -1,10 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="purple_200">#FFBB86FC</color>
-    <color name="purple_500">#FF6200EE</color>
-    <color name="purple_700">#FF3700B3</color>
-    <color name="teal_200">#FF03DAC5</color>
-    <color name="teal_700">#FF018786</color>
+    <!-- Paleta corporativa: azul-marinho como cor principal, cinzas neutros e cores de situação suaves -->
+    <color name="marinho">#FF1F3A5F</color>
+    <color name="marinho_escuro">#FF152A45</color>
+    <color name="azul">#FF2E6DA4</color>
+    <color name="azul_claro">#FFE3ECF6</color>
+
+    <color name="fundo">#FFF3F5F8</color>
+    <color name="superficie">#FFFFFFFF</color>
+    <color name="borda">#FFDCE2EA</color>
+    <color name="texto">#FF1C2530</color>
+    <color name="texto_secundario">#FF5B6573</color>
+    <color name="texto_terciario">#FF8A93A0</color>
+
+    <!-- Situação (leitor, servidor, avisos): texto forte sobre fundo claro -->
+    <color name="sucesso">#FF2E7D32</color>
+    <color name="sucesso_fundo">#FFE8F3EA</color>
+    <color name="atencao">#FFB26A00</color>
+    <color name="atencao_fundo">#FFFFF4E0</color>
+    <color name="erro">#FFC62828</color>
+    <color name="erro_fundo">#FFFDECEC</color>
+
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 </resources>
