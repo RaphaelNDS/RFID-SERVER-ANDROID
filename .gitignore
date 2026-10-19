@@ -20,3 +20,6 @@ keystore.properties
 keystore/
 *.jks
 *.keystore
+
+# Mapping do R8 de cada versão (releases/<versão>/mapping.txt, ~27 MB): fica só nesta máquina, com backup
+releases/

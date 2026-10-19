@@ -154,7 +154,9 @@ Sai em `app/build/outputs/apk/release/RFID-Android-<versão>-release.apk`, **ass
 
 - R8 com minify e shrink; remove `Log.d`/`Log.v`; mantém `com.zebra.**`.
 - **Guarde o `mapping.txt` de cada versão** (`app/build/outputs/mapping/release/`): sem ele não dá para ler os
-  erros de produção.
+  erros de produção. Copie para `releases/<versão>-codigo<código>/mapping.txt` (ex.: `releases/1.4.0-codigo22/`),
+  porque o próximo build sobrescreve o original. A pasta `releases/` fica fora do git (cerca de 27 MB por versão):
+  mantenha um backup dela junto com o da chave.
 
 **Versão.** O `versionName` fica em `app/build.gradle.kts` (`versaoApp`) e é mudado à mão a cada entrega
 (1.4.0 → 1.4.1 correção, 1.5.0 funcionalidade nova). O `versionCode` é o **número de commits do git** e sobe
