@@ -158,13 +158,25 @@ class RepositorioLeiturasTest {
 
     @Test
     fun `resumo dos contadores so mostra aguardando quando ha`() {
+        // Espaços inseparáveis viram espaço comum só para comparar o texto
         assertEquals(
             "Lidas: 3  •  Cadastradas: 2  •  Não cadastradas: 1",
-            ContagemSessao(lidas = 3, cadastradas = 2, naoCadastradas = 1).resumo()
+            ContagemSessao(lidas = 3, cadastradas = 2, naoCadastradas = 1).resumo().replace(' ', ' ')
         )
         assertEquals(
             "Lidas: 5  •  Cadastradas: 2  •  Não cadastradas: 1  •  Aguardando: 2",
-            ContagemSessao(lidas = 5, cadastradas = 2, naoCadastradas = 1, aguardandoServidor = 2).resumo()
+            ContagemSessao(lidas = 5, cadastradas = 2, naoCadastradas = 1, aguardandoServidor = 2).resumo().replace(' ', ' ')
+        )
+    }
+
+    @Test
+    fun `resumo dos contadores so quebra a linha entre um contador e outro`() {
+        val resumo = ContagemSessao(lidas = 150, cadastradas = 20, naoCadastradas = 130, aguardandoServidor = 45).resumo()
+
+        // Os únicos espaços comuns (onde o Android pode quebrar a linha) ficam em volta dos separadores
+        assertEquals(
+            listOf("Lidas: 150", "•", "Cadastradas: 20", "•", "Não cadastradas: 130", "•", "Aguardando: 45"),
+            resumo.split(' ').filter { it.isNotEmpty() }
         )
     }
 

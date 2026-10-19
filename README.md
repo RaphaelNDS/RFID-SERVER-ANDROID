@@ -129,6 +129,12 @@ Feita na tela **Configurações** (acessível também pela tela de login):
 
 O tráfego sem criptografia (HTTP) está desligado no manifesto.
 
+**Data, hora e fuso do aparelho:** confira nas configurações do Android antes de entregar o coletor (fuso da
+região, por exemplo **America/Sao_Paulo**, com data e hora automáticas). O app mostra os horários (ex.: "sessão até
+21:17") no fuso do aparelho; um MC3300x de fábrica pode vir em GMT e mostrar 3 horas a mais. O fuso só muda o que
+aparece na tela: as leituras vão para o servidor com o fuso junto (`X-Momento`), então os horários gravados
+ficam certos de qualquer forma.
+
 ---
 
 ## Build, testes e release

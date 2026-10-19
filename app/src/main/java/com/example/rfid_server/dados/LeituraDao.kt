@@ -100,9 +100,18 @@ data class ContagemSessao(
     /** Lidas, mas ainda sem resposta do servidor (cadastrada ou não?). */
     val aguardandoServidor: Int = 0
 ) {
-    /** Texto da linha de contadores da tela principal. "Aguardando" só aparece quando há. */
-    fun resumo(): String = buildString {
-        append("Lidas: $lidas  •  Cadastradas: $cadastradas  •  Não cadastradas: $naoCadastradas")
-        if (aguardandoServidor > 0) append("  •  Aguardando: $aguardandoServidor")
+    /**
+     * Texto da linha de contadores da tela principal. "Aguardando" só aparece quando há.
+     * Dentro de cada contador os espaços são inseparáveis: com números maiores a linha quebra
+     * entre um contador e outro, nunca no meio (ex.: "Não" numa linha e "cadastradas: 150" na outra).
+     */
+    fun resumo(): String {
+        val itens = mutableListOf("Lidas: $lidas", "Cadastradas: $cadastradas", "Não cadastradas: $naoCadastradas")
+        if (aguardandoServidor > 0) itens += "Aguardando: $aguardandoServidor"
+        return itens.joinToString("  •  ") { it.replace(' ', ESPACO_INSEPARAVEL) }
+    }
+
+    companion object {
+        const val ESPACO_INSEPARAVEL = ' '
     }
 }
