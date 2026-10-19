@@ -1,6 +1,9 @@
 package com.example.rfid_server.activities
 
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.View
 import android.widget.AdapterView
@@ -48,6 +51,9 @@ class CadastroTagActivity : AppCompatActivity() {
     private lateinit var spnMarca: Spinner
     private lateinit var spnModelo: Spinner
     private lateinit var btnSalvar: Button
+
+    // Consultas do resultado do envio depois de salvar (ver aguardarEnvio)
+    private val espera = Handler(Looper.getMainLooper())
 
     private var catalogo: CatalogoColetor? = null
     private var tipoAtual: TipoCatalogo? = null
@@ -241,13 +247,60 @@ class CadastroTagActivity : AppCompatActivity() {
         repositorio.salvar(cadastro) { guardado ->
             runOnUiThread {
                 if (guardado) {
-                    Toast.makeText(this, "Cadastro guardado: será enviado ao servidor", Toast.LENGTH_LONG).show()
-                    finish()
+                    btnSalvar.text = "Enviando ao servidor…"
+                    aguardarEnvio(cadastro.epc.trim(), SystemClock.elapsedRealtime())
                 } else {
                     exigirSessao() // a sessão acabou enquanto o formulário estava aberto
                 }
             }
         }
+    }
+
+    /**
+     * O cadastro já está guardado no coletor e o Sincronizador tenta enviar na hora. Espera o resultado
+     * por até [ESPERA_ENVIO_MS] para dizer ao operador o que aconteceu de fato; passado isso, o envio
+     * continua sozinho em segundo plano.
+     */
+    private fun aguardarEnvio(epcGuardado: String, inicio: Long) {
+        repositorio.porEpc(epcGuardado) { atual ->
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+
+                when (val resultado = RepositorioCadastros.resultadoEnvio(atual)) {
+                    RepositorioCadastros.ResultadoEnvio.Enviado -> {
+                        Toast.makeText(this, "Etiqueta cadastrada", Toast.LENGTH_LONG).show()
+                        finish()
+                    }
+
+                    // Fica no formulário com o motivo, para corrigir e salvar de novo
+                    is RepositorioCadastros.ResultadoEnvio.Recusado -> {
+                        btnSalvar.text = TEXTO_SALVAR
+                        btnSalvar.isEnabled = true
+                        aviso("O servidor recusou este cadastro: ${resultado.motivo}. Corrija e salve de novo.")
+                        txtAviso.tag = AVISO_RECUSA
+                    }
+
+                    is RepositorioCadastros.ResultadoEnvio.NaoEnviado -> {
+                        Toast.makeText(this, "Sem conexão com o servidor: o cadastro ficou guardado no coletor e será enviado quando a conexão voltar", Toast.LENGTH_LONG).show()
+                        finish()
+                    }
+
+                    RepositorioCadastros.ResultadoEnvio.Aguardando ->
+                        if (SystemClock.elapsedRealtime() - inicio >= ESPERA_ENVIO_MS) {
+                            Log.i(TAG, "Envio do cadastro de $epcGuardado não terminou em ${ESPERA_ENVIO_MS / 1000} s: segue em segundo plano")
+                            Toast.makeText(this, "Cadastro guardado: será enviado ao servidor", Toast.LENGTH_LONG).show()
+                            finish()
+                        } else {
+                            espera.postDelayed({ aguardarEnvio(epcGuardado, inicio) }, INTERVALO_CONSULTA_MS)
+                        }
+                }
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        espera.removeCallbacksAndMessages(null)
+        super.onDestroy()
     }
 
     override fun onResume() {
@@ -264,5 +317,8 @@ class CadastroTagActivity : AppCompatActivity() {
         const val EXTRA_EPC = "epc"
         private const val TAG = "CADASTRO"
         private const val AVISO_RECUSA = "recusa"
+        private const val TEXTO_SALVAR = "Salvar cadastro" // o mesmo do layout
+        private const val ESPERA_ENVIO_MS = 5_000L
+        private const val INTERVALO_CONSULTA_MS = 300L
     }
 }
