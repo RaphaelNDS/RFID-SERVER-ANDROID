@@ -43,6 +43,8 @@
         <item name="subtitleTextColor">#CCFFFFFF</item>
         <item name="android:minHeight">?attr/actionBarSize</item>
         <item name="android:theme">@style/ThemeOverlay.Material3.Dark.ActionBar</item>
+        <!-- Menu (⋮) claro com texto escuro; sem isto herda o texto branco da barra -->
+        <item name="popupTheme">@style/ThemeOverlay.Material3.Light</item>
     </style>
 
     <style name="Widget.RFID.Botao" parent="Widget.Material3.Button">
