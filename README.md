@@ -122,12 +122,50 @@ Feita na tela **Configurações** (acessível também pela tela de login):
    um coletor novo só fala com o servidor depois de configurado.
 2. **Chave do coletor:** a mesma configurada para este coletor no servidor em `RFID_CHAVES_DISPOSITIVOS`
    (`nome:chave`). Vai no header `X-Chave-Dispositivo`.
-3. **Testar conexão:** no primeiro teste, o app mostra a **impressão digital SHA-256** do certificado do servidor.
-   Compare com a que aparece na tela **Status** do servidor e confirme.
-4. A partir daí o app **só aceita aquele certificado**. Se o certificado do servidor mudar, aparece um alerta com
-   a digital nova e a antiga — confira com o responsável antes de aceitar.
+3. **Salvar** (ou **Testar conexão**): no primeiro contato o app mostra o certificado do servidor para ser
+   confirmado. Veja abaixo como fazer.
 
 O tráfego sem criptografia (HTTP) está desligado no manifesto.
+
+### Cadastrar (confirmar) o certificado do servidor
+
+O servidor usa um certificado HTTPS próprio, e o app só conversa com ele depois que alguém confirma, uma vez por
+coletor, que o certificado é mesmo o do servidor da empresa. Isso impede que outro computador na rede se passe pelo
+servidor e receba as leituras, os cadastros e a senha dos operadores.
+
+**1. Pegue a impressão digital no servidor** (64 caracteres hexadecimais em 32 pares, ex.: `63:0F:85:…:92:36`),
+de uma destas formas:
+
+- **Tela Status** do Sistema RFID (web), logado: campo da impressão digital SHA-256 do certificado HTTPS.
+- **Log do servidor**, que mostra a digital a cada inicialização. No computador do servidor, na pasta de onde ele
+  roda:
+  ```powershell
+  Select-String "SHA-256 do certificado HTTPS" .\data\logs\rfid-server.log | Select-Object -Last 1
+  ```
+
+Pegue a digital **no próprio servidor** (tela ou log), nunca de um e-mail ou mensagem que alguém mandou.
+
+**2. Confirme no coletor:**
+
+1. Em **Configurações**, informe o IP e a chave e toque em **Salvar**.
+2. Aparece **"Confirmar o servidor"** com a impressão digital em 4 linhas de 8 pares.
+3. Compare **todos** os pares com a do passo 1. Conferir só o começo e o fim não basta.
+4. Se for igual, toque em **"É igual, confiar"**. Se tiver qualquer diferença, toque em **"Não confiar"** e avise
+   o responsável pelo servidor.
+5. A tela passa a mostrar *"Servidor: conectado com segurança (HTTPS) ✅"* e, embaixo, *"Certificado confirmado
+   (SHA-256)"* com a digital guardada.
+
+A partir daí o app **só aceita esse certificado**, mesmo que o IP do servidor mude.
+
+**Quando aparece "Certificado do servidor mudou"**
+
+O app mostra a digital nova e a anterior e recusa o servidor até alguém confirmar de novo. Isso é esperado quando o
+certificado foi trocado de propósito: um servidor novo, um `.p12` apagado (o servidor gera outro) ou um backup de
+outro servidor restaurado. Fora disso, **não confie**: pode ser outro computador se passando pelo servidor. Antes de
+tocar em "É igual, confiar", compare a digital **nova** com a da tela Status do servidor, como no passo 1.
+
+Para não precisar confirmar de novo em todos os coletores, guarde o certificado do servidor no backup
+(`data/rfid-https.p12` e `data/rfid-https.p12.senha`; o backup automático do servidor já inclui os dois).
 
 **Data, hora e fuso do aparelho:** confira nas configurações do Android antes de entregar o coletor (fuso da
 região, por exemplo **America/Sao_Paulo**, com data e hora automáticas). O app mostra os horários (ex.: "sessão até
@@ -240,7 +278,7 @@ no coletor enquanto não há rede.
 |---|---|
 | "Chave do dispositivo inválida" / 401 em tudo | A chave do app difere da configurada no servidor (`RFID_CHAVES_DISPOSITIVOS`). |
 | Erro dizendo para usar HTTPS (426) | Atualize o app/endereço: o servidor só aceita `https://…:8443`. |
-| Alerta de certificado diferente | O certificado do servidor mudou. Confira a digital na tela Status do servidor antes de aceitar. |
+| Alerta de certificado diferente | O certificado do servidor mudou. Confira a digital na tela Status do servidor antes de aceitar (ver [Cadastrar o certificado](#cadastrar-confirmar-o-certificado-do-servidor)). |
 | Faixa laranja não some | Há itens aguardando envio: verifique a rede e o endereço. Itens recusados aparecem marcados e não travam a fila. |
 | Leituras antigas recusadas | O coletor ficou offline mais que o prazo de sincronização do servidor (72 h por padrão). |
 | "Coletor sem permissão para cadastrar" | Inclua o nome do coletor em `RFID_COLETORES_CADASTRO` no servidor (e o operador precisa de RFID · Criar). |
