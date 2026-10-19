@@ -17,6 +17,9 @@ object Proximidade {
         else -> 10
     }
 
+    /** Distância relativa do TagLocationing do leitor (0 longe, 100 encostada) já na mesma escala do nível. */
+    fun nivelDaDistancia(distancia: Int): Int = distancia.coerceIn(0, 100)
+
     fun descricao(nivel: Int): String = when {
         nivel >= 90 -> "🔥 Tag muito próxima"
         nivel >= 70 -> "Muito perto"

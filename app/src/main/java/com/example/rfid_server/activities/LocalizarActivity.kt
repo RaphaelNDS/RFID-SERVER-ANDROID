@@ -28,8 +28,15 @@ class LocalizarActivity : AppCompatActivity() {
     private var epcLocalizando: String? = null
     // Sem etiqueta definida (busca ainda não voltou do servidor) o leitor entrega qualquer etiqueta:
     // ignora, senão a barra e o bip guiariam até o item errado
-    private val ouvinte = RfidManager.OuvinteLeitura { _, rssi ->
-        if (epcLocalizando != null) runOnUiThread { atualizarFeedback(rssi) }
+    private val ouvinte = object : RfidManager.OuvinteLeitura {
+        override fun aoLer(epc: String, rssi: Int) {
+            if (epcLocalizando != null) runOnUiThread { atualizarFeedback(Proximidade.nivel(rssi)) }
+        }
+
+        // Com a etiqueta definida o gatilho liga o TagLocationing do leitor, que manda a distância direto
+        override fun aoLocalizar(epc: String, distancia: Int) {
+            if (epcLocalizando != null) runOnUiThread { atualizarFeedback(Proximidade.nivelDaDistancia(distancia)) }
+        }
     }
     private lateinit var txtStatus: TextView
     private lateinit var progress: ProgressBar
@@ -134,9 +141,7 @@ class LocalizarActivity : AppCompatActivity() {
 
     // ================= FEEDBACK =================
 
-    private fun atualizarFeedback(rssi: Int) {
-
-        val nivel = Proximidade.nivel(rssi)
+    private fun atualizarFeedback(nivel: Int) {
 
         progress.progress = nivel
         txtStatus.text = Proximidade.descricao(nivel)
