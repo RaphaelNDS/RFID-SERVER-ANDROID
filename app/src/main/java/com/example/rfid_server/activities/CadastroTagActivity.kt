@@ -74,7 +74,7 @@ class CadastroTagActivity : AppCompatActivity() {
         }
         repositorio = RepositorioCadastros.get(this)
 
-        findViewById<TextView>(R.id.txtEpc).text = "Etiqueta $epc"
+        findViewById<TextView>(R.id.txtEpc).text = epc // o título da seção já diz "Etiqueta"
         txtAviso = findViewById(R.id.txtAviso)
         edtCodigoInterno = findViewById(R.id.edtCodigoInterno)
         edtPatrimonio = findViewById(R.id.edtPatrimonio)
