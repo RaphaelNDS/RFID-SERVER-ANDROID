@@ -78,7 +78,7 @@
     <!-- Consulta a versão publicada no servidor (a tela de login também consulta sozinha, a cada 30 min) -->
     <Button
         android:id="@+id/btnAtualizacao"
-        style="?android:attr/borderlessButtonStyle"
+        style="@style/Widget.Material3.Button.TextButton"
         android:text="Procurar atualização do app"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"/>

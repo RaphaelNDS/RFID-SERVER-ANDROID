@@ -128,7 +128,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun mostrarOperador(sessao: com.example.rfid_server.SessaoOperador) {
-        supportActionBar?.subtitle = "Operador: ${sessao.nome} · sessão até ${AvisoSessao.horario(sessao.expiraEm)}"
+        findViewById<TextView>(R.id.txtSessao).text = "Operador: ${sessao.nome} · sessão até ${AvisoSessao.horario(sessao.expiraEm)}"
     }
 
     private fun atualizarAvisoSincronizacao() {

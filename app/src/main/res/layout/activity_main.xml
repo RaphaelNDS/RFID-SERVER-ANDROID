@@ -12,6 +12,17 @@
 
     <include layout="@layout/include_estado_leitor"/>
 
+    <!-- Operador e até quando vale a sessão (na barra de cima não cabe, com os ícones do menu) -->
+    <TextView
+        android:id="@+id/txtSessao"
+        android:textSize="13sp"
+        android:textColor="#555555"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="4dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
     <!-- Aparece só quando há leituras guardadas no aparelho aguardando envio -->
     <TextView
         android:id="@+id/txtSincronizacao"

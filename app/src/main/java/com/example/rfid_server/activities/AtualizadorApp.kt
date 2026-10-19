@@ -75,7 +75,13 @@ class AtualizadorApp(private val activity: AppCompatActivity) {
             "publicada ${versao.versaoNome} (código ${versao.codigo})")
 
         val mensagem = buildString {
-            append("Versão ${versao.versaoNome} disponível (agora: ${BuildConfig.VERSION_NAME}). Download de ${versao.tamanhoLegivel()}.")
+            // Mesmo nome de versão (ex.: correção publicada sem mudar o nome): o código mostra qual é a mais nova
+            if (versao.versaoNome == BuildConfig.VERSION_NAME) {
+                append("Versão ${versao.versaoNome} (código ${versao.codigo}) disponível (agora: código ${BuildConfig.VERSION_CODE}).")
+            } else {
+                append("Versão ${versao.versaoNome} disponível (agora: ${BuildConfig.VERSION_NAME}).")
+            }
+            append(" Download de ${versao.tamanhoLegivel()}.")
             versao.notas?.let { append("\n\nO que mudou: $it") }
             append("\n\nO que está guardado no coletor (leituras aguardando envio, configurações) continua depois da atualização.")
         }
@@ -85,6 +91,7 @@ class AtualizadorApp(private val activity: AppCompatActivity) {
             .setMessage(mensagem)
             .setPositiveButton("Atualizar agora") { _, _ -> iniciar(versao) }
             .setNegativeButton("Depois") { _, _ -> Log.i(TAG, "Operador adiou a atualização para a versão ${versao.versaoNome}") }
+            .setOnCancelListener { Log.i(TAG, "Operador fechou o aviso da atualização para a versão ${versao.versaoNome} sem escolher (oferecida de novo mais tarde)") }
             .show()
     }
 

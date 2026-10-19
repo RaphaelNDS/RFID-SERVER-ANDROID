@@ -19,7 +19,7 @@
 
     <Button
         android:id="@+id/btnReconectarLeitor"
-        style="?android:attr/borderlessButtonStyle"
+        style="@style/Widget.Material3.Button.TextButton"
         android:text="Reconectar"
         android:visibility="gone"
         android:layout_width="wrap_content"
