@@ -65,8 +65,32 @@ class RepositorioCadastros internal constructor(
         executor.execute { callback(dao.porEpc(epc)) }
     }
 
+    /** Como está o envio de um cadastro recém-guardado, para a tela dar a mensagem certa ao operador. */
+    sealed class ResultadoEnvio {
+        /** O Sincronizador ainda não terminou de tentar. */
+        object Aguardando : ResultadoEnvio()
+        /** O servidor confirmou. */
+        object Enviado : ResultadoEnvio()
+        /** O servidor recusou: o operador precisa corrigir. */
+        data class Recusado(val motivo: String?) : ResultadoEnvio()
+        /** Não deu para enviar agora (ex.: sem rede): segue guardado e vai depois. */
+        data class NaoEnviado(val motivo: String?) : ResultadoEnvio()
+    }
+
     companion object {
         private const val TAG = "CADASTRO"
+
+        /**
+         * [atual] é o cadastro da etiqueta no aparelho. O Sincronizador apaga o cadastro quando o servidor
+         * confirma, marca RECUSADO quando o servidor recusa e grava o erro quando não consegue enviar
+         * ([salvar] zera o erro, então um erro aqui é sempre da tentativa depois de salvar).
+         */
+        fun resultadoEnvio(atual: CadastroEntity?): ResultadoEnvio = when {
+            atual == null -> ResultadoEnvio.Enviado
+            atual.situacao == SituacaoCadastro.RECUSADO -> ResultadoEnvio.Recusado(atual.erro)
+            atual.erro != null -> ResultadoEnvio.NaoEnviado(atual.erro)
+            else -> ResultadoEnvio.Aguardando
+        }
 
         @Volatile
         private var instancia: RepositorioCadastros? = null

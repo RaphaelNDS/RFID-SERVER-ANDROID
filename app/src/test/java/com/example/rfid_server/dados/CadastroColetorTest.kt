@@ -51,6 +51,41 @@ class CadastroColetorTest {
     }
 
     @Test
+    fun `resultado do envio acompanha o que o sincronizador fez com o cadastro`() {
+        repositorio.salvar(cadastro())
+        val guardado = dao.porEpcAgora("E1")!!
+
+        // Logo depois de salvar: ainda não tentou
+        assertEquals(RepositorioCadastros.ResultadoEnvio.Aguardando, RepositorioCadastros.resultadoEnvio(guardado))
+
+        // Servidor confirmou: o sincronizador apaga o cadastro do aparelho
+        assertEquals(RepositorioCadastros.ResultadoEnvio.Enviado, RepositorioCadastros.resultadoEnvio(null))
+
+        // Servidor recusou: precisa corrigir
+        assertEquals(
+            RepositorioCadastros.ResultadoEnvio.Recusado("Esta etiqueta já está cadastrada"),
+            RepositorioCadastros.resultadoEnvio(guardado.copy(situacao = SituacaoCadastro.RECUSADO, erro = "Esta etiqueta já está cadastrada"))
+        )
+
+        // Sem rede: continua pendente, com o erro da tentativa
+        assertEquals(
+            RepositorioCadastros.ResultadoEnvio.NaoEnviado("Sem conexão com o servidor"),
+            RepositorioCadastros.resultadoEnvio(guardado.copy(erro = "Sem conexão com o servidor"))
+        )
+    }
+
+    @Test
+    fun `salvar de novo zera o erro da tentativa anterior`() {
+        repositorio.salvar(cadastro())
+        dao.registrarErro(dao.porEpcAgora("E1")!!.id, "Sem conexão com o servidor")
+
+        repositorio.salvar(cadastro())
+
+        // Senão a tela diria "sem conexão" por causa da tentativa antiga, antes de o envio novo terminar
+        assertEquals(RepositorioCadastros.ResultadoEnvio.Aguardando, RepositorioCadastros.resultadoEnvio(dao.porEpcAgora("E1")))
+    }
+
+    @Test
     fun `corrigir um recusado substitui e volta a pendente`() {
         repositorio.salvar(cadastro(patrimonio = "PAT-ERRADO"))
         dao.marcarRecusado(dao.porEpcAgora("E1")!!.id, "Esta etiqueta já está cadastrada")
