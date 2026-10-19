@@ -26,7 +26,11 @@ class LocalizarActivity : AppCompatActivity() {
     // Leitor compartilhado com a tela principal (uma conexão só). Esta tela não desconecta
     private lateinit var rfidManager: RfidManager
     private var epcLocalizando: String? = null
-    private val ouvinte = RfidManager.OuvinteLeitura { _, rssi -> runOnUiThread { atualizarFeedback(rssi) } }
+    // Sem etiqueta definida (busca ainda não voltou do servidor) o leitor entrega qualquer etiqueta:
+    // ignora, senão a barra e o bip guiariam até o item errado
+    private val ouvinte = RfidManager.OuvinteLeitura { _, rssi ->
+        if (epcLocalizando != null) runOnUiThread { atualizarFeedback(rssi) }
+    }
     private lateinit var txtStatus: TextView
     private lateinit var progress: ProgressBar
     private lateinit var edtPatrimonio: EditText
@@ -43,11 +47,14 @@ class LocalizarActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_localizar)
+        // Tela recriada (ex.: girou): continua localizando a mesma etiqueta (onResume reinicia a localização)
+        epcLocalizando = savedInstanceState?.getString(ESTADO_EPC)
 
         txtStatus = findViewById(R.id.txtStatus)
         progress = findViewById(R.id.progressDistancia)
         edtPatrimonio = findViewById(R.id.edtPatrimonio)
         btnBuscar = findViewById(R.id.btnBuscar)
+        if (epcLocalizando != null) txtStatus.text = MSG_APERTE_GATILHO
 
         tagService = TagService(this)
         rfidManager = RfidManager.get(this)
@@ -194,6 +201,11 @@ class LocalizarActivity : AppCompatActivity() {
         avisoSessao.parar()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        epcLocalizando?.let { outState.putString(ESTADO_EPC, it) }
+    }
+
     override fun onDestroy() {
         super.onDestroy()
 
@@ -209,5 +221,6 @@ class LocalizarActivity : AppCompatActivity() {
         const val EXTRA_PATRIMONIO = "patrimonio"
         private const val MSG_APERTE_GATILHO = "Aperte o gatilho para localizar"
         private const val MSG_AGUARDANDO_LEITOR = "Aguardando o leitor RFID conectar para localizar"
+        private const val ESTADO_EPC = "epc_localizando"
     }
 }
