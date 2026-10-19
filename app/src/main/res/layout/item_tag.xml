@@ -1,42 +1,61 @@
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Etiqueta cadastrada lida (TagAdapter): código em destaque e os dados do equipamento embaixo -->
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_marginTop="4dp"
+    android:layout_marginBottom="4dp"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="8dp">
+    android:layout_height="wrap_content">
 
-    <TextView
-        android:id="@+id/txtCodigoInterno"
+    <LinearLayout
+        android:orientation="vertical"
+        android:padding="12dp"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Código Interno"/>
-    <TextView
-        android:id="@+id/txtTipo"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Tipo"/>
+        android:layout_height="wrap_content">
 
-    <TextView
-        android:id="@+id/txtMarca"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Marca"/>
+        <TextView
+            android:id="@+id/txtCodigoInterno"
+            android:textColor="@color/marinho"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
 
+        <TextView
+            android:id="@+id/txtTipo"
+            android:textColor="@color/texto"
+            android:layout_marginTop="4dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
 
-    <TextView
-        android:id="@+id/txtModelo"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Modelo"/>
+        <TextView
+            android:id="@+id/txtMarca"
+            android:textAppearance="@style/Texto.RFID.Secundario"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
 
-    <TextView
-        android:id="@+id/txtPatrimonio"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Patrimônio"/>
+        <TextView
+            android:id="@+id/txtModelo"
+            android:textAppearance="@style/Texto.RFID.Secundario"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
 
-    <TextView
-        android:id="@+id/txtSerie"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Nº Série"/>
-</LinearLayout>
+        <View
+            android:background="@color/borda"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"/>
+
+        <TextView
+            android:id="@+id/txtPatrimonio"
+            android:textAppearance="@style/Texto.RFID.Secundario"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+
+        <TextView
+            android:id="@+id/txtSerie"
+            android:textAppearance="@style/Texto.RFID.Secundario"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>

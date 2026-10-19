@@ -1,86 +1,188 @@
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:orientation="vertical"
+    android:background="@color/fundo"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-<LinearLayout
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="20dp">
-
-    <TextView
-        android:text="Configurações"
-        android:textStyle="bold"
-        android:textSize="20sp"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
-
-    <TextView
-        android:id="@+id/txtStatusServidor"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Servidor: verificando..."
-        android:textStyle="bold"
-        android:padding="8dp"/>
-
-    <Button
-        android:id="@+id/btnTestarServidor"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Testar conexão"/>
-
-    <EditText
-        android:id="@+id/edtIp"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="IP do servidor (ex: 192.168.0.10 ou 192.168.0.10:8443)"
-        android:inputType="text"/>
-
-    <EditText
-        android:id="@+id/edtChave"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="Chave do coletor (fornecida pelo administrador)"
-        android:inputType="textPassword"/>
-
-    <Button
-        android:id="@+id/btnSalvar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Salvar"
-        android:layout_marginTop="16dp"/>
-
-    <!-- Vale na hora (sem precisar do botão Salvar), para quem está no campo -->
-    <CheckBox
-        android:id="@+id/chkAvisoLeitura"
-        android:text="Bip e vibração a cada etiqueta nova"
-        android:layout_marginTop="16dp"
+    <com.google.android.material.appbar.MaterialToolbar
+        style="@style/Widget.RFID.Barra"
+        app:title="Configurações"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
-    <!-- Impressão digital do certificado HTTPS confirmado (conferir com a tela Status do servidor) -->
-    <TextView
-        android:id="@+id/txtCertificado"
-        android:typeface="monospace"
-        android:textSize="12sp"
-        android:layout_marginTop="16dp"
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"/>
+        android:layout_height="match_parent">
 
-    <TextView
-        android:id="@+id/txtVersao"
-        android:textSize="12sp"
-        android:textColor="#888888"
-        android:layout_marginTop="16dp"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"/>
+        <LinearLayout
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
 
-    <!-- Consulta a versão publicada no servidor (a tela de login também consulta sozinha, a cada 30 min) -->
-    <Button
-        android:id="@+id/btnAtualizacao"
-        style="@style/Widget.Material3.Button.TextButton"
-        android:text="Procurar atualização do app"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
+            <!-- Servidor -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:orientation="vertical"
+                    android:padding="16dp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <TextView
+                        android:text="Servidor"
+                        android:textAppearance="@style/Texto.RFID.Secao"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"/>
+
+                    <TextView
+                        android:id="@+id/txtStatusServidor"
+                        android:text="Servidor: verificando..."
+                        android:textStyle="bold"
+                        android:layout_marginTop="8dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"/>
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:hint="IP do servidor"
+                        app:helperText="Ex.: 192.168.0.10 ou 192.168.0.10:8443"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/edtIp"
+                            android:inputType="text"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"/>
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:hint="Chave do coletor"
+                        app:helperText="Fornecida pelo administrador do servidor"
+                        app:endIconMode="password_toggle"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/edtChave"
+                            android:inputType="textPassword"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"/>
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <Button
+                        android:id="@+id/btnSalvar"
+                        android:text="Salvar"
+                        android:layout_marginTop="16dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"/>
+
+                    <Button
+                        android:id="@+id/btnTestarServidor"
+                        style="@style/Widget.RFID.Botao.Contorno"
+                        android:text="Testar conexão"
+                        android:layout_marginTop="8dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"/>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Leitura -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_marginTop="12dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:orientation="vertical"
+                    android:padding="16dp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <TextView
+                        android:text="Leitura"
+                        android:textAppearance="@style/Texto.RFID.Secao"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"/>
+
+                    <!-- Vale na hora (sem precisar do botão Salvar), para quem está no campo -->
+                    <CheckBox
+                        android:id="@+id/chkAvisoLeitura"
+                        android:text="Bip e vibração a cada etiqueta nova"
+                        android:layout_marginTop="4dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"/>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Certificado -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_marginTop="12dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:orientation="vertical"
+                    android:padding="16dp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <TextView
+                        android:text="Certificado do servidor"
+                        android:textAppearance="@style/Texto.RFID.Secao"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"/>
+
+                    <!-- Impressão digital do certificado HTTPS confirmado (conferir com a tela Status do servidor) -->
+                    <TextView
+                        android:id="@+id/txtCertificado"
+                        android:typeface="monospace"
+                        android:textSize="12sp"
+                        android:textColor="@color/texto"
+                        android:layout_marginTop="8dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"/>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Aplicativo -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_marginTop="12dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:orientation="vertical"
+                    android:padding="16dp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <TextView
+                        android:text="Aplicativo"
+                        android:textAppearance="@style/Texto.RFID.Secao"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"/>
+
+                    <TextView
+                        android:id="@+id/txtVersao"
+                        android:textAppearance="@style/Texto.RFID.Secundario"
+                        android:layout_marginTop="8dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"/>
+
+                    <!-- Consulta a versão publicada no servidor (a tela de login também consulta sozinha, a cada 30 min) -->
+                    <Button
+                        android:id="@+id/btnAtualizacao"
+                        style="@style/Widget.RFID.Botao.Contorno"
+                        android:text="Procurar atualização do app"
+                        android:layout_marginTop="8dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"/>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
+    </ScrollView>
 </LinearLayout>
-</ScrollView>

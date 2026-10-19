@@ -1,10 +1,11 @@
 package com.example.rfid_server.activities
 
-import android.graphics.Color
+import android.content.res.ColorStateList
 import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import com.example.rfid_server.EstadoLeitor
 import com.example.rfid_server.R
 import com.example.rfid_server.RfidManager
@@ -16,6 +17,7 @@ import com.example.rfid_server.RfidManager
  */
 fun AppCompatActivity.mostrarEstadoLeitor(rfidManager: RfidManager) {
     val painel = findViewById<View>(R.id.painelEstadoLeitor)
+    val marca = findViewById<View>(R.id.marcaEstadoLeitor)
     val texto = findViewById<TextView>(R.id.txtEstadoLeitor)
     val botao = findViewById<Button>(R.id.btnReconectarLeitor)
 
@@ -29,11 +31,12 @@ fun AppCompatActivity.mostrarEstadoLeitor(rfidManager: RfidManager) {
         botao.visibility = if (estado == EstadoLeitor.DESCONECTADO) View.VISIBLE else View.GONE
 
         val (fundo, cor) = when (estado) {
-            EstadoLeitor.CONECTADO -> "#E8F5E9" to "#2E7D32"
-            EstadoLeitor.CONECTANDO -> "#FFF8E1" to "#F57F17"
-            EstadoLeitor.DESCONECTADO -> "#FFEBEE" to "#C62828"
+            EstadoLeitor.CONECTADO -> R.color.sucesso_fundo to R.color.sucesso
+            EstadoLeitor.CONECTANDO -> R.color.atencao_fundo to R.color.atencao
+            EstadoLeitor.DESCONECTADO -> R.color.erro_fundo to R.color.erro
         }
-        painel.setBackgroundColor(Color.parseColor(fundo))
-        texto.setTextColor(Color.parseColor(cor))
+        painel.setBackgroundColor(ContextCompat.getColor(this, fundo))
+        texto.setTextColor(ContextCompat.getColor(this, cor))
+        marca.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, cor))
     }
 }

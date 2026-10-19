@@ -5,6 +5,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.example.rfid_server.R
 
 class TagNaoAdapter : RecyclerView.Adapter<TagNaoAdapter.VH>() {
 
@@ -16,7 +17,7 @@ class TagNaoAdapter : RecyclerView.Adapter<TagNaoAdapter.VH>() {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val v = LayoutInflater.from(parent.context)
-            .inflate(android.R.layout.simple_list_item_1, parent, false)
+            .inflate(R.layout.item_lista_simples, parent, false)
         return VH(v)
     }
 

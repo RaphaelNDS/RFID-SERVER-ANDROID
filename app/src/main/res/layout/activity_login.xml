@@ -1,83 +1,143 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:fillViewport="true"
+    android:background="@color/fundo"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
     <LinearLayout
         android:orientation="vertical"
-        android:padding="24dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
-        <TextView
-            android:text="@string/app_name"
-            android:textSize="24sp"
-            android:textStyle="bold"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
-
-        <TextView
-            android:text="Entre com seu usuário do Sistema RFID"
-            android:layout_marginTop="4dp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
-
-        <EditText
-            android:id="@+id/edtEmail"
-            android:hint="Email"
-            android:inputType="textEmailAddress"
-            android:autofillHints="emailAddress"
-            android:layout_marginTop="24dp"
+        <!-- Faixa com o nome do sistema -->
+        <LinearLayout
+            android:orientation="vertical"
+            android:background="@color/marinho"
+            android:paddingStart="24dp"
+            android:paddingEnd="24dp"
+            android:paddingTop="32dp"
+            android:paddingBottom="32dp"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+            android:layout_height="wrap_content">
 
-        <EditText
-            android:id="@+id/edtSenha"
-            android:hint="Senha"
-            android:inputType="textPassword"
-            android:autofillHints="password"
-            android:imeOptions="actionDone"
+            <TextView
+                android:text="@string/app_name"
+                android:textColor="@color/white"
+                android:textSize="26sp"
+                android:textStyle="bold"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
+
+            <TextView
+                android:text="Sistema RFID · Controle de patrimônio"
+                android:textColor="#CCFFFFFF"
+                android:textSize="14sp"
+                android:layout_marginTop="4dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
+        </LinearLayout>
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="20dp"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+            android:layout_height="wrap_content">
 
-        <Button
-            android:id="@+id/btnEntrar"
-            android:text="Entrar"
-            android:layout_marginTop="16dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+            <LinearLayout
+                android:orientation="vertical"
+                android:padding="20dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
 
-        <TextView
-            android:id="@+id/txtStatus"
-            android:visibility="gone"
-            android:textColor="#C62828"
-            android:layout_marginTop="12dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+                <TextView
+                    android:text="Acesso do operador"
+                    android:textAppearance="@style/Texto.RFID.Secao"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"/>
 
-        <!-- O pedido vai para o administrador, que gera uma senha temporária (trocada na web) -->
-        <Button
-            android:id="@+id/btnEsqueciSenha"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:text="Esqueceu a senha?"
-            android:layout_marginTop="8dp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
+                <TextView
+                    android:text="Entre com seu usuário do Sistema RFID"
+                    android:textAppearance="@style/Texto.RFID.Secundario"
+                    android:layout_marginTop="4dp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"/>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:hint="Email"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/edtEmail"
+                        android:inputType="textEmailAddress"
+                        android:autofillHints="emailAddress"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"/>
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:hint="Senha"
+                    app:endIconMode="password_toggle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/edtSenha"
+                        android:inputType="textPassword"
+                        android:autofillHints="password"
+                        android:imeOptions="actionDone"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"/>
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <Button
+                    android:id="@+id/btnEntrar"
+                    android:text="Entrar"
+                    android:layout_marginTop="20dp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"/>
+
+                <TextView
+                    android:id="@+id/txtStatus"
+                    android:visibility="gone"
+                    android:textColor="@color/erro"
+                    android:layout_marginTop="12dp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"/>
+
+                <!-- O pedido vai para o administrador, que gera uma senha temporária (trocada na web) -->
+                <Button
+                    android:id="@+id/btnEsqueciSenha"
+                    style="@style/Widget.RFID.Botao.Texto"
+                    android:text="Esqueceu a senha?"
+                    android:layout_gravity="center_horizontal"
+                    android:layout_marginTop="4dp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"/>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- O IP e a chave do coletor precisam estar configurados antes do primeiro login -->
         <Button
             android:id="@+id/btnConfiguracoes"
-            style="@style/Widget.Material3.Button.TextButton"
+            style="@style/Widget.RFID.Botao.Contorno"
             android:text="Configurações do coletor"
-            android:layout_marginTop="24dp"
-            android:layout_width="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginTop="16dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
 
         <!-- Versão instalada (para o suporte saber se o coletor está atualizado) -->
         <TextView
             android:id="@+id/txtVersao"
             android:textSize="12sp"
-            android:textColor="#888888"
+            android:textColor="@color/texto_terciario"
+            android:layout_gravity="center_horizontal"
             android:layout_marginTop="16dp"
+            android:layout_marginBottom="16dp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"/>
     </LinearLayout>

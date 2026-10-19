@@ -46,7 +46,7 @@ class InventarioActivity : AppCompatActivity() {
     private lateinit var rfidManager: RfidManager
     private lateinit var tagService: TagService
 
-    private lateinit var painelInicio: LinearLayout
+    private lateinit var painelInicio: View
     private lateinit var painelAndamento: LinearLayout
     private lateinit var edtLocal: AutoCompleteTextView
     private lateinit var txtLocal: TextView

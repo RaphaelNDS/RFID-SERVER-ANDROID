@@ -1,17 +1,125 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Theme.RFIDAndroid" parent="Theme.Material3.DayNight.NoActionBar">
-
-    <!-- Primary brand color. -->
-        <item name="colorPrimary">@color/purple_500</item>
-        <item name="colorPrimaryVariant">@color/purple_700</item>
+    <!--
+        Tema do app: sempre claro (o coletor trabalha em galpão e loja, com luz forte), em azul-marinho.
+        Os estilos abaixo deixam todas as telas com a mesma cara: barra no topo, campos com contorno,
+        botões pouco arredondados e listas em cartões.
+    -->
+    <style name="Theme.RFIDAndroid" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/marinho</item>
         <item name="colorOnPrimary">@color/white</item>
-        <!-- Secondary brand color. -->
-        <item name="colorSecondary">@color/teal_200</item>
-        <item name="colorSecondaryVariant">@color/teal_700</item>
-        <item name="colorOnSecondary">@color/black</item>
-        <!-- Status bar color. -->
-        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
-        <!-- Customize your theme here. -->
+        <item name="colorPrimaryContainer">@color/azul_claro</item>
+        <item name="colorOnPrimaryContainer">@color/marinho_escuro</item>
+        <item name="colorSecondary">@color/azul</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <item name="colorSecondaryContainer">@color/azul_claro</item>
+        <item name="colorOnSecondaryContainer">@color/marinho_escuro</item>
+        <item name="colorError">@color/erro</item>
+        <item name="colorOutline">@color/borda</item>
+        <item name="colorOutlineVariant">@color/borda</item>
+        <item name="colorSurface">@color/superficie</item>
+        <item name="colorOnSurface">@color/texto</item>
+        <item name="colorOnSurfaceVariant">@color/texto_secundario</item>
+        <item name="colorSurfaceContainerHighest">@color/superficie</item>
+        <item name="android:colorBackground">@color/fundo</item>
+        <item name="android:textColorPrimary">@color/texto</item>
+        <item name="android:textColorSecondary">@color/texto_secundario</item>
+
+        <item name="android:statusBarColor">@color/marinho_escuro</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">@color/marinho_escuro</item>
+
+        <item name="materialButtonStyle">@style/Widget.RFID.Botao</item>
+        <item name="materialButtonOutlinedStyle">@style/Widget.RFID.Botao.Contorno</item>
+        <item name="textInputStyle">@style/Widget.RFID.Campo</item>
+        <item name="materialCardViewStyle">@style/Widget.RFID.Cartao</item>
+        <item name="tabStyle">@style/Widget.RFID.Abas</item>
+        <item name="checkboxStyle">@style/Widget.Material3.CompoundButton.CheckBox</item>
+    </style>
+
+    <!-- Barra do topo de todas as telas -->
+    <style name="Widget.RFID.Barra" parent="Widget.Material3.Toolbar">
+        <item name="android:background">@color/marinho</item>
+        <item name="titleTextColor">@color/white</item>
+        <item name="subtitleTextColor">#CCFFFFFF</item>
+        <item name="android:minHeight">?attr/actionBarSize</item>
+        <item name="android:theme">@style/ThemeOverlay.Material3.Dark.ActionBar</item>
+        <!-- Menu (⋮) claro com texto escuro; sem isto herda o texto branco da barra -->
+        <item name="popupTheme">@style/ThemeOverlay.Material3.Light</item>
+    </style>
+
+    <style name="Widget.RFID.Botao" parent="Widget.Material3.Button">
+        <item name="shapeAppearance">@style/Forma.RFID.Pequena</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:letterSpacing">0.02</item>
+    </style>
+
+    <style name="Widget.RFID.Botao.Contorno" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="shapeAppearance">@style/Forma.RFID.Pequena</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="android:textSize">15sp</item>
+        <item name="strokeColor">@color/marinho</item>
+    </style>
+
+    <style name="Widget.RFID.Botao.Texto" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textColor">@color/azul</item>
+    </style>
+
+    <style name="Widget.RFID.Campo" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="shapeAppearance">@style/Forma.RFID.Pequena</item>
+        <item name="boxStrokeColor">@color/marinho</item>
+        <item name="hintTextColor">@color/marinho</item>
+        <item name="android:layout_marginTop">12dp</item>
+    </style>
+
+    <style name="Widget.RFID.Campo.Lista" parent="Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
+        <item name="shapeAppearance">@style/Forma.RFID.Pequena</item>
+        <item name="boxStrokeColor">@color/marinho</item>
+        <item name="hintTextColor">@color/marinho</item>
+        <item name="android:layout_marginTop">12dp</item>
+    </style>
+
+    <style name="Widget.RFID.Cartao" parent="Widget.Material3.CardView.Outlined">
+        <item name="cardBackgroundColor">@color/superficie</item>
+        <item name="strokeColor">@color/borda</item>
+        <item name="cardCornerRadius">8dp</item>
+        <item name="cardElevation">0dp</item>
+    </style>
+
+    <style name="Widget.RFID.Abas" parent="Widget.Material3.TabLayout">
+        <item name="android:background">@color/superficie</item>
+        <item name="tabIndicatorColor">@color/marinho</item>
+        <item name="tabSelectedTextColor">@color/marinho</item>
+        <item name="tabTextColor">@color/texto_secundario</item>
+        <item name="tabIndicatorFullWidth">true</item>
+        <item name="tabGravity">fill</item>
+        <item name="tabMode">fixed</item>
+    </style>
+
+    <style name="Forma.RFID.Pequena" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">6dp</item>
+    </style>
+
+    <!-- Título de seção dentro das telas (ex.: SERVIDOR, LEITOR) -->
+    <style name="Texto.RFID.Secao" parent="">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:textColor">@color/texto_secundario</item>
+    </style>
+
+    <style name="Texto.RFID.Secundario" parent="">
+        <item name="android:textSize">13sp</item>
+        <item name="android:textColor">@color/texto_secundario</item>
+    </style>
+
+    <!-- Faixa de aviso (leituras aguardando envio, cadastro recusado) -->
+    <style name="Texto.RFID.Aviso" parent="">
+        <item name="android:background">@color/atencao_fundo</item>
+        <item name="android:textColor">@color/atencao</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:padding">12dp</item>
     </style>
 </resources>

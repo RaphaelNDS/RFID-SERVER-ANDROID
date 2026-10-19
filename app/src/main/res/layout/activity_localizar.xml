@@ -1,52 +1,99 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="vertical"
-    android:padding="16dp"
+    android:background="@color/fundo"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <TextView
-        android:text="Localizar Patrimônio"
-        android:textSize="20sp"
-        android:textStyle="bold"
-        android:layout_width="wrap_content"
+    <com.google.android.material.appbar.MaterialToolbar
+        style="@style/Widget.RFID.Barra"
+        app:title="Localizar patrimônio"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
     <include
         layout="@layout/include_estado_leitor"
-        android:layout_marginTop="8dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
-    <EditText
-        android:id="@+id/edtPatrimonio"
-        android:hint="Digite o patrimônio"
+    <com.google.android.material.card.MaterialCardView
+        android:layout_margin="16dp"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"/>
+        android:layout_height="wrap_content">
 
-    <Button
-        android:id="@+id/btnBuscar"
-        android:text="Buscar"
+        <LinearLayout
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:text="Patrimônio procurado"
+                android:textAppearance="@style/Texto.RFID.Secao"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:hint="Número do patrimônio"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/edtPatrimonio"
+                    android:inputType="text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"/>
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <Button
+                android:id="@+id/btnBuscar"
+                android:text="Buscar"
+                android:layout_marginTop="16dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <com.google.android.material.card.MaterialCardView
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"/>
+        android:layout_height="wrap_content">
 
-    <TextView
-        android:id="@+id/txtStatus"
-        android:text="Aguardando..."
-        android:textSize="16sp"
-        android:layout_marginTop="16dp"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"/>
+        <LinearLayout
+            android:orientation="vertical"
+            android:padding="16dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
 
-    <ProgressBar
-        android:id="@+id/progressDistancia"
-        style="@android:style/Widget.ProgressBar.Horizontal"
-        android:max="100"
-        android:progress="0"
-        android:layout_marginTop="24dp"
-        android:layout_width="match_parent"
-        android:layout_height="26dp"/>
+            <TextView
+                android:text="Proximidade"
+                android:textAppearance="@style/Texto.RFID.Secao"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
 
+            <TextView
+                android:id="@+id/txtStatus"
+                android:text="Aguardando..."
+                android:textColor="@color/texto"
+                android:textSize="16sp"
+                android:layout_marginTop="8dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
 
+            <!-- Barra de distância: quanto mais cheia, mais perto da etiqueta -->
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/progressDistancia"
+                android:max="100"
+                android:progress="0"
+                app:trackThickness="14dp"
+                app:trackCornerRadius="7dp"
+                app:trackStopIndicatorSize="0dp"
+                app:indicatorColor="@color/marinho"
+                app:trackColor="@color/azul_claro"
+                android:layout_marginTop="16dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
 </LinearLayout>
