@@ -49,7 +49,8 @@ class Sincronizador internal constructor(
     /** Guarda um erro para o servidor (tipo, mensagem): recusas definitivas e erros do servidor. */
     private val registrarErro: (String, String) -> Unit = { _, _ -> },
     /** Envia ao servidor os erros do app guardados (no fim de cada passada com o servidor respondendo). */
-    private val enviarErros: () -> Unit = {}
+    private val enviarErros: () -> Unit = {},
+    private val relogio: () -> Long = System::currentTimeMillis
 ) {
 
     private val _estado = MutableLiveData<EstadoSincronizacao>()
@@ -57,6 +58,12 @@ class Sincronizador internal constructor(
 
     // Várias leituras seguidas pedem sincronização: junta os pedidos numa única passada
     private val pedidoPendente = AtomicBoolean(false)
+
+    // Um por passada (só a thread do executor mexe nele)
+    private var disjuntor = DisjuntorRecusas()
+
+    // Recusas da passada (id, motivo): viram aviso para o servidor só no fim, quando se sabe se o disjuntor disparou
+    private val avisosDeRecusa = mutableListOf<Pair<Long, String>>()
 
     /** Pede uma sincronização em segundo plano (pode chamar de qualquer thread, quantas vezes quiser). */
     fun solicitar() {
@@ -100,6 +107,21 @@ class Sincronizador internal constructor(
      * sozinha) e todas, se o servidor for de uma versão sem a rota de lote.
      */
     private fun processarLeituras(): RespostaServidor.Falha? {
+        disjuntor = DisjuntorRecusas()
+        avisosDeRecusa.clear()
+
+        val falha = enviarLeituras()
+
+        // As que o disjuntor devolveu à fila não eram recusas de verdade: não viram aviso
+        val devolvidas = if (disjuntor.disparou) disjuntor.idsDaSequencia().toSet() else emptySet()
+        avisosDeRecusa.filter { (id, _) -> id !in devolvidas }.forEach { (_, motivo) ->
+            // Sem o EPC na mensagem: recusas iguais de várias tags viram um registro só, com o número de vezes
+            registrarErro(TipoErro.ENVIO_RECUSADO, "Servidor recusou uma leitura: $motivo")
+        }
+        return falha
+    }
+
+    private fun enviarLeituras(): RespostaServidor.Falha? {
         val pendentes = dao.pendentes()
         if (pendentes.isEmpty()) return null
 
@@ -125,6 +147,7 @@ class Sincronizador internal constructor(
                 is RespostaServidor.Sucesso -> {
                     errosNoServidor += aplicarResultados(lote, resposta.valor)
                     lotesEnviados++
+                    if (disjuntor.disparou) return dispararDisjuntor()
                 }
 
                 RespostaServidor.NaoEncontrado -> {
@@ -163,7 +186,7 @@ class Sincronizador internal constructor(
             enviadasUmaPorVez++
         }
 
-        val apagadas = dao.apagarArquivadasConcluidas()
+        val apagadas = dao.apagarArquivadasConcluidas() + dao.apagarRecusadasAntigas(relogio() - GUARDA_RECUSADAS_MS)
         Log.i(TAG, "Sincronização concluída: ${pendentes.size} leitura(s) processada(s)" +
             (if (lotesEnviados > 0) " ($lotesEnviados lote(s)" + (if (enviadasUmaPorVez > 0) " e $enviadasUmaPorVez uma por vez)" else ")") else "") +
             if (apagadas > 0) "; $apagadas leitura(s) de sessões anteriores removidas do aparelho" else "")
@@ -193,21 +216,19 @@ class Sincronizador internal constructor(
                         dao.marcarCadastrada(leitura.id, tag.codigoInterno, tag.tipo, tag.marca, tag.modelo, tag.patrimonio, tag.numeroSerie)
                     }
                     dao.marcarEnviada(leitura.id)
+                    disjuntor.aceita()
                     cadastradas++
                 }
 
                 StatusLote.NAO_CADASTRADA -> {
                     dao.marcarNaoCadastrada(leitura.id)
                     dao.marcarEnviada(leitura.id)
+                    disjuntor.aceita()
                     naoCadastradas++
                 }
 
                 StatusLote.RECUSADA -> {
-                    val motivo = resultado.mensagem ?: "Recusada pelo servidor"
-                    Log.e(TAG, "Servidor recusou a tag ${leitura.epc} ($motivo): ela não será reenviada")
-                    dao.marcarRecusada(leitura.id, motivo)
-                    // Sem o EPC na mensagem: recusas iguais de várias tags viram um registro só, com o número de vezes
-                    registrarErro(TipoErro.ENVIO_RECUSADO, "Servidor recusou uma leitura: $motivo")
+                    recusar(leitura, resultado.mensagem ?: "Recusada pelo servidor", contaNoDisjuntor = true)
                     recusadas++
                 }
 
@@ -263,6 +284,7 @@ class Sincronizador internal constructor(
             dao.marcarEnviada(leitura.id)
         }
 
+        disjuntor.aceita()
         return null
     }
 
@@ -271,14 +293,39 @@ class Sincronizador internal constructor(
         // Recusa definitiva desta tag (ex.: 400): tentar de novo não adianta e travaria a fila inteira
         // Sessão inválida PARA ESTA leitura (ex.: usuário excluído) também é definitiva: não trava a fila
         if (falha.motivo == MotivoFalha.REQUISICAO_RECUSADA || falha.motivo == MotivoFalha.SESSAO_INVALIDA) {
-            Log.e(TAG, "Servidor recusou a tag ${leitura.epc} (${falha.mensagem}): ela não será reenviada")
-            dao.marcarRecusada(leitura.id, falha.mensagem)
-            registrarErro(TipoErro.ENVIO_RECUSADO, "Servidor recusou uma leitura: ${falha.mensagem}")
-            return null
+            // Sessão inválida não conta no disjuntor: as leituras de um usuário desativado nunca vão passar,
+            // e devolvê-las à fila travaria as dos outros operadores
+            val disparou = recusar(leitura, falha.mensagem, contaNoDisjuntor = falha.motivo == MotivoFalha.REQUISICAO_RECUSADA)
+            return if (disparou) dispararDisjuntor() else null
         }
 
         dao.registrarErro(leitura.id, falha.mensagem)
         return falha
+    }
+
+    /**
+     * Recusa definitiva: a leitura sai da fila, mas fica no aparelho marcada (aparece em "Recusadas").
+     * Devolve true se, com esta, o disjuntor disparou (o servidor parece estar recusando tudo).
+     * Só leituras recentes contam: uma recusa que persiste além de [JANELA_DISJUNTOR_MS] é tratada como de verdade,
+     * senão uma regra do servidor que recuse mesmo várias leituras seguidas travaria a fila para sempre.
+     */
+    private fun recusar(leitura: LeituraEntity, motivo: String, contaNoDisjuntor: Boolean): Boolean {
+        Log.e(TAG, "Servidor recusou a tag ${leitura.epc} ($motivo): ela não será reenviada")
+        dao.marcarRecusada(leitura.id, motivo)
+
+        val recente = relogio() - leitura.lidoEm < JANELA_DISJUNTOR_MS
+        avisosDeRecusa += leitura.id to motivo
+        return contaNoDisjuntor && recente && disjuntor.recusada(leitura.id, motivo)
+    }
+
+    /** As recusadas em sequência voltam para a fila e a sincronização para (o erro é registrado em processarPendentes). */
+    private fun dispararDisjuntor(): RespostaServidor.Falha {
+        val ids = disjuntor.idsDaSequencia()
+        dao.desfazerRecusas(ids)
+        val mensagem = "O servidor recusou ${ids.size} leituras seguidas pelo mesmo motivo (${disjuntor.mensagem}): " +
+            "sincronização pausada, as leituras voltaram para a fila"
+        Log.e(TAG, mensagem)
+        return RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, mensagem)
     }
 
     private fun atualizarEstado(novo: EstadoSincronizacao): EstadoSincronizacao {
@@ -299,6 +346,12 @@ class Sincronizador internal constructor(
 
         /** Leituras por requisição (o servidor aceita até 500). */
         internal const val TAMANHO_LOTE = 100
+
+        /** Recusadas ficam no aparelho (e na contagem) por 30 dias depois de lidas. */
+        internal const val GUARDA_RECUSADAS_MS = 30L * 24 * 60 * 60 * 1000
+
+        /** Até quanto tempo depois de lida uma leitura recusada ainda conta no disjuntor. */
+        internal const val JANELA_DISJUNTOR_MS = 24L * 60 * 60 * 1000
 
         @Volatile
         private var instancia: Sincronizador? = null

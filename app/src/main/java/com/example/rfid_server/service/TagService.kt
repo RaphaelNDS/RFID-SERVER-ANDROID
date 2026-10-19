@@ -729,6 +729,13 @@ class TagService internal constructor(
                 RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, mensagem)
             }
 
+            // Passageiros: tempo esgotado (408), cedo demais (425), muitas requisições (429) e lote grande demais
+            // para um proxy no caminho (413). Tratar como recusa definitiva descartava leituras que iriam na próxima
+            408, 413, 425, 429 -> {
+                Log.w(TAG, "Servidor pediu para tentar depois ao $descricao (HTTP $codigo)")
+                RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Servidor ocupado ou indisponível agora (HTTP $codigo): nova tentativa depois")
+            }
+
             in 400..499 -> {
                 Log.e(TAG, "Servidor recusou a requisição ao $descricao (HTTP $codigo)")
                 RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, "Servidor recusou a requisição (HTTP $codigo)")

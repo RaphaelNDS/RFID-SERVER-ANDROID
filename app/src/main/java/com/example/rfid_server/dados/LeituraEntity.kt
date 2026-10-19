@@ -1,5 +1,6 @@
 package com.example.rfid_server.dados
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -50,7 +51,10 @@ data class LeituraEntity(
     val ultimoErro: String? = null,
 
     /** Token da sessão do operador que leu (vai junto no envio, mesmo depois de a sessão expirar). */
-    val sessaoOperador: String? = null
+    val sessaoOperador: String? = null,
+    /** O servidor recusou de vez: não é reenviada, mas fica no aparelho (e na contagem) por 30 dias, com o motivo. */
+    @ColumnInfo(defaultValue = "0")
+    val recusada: Boolean = false
 ) {
     fun paraTagView() = TagView(
         epc = epc,

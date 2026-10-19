@@ -52,12 +52,23 @@ interface LeituraDao {
     @Query("UPDATE leituras SET ultimoErro = :erro WHERE id = :id")
     fun registrarErro(id: Long, erro: String)
 
-    /** O servidor recusou de vez: sai da fila. Se nem chegou a ser classificada, fica como ERRO. */
+    /** O servidor recusou de vez: sai da fila, mas fica marcada (recusada). Se nem chegou a ser classificada, fica como ERRO. */
     @Query(
-        """UPDATE leituras SET envioConcluido = 1, ultimoErro = :erro,
+        """UPDATE leituras SET envioConcluido = 1, recusada = 1, ultimoErro = :erro,
            situacao = CASE WHEN situacao = 'PENDENTE' THEN 'ERRO' ELSE situacao END WHERE id = :id"""
     )
     fun marcarRecusada(id: Long, erro: String)
+
+    /** Disjuntor: as recusadas em sequência voltam para a fila (o servidor estava recusando tudo). */
+    @Query(
+        """UPDATE leituras SET envioConcluido = 0, recusada = 0,
+           situacao = CASE WHEN situacao = 'ERRO' THEN 'PENDENTE' ELSE situacao END WHERE id IN (:ids)"""
+    )
+    fun desfazerRecusas(ids: List<Long>)
+
+    /** Recusadas de sessões anteriores somem do aparelho depois de [antesDe] (epoch ms da leitura). */
+    @Query("DELETE FROM leituras WHERE recusada = 1 AND arquivada = 1 AND lidoEm < :antesDe")
+    fun apagarRecusadasAntigas(antesDe: Long): Int
 
     /** Tudo que ainda precisa falar com o servidor, da mais antiga para a mais nova. */
     @Query("SELECT * FROM leituras WHERE situacao = 'PENDENTE' OR envioConcluido = 0 ORDER BY id")
@@ -70,7 +81,7 @@ interface LeituraDao {
     fun arquivarSessao(): Int
 
     /** Leituras de sessões anteriores que já foram enviadas não servem mais para nada. */
-    @Query("DELETE FROM leituras WHERE arquivada = 1 AND situacao != 'PENDENTE' AND envioConcluido = 1")
+    @Query("DELETE FROM leituras WHERE arquivada = 1 AND situacao != 'PENDENTE' AND envioConcluido = 1 AND recusada = 0")
     fun apagarArquivadasConcluidas(): Int
 
     @Query("SELECT * FROM leituras WHERE arquivada = 0 AND situacao = 'CADASTRADA' ORDER BY id DESC")
@@ -87,7 +98,8 @@ interface LeituraDao {
         """SELECT COUNT(*) AS lidas,
            COALESCE(SUM(CASE WHEN situacao = 'CADASTRADA' THEN 1 ELSE 0 END), 0) AS cadastradas,
            COALESCE(SUM(CASE WHEN situacao = 'NAO_CADASTRADA' THEN 1 ELSE 0 END), 0) AS naoCadastradas,
-           COALESCE(SUM(CASE WHEN situacao = 'PENDENTE' THEN 1 ELSE 0 END), 0) AS aguardandoServidor
+           COALESCE(SUM(CASE WHEN situacao = 'PENDENTE' THEN 1 ELSE 0 END), 0) AS aguardandoServidor,
+           COALESCE(SUM(CASE WHEN recusada = 1 THEN 1 ELSE 0 END), 0) AS recusadas
            FROM leituras WHERE arquivada = 0"""
     )
     fun contarSessao(): LiveData<ContagemSessao>
@@ -98,7 +110,9 @@ data class ContagemSessao(
     val cadastradas: Int = 0,
     val naoCadastradas: Int = 0,
     /** Lidas, mas ainda sem resposta do servidor (cadastrada ou não?). */
-    val aguardandoServidor: Int = 0
+    val aguardandoServidor: Int = 0,
+    /** O servidor recusou de vez (não serão reenviadas). */
+    val recusadas: Int = 0
 ) {
     /**
      * Texto da linha de contadores da tela principal. "Aguardando" só aparece quando há.
@@ -108,6 +122,7 @@ data class ContagemSessao(
     fun resumo(): String {
         val itens = mutableListOf("Lidas: $lidas", "Cadastradas: $cadastradas", "Não cadastradas: $naoCadastradas")
         if (aguardandoServidor > 0) itens += "Aguardando: $aguardandoServidor"
+        if (recusadas > 0) itens += "Recusadas: $recusadas"
         return itens.joinToString("  •  ") { it.replace(' ', ESPACO_INSEPARAVEL) }
     }
 

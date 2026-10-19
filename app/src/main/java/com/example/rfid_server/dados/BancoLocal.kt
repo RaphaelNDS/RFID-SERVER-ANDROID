@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  */
 @Database(
     entities = [LeituraEntity::class, InventarioEntity::class, InventarioItemEntity::class, CadastroEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 abstract class BancoLocal : RoomDatabase() {
@@ -80,13 +80,28 @@ abstract class BancoLocal : RoomDatabase() {
             "ALTER TABLE `cadastros` ADD COLUMN `sessaoOperador` TEXT"
         )
 
+        /**
+         * Versão 5: leitura recusada pelo servidor fica no aparelho, marcada, em vez de ser apagada na limpeza
+         * (o operador vê quantas foram recusadas, e um disjuntor devolve à fila as recusadas em sequência).
+         */
+        internal val MIGRACAO_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                Log.i(TAG, "Atualizando o banco local da versão 4 para a 5: leituras recusadas ficam guardadas")
+                SQL_VERSAO_5.forEach { db.execSQL(it) }
+            }
+        }
+
+        internal val SQL_VERSAO_5 = listOf(
+            "ALTER TABLE `leituras` ADD COLUMN `recusada` INTEGER NOT NULL DEFAULT 0"
+        )
+
         @Volatile
         private var instancia: BancoLocal? = null
 
         fun get(context: Context): BancoLocal =
             instancia ?: synchronized(this) {
                 instancia ?: Room.databaseBuilder(context.applicationContext, BancoLocal::class.java, "rfid-local.db")
-                    .addMigrations(MIGRACAO_1_2, MIGRACAO_2_3, MIGRACAO_3_4)
+                    .addMigrations(MIGRACAO_1_2, MIGRACAO_2_3, MIGRACAO_3_4, MIGRACAO_4_5)
                     .build()
                     .also { instancia = it }
             }

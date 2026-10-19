@@ -45,7 +45,8 @@ class FakeLeituraDao(vararg iniciais: LeituraEntity) : LeituraDao {
             lidas = sessao.size,
             cadastradas = sessao.count { it.situacao == Situacao.CADASTRADA },
             naoCadastradas = sessao.count { it.situacao == Situacao.NAO_CADASTRADA },
-            aguardandoServidor = sessao.count { it.situacao == Situacao.PENDENTE }
+            aguardandoServidor = sessao.count { it.situacao == Situacao.PENDENTE },
+            recusadas = sessao.count { it.recusada }
         )
     }
 
@@ -97,9 +98,27 @@ class FakeLeituraDao(vararg iniciais: LeituraEntity) : LeituraDao {
     override fun marcarRecusada(id: Long, erro: String) = alterar(id) {
         it.copy(
             envioConcluido = true,
+            recusada = true,
             ultimoErro = erro,
             situacao = if (it.situacao == Situacao.PENDENTE) Situacao.ERRO else it.situacao
         )
+    }
+
+    override fun desfazerRecusas(ids: List<Long>) = ids.forEach { id ->
+        alterar(id) {
+            it.copy(
+                envioConcluido = false,
+                recusada = false,
+                situacao = if (it.situacao == Situacao.ERRO) Situacao.PENDENTE else it.situacao
+            )
+        }
+    }
+
+    override fun apagarRecusadasAntigas(antesDe: Long): Int {
+        val antes = leituras.size
+        leituras.removeAll { it.recusada && it.arquivada && it.lidoEm < antesDe }
+        publicar()
+        return antes - leituras.size
     }
 
     override fun pendentes(): List<LeituraEntity> {
@@ -118,7 +137,7 @@ class FakeLeituraDao(vararg iniciais: LeituraEntity) : LeituraDao {
 
     override fun apagarArquivadasConcluidas(): Int {
         val antes = leituras.size
-        leituras.removeAll { it.arquivada && it.situacao != Situacao.PENDENTE && it.envioConcluido }
+        leituras.removeAll { it.arquivada && it.situacao != Situacao.PENDENTE && it.envioConcluido && !it.recusada }
         publicar()
         return antes - leituras.size
     }
