@@ -68,4 +68,14 @@ class ProximidadeTest {
         assertEquals(80L, Proximidade.duracaoVibracaoMs(100))
         assertEquals(15L, Proximidade.duracaoVibracaoMs(10))
     }
+
+    @Test
+    fun `distancia do leitor vira nivel na mesma escala e fica entre 0 e 100`() {
+        assertEquals(0, Proximidade.nivelDaDistancia(0))
+        assertEquals(63, Proximidade.nivelDaDistancia(63))
+        assertEquals(100, Proximidade.nivelDaDistancia(100))
+        // O SDK manda short: valores fora da faixa não podem estourar a barra
+        assertEquals(0, Proximidade.nivelDaDistancia(-5))
+        assertEquals(100, Proximidade.nivelDaDistancia(140))
+    }
 }

@@ -36,8 +36,11 @@
 
 
         <!-- O app abre no login do operador (obrigatório); com sessão válida, ele já pula para a leitura -->
+        <!-- Telas sempre em pé: com o coletor na mão a tela girava sozinha, recriava a tela no meio da leitura
+             (o Localizar perdia o gatilho) e o layout foi desenhado para retrato -->
         <activity
             android:name=".activities.LoginActivity"
+            android:screenOrientation="portrait"
             android:exported="true">
 
             <intent-filter>
@@ -51,15 +54,15 @@
 
         </activity>
 
-        <activity android:name=".activities.MainActivity" />
+        <activity android:name=".activities.MainActivity" android:screenOrientation="portrait" />
 
-        <activity android:name=".activities.SettingsActivity" />
+        <activity android:name=".activities.SettingsActivity" android:screenOrientation="portrait" />
 
-        <activity android:name=".activities.LocalizarActivity" />
+        <activity android:name=".activities.LocalizarActivity" android:screenOrientation="portrait" />
 
-        <activity android:name=".activities.InventarioActivity" />
+        <activity android:name=".activities.InventarioActivity" android:screenOrientation="portrait" />
 
-        <activity android:name=".activities.CadastroTagActivity" />
+        <activity android:name=".activities.CadastroTagActivity" android:screenOrientation="portrait" />
 
         <!-- Entrega ao instalador do Android o APK baixado (fica no cache do app, pasta atualizacao/) -->
         <provider

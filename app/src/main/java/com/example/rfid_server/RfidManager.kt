@@ -45,6 +45,9 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
     /** Recebe EPC e RSSI. Chamado na thread do SDK da Zebra (use runOnUiThread para mexer na tela). */
     fun interface OuvinteLeitura {
         fun aoLer(epc: String, rssi: Int)
+
+        /** Modo localização: distância relativa da etiqueta procurada, de 0 (longe) a 100 (encostada). */
+        fun aoLocalizar(epc: String, distancia: Int) {}
     }
 
     private val executor = Executors.newSingleThreadScheduledExecutor()
@@ -68,6 +71,10 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
 
     @Volatile
     private var locatingEpc: String? = null
+
+    // O gatilho ligou a localização (para o "solto" desligar a mesma operação que foi ligada)
+    @Volatile
+    private var localizandoComGatilho = false
 
     private val _estado = MutableLiveData(EstadoLeitor.DESCONECTADO)
     val estado: LiveData<EstadoLeitor> = _estado
@@ -258,6 +265,18 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
     fun pararLocalizacao() {
         if (locatingEpc != null) Log.i(TAG, "Modo localização encerrado")
         locatingEpc = null
+        // Saiu da tela com o gatilho ainda apertado: não deixa a antena ligada
+        if (localizandoComGatilho) pararLocalizacaoNoLeitor()
+    }
+
+    private fun pararLocalizacaoNoLeitor() {
+        localizandoComGatilho = false
+        try {
+            reader?.Actions?.TagLocationing?.Stop()
+            Log.d(TAG, "Localização parada no leitor")
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao parar a localização", e)
+        }
     }
 
     // ================= EVENTOS DO SDK =================
@@ -302,6 +321,21 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
             return
         }
 
+        // Localização: o inventário comum lê a etiqueta procurada uma vez só (depois de responder ela fica
+        // "calada" para dar vez às outras) e a barra parava. O TagLocationing do SDK lê só ela, sem parar,
+        // e já devolve a distância relativa
+        val alvo = locatingEpc
+        if (alvo != null) {
+            try {
+                reader?.Actions?.TagLocationing?.Perform(alvo, null, null)
+                localizandoComGatilho = true
+                Log.d(TAG, "Gatilho pressionado: localizando $alvo")
+            } catch (e: Exception) {
+                Log.e(TAG, "Erro ao iniciar a localização de $alvo", e)
+            }
+            return
+        }
+
         try {
             reader?.Actions?.Inventory?.perform()
             Log.d(TAG, "Gatilho pressionado: leitura iniciada")
@@ -311,6 +345,11 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
     }
 
     private fun pararInventario() {
+        if (localizandoComGatilho) {
+            pararLocalizacaoNoLeitor()
+            return
+        }
+
         try {
             reader?.Actions?.Inventory?.stop()
             Log.d(TAG, "Gatilho solto: leitura parada")
@@ -321,11 +360,22 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
 
     override fun eventReadNotify(e: RfidReadEvents) {
 
-        val tags = reader?.Actions?.getReadTags(100) ?: return
+        // Inventário comum: as leituras ficam na fila do SDK (getReadTags). Localização (TagLocationing): a fila vem
+        // vazia e a leitura, com a distância, vem anexada ao próprio evento (setAttachTagDataWithReadEvent)
+        val tags = reader?.Actions?.getReadTags(100)
+            ?: e.readEventData?.tagData?.let { arrayOf(it) }
+            ?: return
         val destino = ouvinte ?: return
         val filtro = locatingEpc
 
         for (tag in tags) {
+            // Leitura do TagLocationing: traz a distância da etiqueta procurada (o EPC pode vir vazio)
+            if (tag.isContainsLocationInfo) {
+                val alvo = filtro ?: continue
+                destino.aoLocalizar(alvo, tag.LocationInfo.relativeDistance.toInt())
+                continue
+            }
+
             val epc = tag.tagID ?: continue
             if (filtro != null && epc != filtro) continue
 

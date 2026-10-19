@@ -252,8 +252,9 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         if (::aviso.isInitialized) aviso.liberar()
 
-        // Só solta o leitor quando o app está saindo de verdade (não numa rotação de tela)
-        if (isFinishing) {
+        // Só solta o leitor quando o app está saindo de verdade (não numa rotação de tela).
+        // Sessão vencida no onCreate: exigirSessao() já fechou a tela antes de o leitor ser criado
+        if (isFinishing && ::rfidManager.isInitialized) {
             rfidManager.desconectar()
         }
     }
