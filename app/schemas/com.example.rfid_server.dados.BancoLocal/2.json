@@ -1,0 +1,232 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "f911ab59bd02ff8247513583dd4f92bb",
+    "entities": [
+      {
+        "tableName": "leituras",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `epc` TEXT NOT NULL, `lidoEm` INTEGER NOT NULL, `situacao` TEXT NOT NULL, `envioConcluido` INTEGER NOT NULL, `arquivada` INTEGER NOT NULL, `codigoInterno` TEXT, `tipo` TEXT, `marca` TEXT, `modelo` TEXT, `patrimonio` TEXT, `numeroSerie` TEXT, `ultimoErro` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "epc",
+            "columnName": "epc",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lidoEm",
+            "columnName": "lidoEm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "situacao",
+            "columnName": "situacao",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "envioConcluido",
+            "columnName": "envioConcluido",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "arquivada",
+            "columnName": "arquivada",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "codigoInterno",
+            "columnName": "codigoInterno",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "tipo",
+            "columnName": "tipo",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "marca",
+            "columnName": "marca",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "modelo",
+            "columnName": "modelo",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "patrimonio",
+            "columnName": "patrimonio",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "numeroSerie",
+            "columnName": "numeroSerie",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "ultimoErro",
+            "columnName": "ultimoErro",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_leituras_arquivada",
+            "unique": false,
+            "columnNames": [
+              "arquivada"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_leituras_arquivada` ON `${TABLE_NAME}` (`arquivada`)"
+          },
+          {
+            "name": "index_leituras_situacao_envioConcluido",
+            "unique": false,
+            "columnNames": [
+              "situacao",
+              "envioConcluido"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_leituras_situacao_envioConcluido` ON `${TABLE_NAME}` (`situacao`, `envioConcluido`)"
+          }
+        ]
+      },
+      {
+        "tableName": "inventarios",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `local` TEXT NOT NULL, `iniciadoEm` INTEGER NOT NULL, `finalizadoEm` INTEGER, `aberturaEnviada` INTEGER NOT NULL, `finalizacaoEnviada` INTEGER NOT NULL, `ultimoErro` TEXT, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "local",
+            "columnName": "local",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "iniciadoEm",
+            "columnName": "iniciadoEm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "finalizadoEm",
+            "columnName": "finalizadoEm",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "aberturaEnviada",
+            "columnName": "aberturaEnviada",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "finalizacaoEnviada",
+            "columnName": "finalizacaoEnviada",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "ultimoErro",
+            "columnName": "ultimoErro",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "inventario_itens",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `inventarioId` TEXT NOT NULL, `epc` TEXT NOT NULL, `lidoEm` INTEGER NOT NULL, `enviado` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "inventarioId",
+            "columnName": "inventarioId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "epc",
+            "columnName": "epc",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lidoEm",
+            "columnName": "lidoEm",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enviado",
+            "columnName": "enviado",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_inventario_itens_inventarioId_epc",
+            "unique": true,
+            "columnNames": [
+              "inventarioId",
+              "epc"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_inventario_itens_inventarioId_epc` ON `${TABLE_NAME}` (`inventarioId`, `epc`)"
+          },
+          {
+            "name": "index_inventario_itens_enviado",
+            "unique": false,
+            "columnNames": [
+              "enviado"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_inventario_itens_enviado` ON `${TABLE_NAME}` (`enviado`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f911ab59bd02ff8247513583dd4f92bb')"
+    ]
+  }
+}

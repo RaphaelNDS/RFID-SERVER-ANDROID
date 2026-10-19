@@ -5,40 +5,37 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.example.rfid_server.R
-import com.example.rfid_server.TagNaoCadastrada
+import com.example.rfid_server.dados.ItemNaoCadastrada
 
-class NaoCadastradaAdapter :
-    RecyclerView.Adapter<NaoCadastradaAdapter.VH>() {
+/** Aba "Não cadastradas": EPC + situação do cadastro. Tocar abre o cadastro da etiqueta. */
+class NaoCadastradaAdapter(
+    private val aoTocar: (String) -> Unit
+) : RecyclerView.Adapter<NaoCadastradaAdapter.VH>() {
 
-    private val itens = mutableListOf<TagNaoCadastrada>()
+    private var list: List<ItemNaoCadastrada> = emptyList()
 
-    fun add(item: TagNaoCadastrada) {
-        itens.add(0, item)
-        notifyItemInserted(0)
-    }
-
-    fun clear() {
-        itens.clear()
-        notifyDataSetChanged()
+    class VH(view: View) : RecyclerView.ViewHolder(view) {
+        val epc: TextView = view.findViewById(android.R.id.text1)
+        val situacao: TextView = view.findViewById(android.R.id.text2)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val v = LayoutInflater.from(parent.context)
-            .inflate(R.layout.item_nao_cadastrado, parent, false)
+            .inflate(android.R.layout.simple_list_item_2, parent, false)
         return VH(v)
     }
 
+    override fun getItemCount() = list.size
+
     override fun onBindViewHolder(holder: VH, position: Int) {
-        val t = itens[position]
-        holder.tag.text = t.epc
-        holder.data.text = t.dataHora
+        val item = list[position]
+        holder.epc.text = item.epc
+        holder.situacao.text = item.situacao
+        holder.itemView.setOnClickListener { aoTocar(item.epc) }
     }
 
-    override fun getItemCount() = itens.size
-
-    class VH(v: View) : RecyclerView.ViewHolder(v) {
-        val tag: TextView = v.findViewById(R.id.txtTag)
-        val data: TextView = v.findViewById(R.id.txtData)
+    fun atualizar(novaLista: List<ItemNaoCadastrada>) {
+        list = novaLista
+        notifyDataSetChanged()
     }
 }

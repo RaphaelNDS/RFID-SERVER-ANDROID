@@ -1,0 +1,86 @@
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+<LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <TextView
+        android:text="Configurações"
+        android:textStyle="bold"
+        android:textSize="20sp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"/>
+
+    <TextView
+        android:id="@+id/txtStatusServidor"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Servidor: verificando..."
+        android:textStyle="bold"
+        android:padding="8dp"/>
+
+    <Button
+        android:id="@+id/btnTestarServidor"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Testar conexão"/>
+
+    <EditText
+        android:id="@+id/edtIp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="IP do servidor (ex: 192.168.0.10 ou 192.168.0.10:8443)"
+        android:inputType="text"/>
+
+    <EditText
+        android:id="@+id/edtChave"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Chave do coletor (fornecida pelo administrador)"
+        android:inputType="textPassword"/>
+
+    <Button
+        android:id="@+id/btnSalvar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Salvar"
+        android:layout_marginTop="16dp"/>
+
+    <!-- Vale na hora (sem precisar do botão Salvar), para quem está no campo -->
+    <CheckBox
+        android:id="@+id/chkAvisoLeitura"
+        android:text="Bip e vibração a cada etiqueta nova"
+        android:layout_marginTop="16dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
+    <!-- Impressão digital do certificado HTTPS confirmado (conferir com a tela Status do servidor) -->
+    <TextView
+        android:id="@+id/txtCertificado"
+        android:typeface="monospace"
+        android:textSize="12sp"
+        android:layout_marginTop="16dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
+    <TextView
+        android:id="@+id/txtVersao"
+        android:textSize="12sp"
+        android:textColor="#888888"
+        android:layout_marginTop="16dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
+    <!-- Consulta a versão publicada no servidor (a tela de login também consulta sozinha, a cada 30 min) -->
+    <Button
+        android:id="@+id/btnAtualizacao"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:text="Procurar atualização do app"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"/>
+</LinearLayout>
+</ScrollView>

@@ -14,10 +14,15 @@
 
     <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
-
+    <uses-permission android:name="android.permission.VIBRATE"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
+    <!-- Atualização pelo servidor: o app baixa o APK novo e pede ao Android para instalar (o operador confirma) -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- RfidApp: guarda os travamentos do app para enviar ao servidor (tela Coletores → Erros) -->
     <application
+        android:name=".RfidApp"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -25,13 +30,14 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.RFIDServer"
-        android:usesCleartextTraffic="true">
+        android:theme="@style/Theme.RFIDAndroid"
+        android:usesCleartextTraffic="false">
 
 
 
+        <!-- O app abre no login do operador (obrigatório); com sessão válida, ele já pula para a leitura -->
         <activity
-            android:name=".activities.MainActivity"
+            android:name=".activities.LoginActivity"
             android:exported="true">
 
             <intent-filter>
@@ -44,6 +50,27 @@
                 android:value="" />
 
         </activity>
+
+        <activity android:name=".activities.MainActivity" />
+
+        <activity android:name=".activities.SettingsActivity" />
+
+        <activity android:name=".activities.LocalizarActivity" />
+
+        <activity android:name=".activities.InventarioActivity" />
+
+        <activity android:name=".activities.CadastroTagActivity" />
+
+        <!-- Entrega ao instalador do Android o APK baixado (fica no cache do app, pasta atualizacao/) -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.atualizacao"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/arquivos_atualizacao" />
+        </provider>
 
     </application>
 

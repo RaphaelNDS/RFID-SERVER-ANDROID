@@ -13,3 +13,10 @@
 .externalNativeBuild
 .cxx
 local.properties
+# Cache de compilação do Kotlin 2.x (sessões e erros do daemon)
+.kotlin/
+# Chave de assinatura do APK de produção e as senhas dela: NUNCA vão para o git
+keystore.properties
+keystore/
+*.jks
+*.keystore
