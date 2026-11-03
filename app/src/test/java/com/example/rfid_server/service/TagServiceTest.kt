@@ -679,4 +679,42 @@ class TagServiceTest {
         assertEquals("/api/android/logout", requisicao.path)
         assertEquals("tok-saindo", requisicao.getHeader(HttpClient.HEADER_SESSAO))
     }
+
+    // ================= liberarPin =================
+
+    @Test
+    fun `liberarPin faz POST em pin-liberar com email e senha do administrador`() {
+        servidor.enqueue(json(200, """{"status":"ok"}"""))
+
+        val resposta = aguardar<RespostaServidor<Unit>> { service.liberarPin("admin@x.com", "segredo", it) }
+
+        assertTrue(resposta is RespostaServidor.Sucesso)
+        val requisicao = proximaRequisicao()
+        assertEquals("POST", requisicao.method)
+        // Barra de verdade, não pin%2Fliberar (o Tomcat recusa barra codificada com 400)
+        assertEquals("/api/android/pin/liberar", requisicao.path)
+        val corpo = JSONObject(requisicao.body.readUtf8())
+        assertEquals("admin@x.com", corpo.getString("email"))
+        assertEquals("segredo", corpo.getString("senha"))
+    }
+
+    @Test
+    fun `liberarPin com senha errada devolve a mensagem do servidor`() {
+        servidor.enqueue(json(401, """{"status":401,"mensagem":"Email ou senha incorretos"}"""))
+
+        assertEquals(
+            RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, "Email ou senha incorretos"),
+            aguardar<RespostaServidor<Unit>> { service.liberarPin("admin@x.com", "errada", it) }
+        )
+    }
+
+    @Test
+    fun `liberarPin com 404 avisa que o servidor esta desatualizado`() {
+        servidor.enqueue(json(404, """{"status":404}"""))
+
+        assertEquals(
+            RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Servidor desatualizado: atualize o servidor para liberar o PIN"),
+            aguardar<RespostaServidor<Unit>> { service.liberarPin("admin@x.com", "segredo", it) }
+        )
+    }
 }

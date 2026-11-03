@@ -398,7 +398,8 @@ class TagService internal constructor(
      * operador). Sucesso = pode apagar o PIN. A recusa traz a mensagem do servidor para mostrar. Exige rede.
      */
     fun liberarPin(email: String, senha: String, callback: (RespostaServidor<Unit>) -> Unit) {
-        val url = url("pin/liberar") ?: return callback(falhaEndereco())
+        // Um segmento por parte: "pin/liberar" num segmento só vira pin%2Fliberar, que o Tomcat recusa com 400
+        val url = url("pin", "liberar") ?: return callback(falhaEndereco())
         val corpo = JSONObject().put("email", email).put("senha", senha)
 
         val request = Request.Builder().url(url).header(HttpClient.HEADER_SESSAO, "")
