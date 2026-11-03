@@ -1,5 +1,6 @@
 package com.example.rfid_server.dados
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -29,7 +30,19 @@ data class InventarioEntity(
 
     /** Sessão do operador que abriu e a de quem finalizou (podem ser operadores diferentes). */
     val sessaoOperador: String? = null,
-    val sessaoFinalizacao: String? = null
+    val sessaoFinalizacao: String? = null,
+
+    /** Recusas definitivas do servidor seguidas (400/403, sessão inválida). Volta a 0 quando algo é aceito. */
+    @ColumnInfo(defaultValue = "0")
+    val recusas: Int = 0,
+    val primeiraRecusaEm: Long? = null,
+
+    /**
+     * O coletor desistiu de enviar: o servidor recusou [recusas] vezes por mais de um dia
+     * ([com.example.rfid_server.sincronizacao.SincronizadorInventarios.LIMITE_RECUSAS]). Sai da fila (não é mais
+     * tentado nem conta como "aguardando envio") e é apagado do aparelho 30 dias depois.
+     */
+    val recusadoEm: Long? = null
 )
 
 /** Etiqueta lida num inventário (uma vez por inventário: o índice único descarta repetições). */

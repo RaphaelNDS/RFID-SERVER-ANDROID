@@ -174,6 +174,7 @@ class LoginActivity : AppCompatActivity() {
 
         TagService(this).esqueciSenha(email) { resposta ->
             runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
                 when (resposta) {
                     is RespostaServidor.Sucesso -> AlertDialog.Builder(this)
                         .setTitle("Pedido enviado")

@@ -122,4 +122,42 @@ class MigracaoBancoLocalTest {
             colunas(4, tabela).forEach { (coluna, tipo) -> assertEquals("$tabela.$coluna mudou", tipo, colunas(5, tabela)[coluna]) }
         }
     }
+
+    @Test
+    fun `migracao 5 para 6 acrescenta so as colunas de recusa do inventario como o Room espera`() {
+        assertEquals(6, esquema(6).getInt("version"))
+        assertEquals("Nenhuma tabela nova na versão 6", tabelas(5), tabelas(6))
+
+        val acrescentadas = tabelas(5).flatMap { tabela ->
+            (colunas(6, tabela) - colunas(5, tabela).keys).map { (coluna, tipo) -> Triple(tabela, coluna, tipo) }
+        }.toSet()
+        assertEquals(
+            setOf(
+                Triple("inventarios", "recusas", "INTEGER" to true),
+                Triple("inventarios", "primeiraRecusaEm", "INTEGER" to false),
+                Triple("inventarios", "recusadoEm", "INTEGER" to false)
+            ),
+            acrescentadas
+        )
+
+        // Cada ALTER TABLE da migração bate com uma coluna nova (nome, tipo, obrigatoriedade)
+        val daMigracao = BancoLocal.SQL_VERSAO_6.map { sql ->
+            val (tabela, coluna, tipo, resto) =
+                Regex("ALTER TABLE `(\\w+)` ADD COLUMN `(\\w+)` (\\w+)(.*)").matchEntire(sql)!!.destructured
+            Triple(tabela, coluna, tipo to resto.contains("NOT NULL"))
+        }.toSet()
+        assertEquals(acrescentadas, daMigracao)
+
+        // O DEFAULT da coluna obrigatória precisa ser o mesmo do esquema, senão o Room recusa abrir o banco migrado
+        val entidades = esquema(6).getJSONArray("entities")
+        val campos = (0 until entidades.length()).map { entidades.getJSONObject(it) }
+            .single { it.getString("tableName") == "inventarios" }.getJSONArray("fields")
+        val recusas = (0 until campos.length()).map { campos.getJSONObject(it) }.single { it.getString("columnName") == "recusas" }
+        assertEquals("0", recusas.getString("defaultValue"))
+        assertTrue(BancoLocal.SQL_VERSAO_6.any { it.endsWith("`recusas` INTEGER NOT NULL DEFAULT 0") })
+
+        tabelas(5).forEach { tabela ->
+            colunas(5, tabela).forEach { (coluna, tipo) -> assertEquals("$tabela.$coluna mudou", tipo, colunas(6, tabela)[coluna]) }
+        }
+    }
 }

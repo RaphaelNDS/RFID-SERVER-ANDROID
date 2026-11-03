@@ -3,9 +3,13 @@ package com.example.rfid_server.sincronizacao
 import android.util.Log
 import com.example.rfid_server.dados.InventarioDao
 import com.example.rfid_server.dados.InventarioEntity
+import com.example.rfid_server.erros.TipoErro
 import com.example.rfid_server.service.MotivoFalha
 import com.example.rfid_server.service.RespostaServidor
 import com.example.rfid_server.service.TagService
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 /**
  * Leva ao servidor os inventários guardados no coletor, na ordem certa para cada um:
@@ -14,13 +18,16 @@ import com.example.rfid_server.service.TagService
  */
 class SincronizadorInventarios(
     private val dao: InventarioDao,
-    private val tagService: TagService
+    private val tagService: TagService,
+    /** Guarda um erro para a tela de erros do coletor no servidor (tipo, mensagem). */
+    private val registrarErro: (String, String) -> Unit = { _, _ -> },
+    private val relogio: () -> Long = System::currentTimeMillis
 ) {
 
     /** Processa todos os inventários pendentes. Devolve a falha que deve interromper a sincronização, ou null. */
     fun processar(): RespostaServidor.Falha? {
         val pendentes = dao.comPendencias()
-        if (pendentes.isEmpty()) return null
+        if (pendentes.isEmpty()) return limpar()
 
         Log.i(TAG, "Sincronizando ${pendentes.size} inventário(s) guardado(s) no coletor")
 
@@ -29,8 +36,7 @@ class SincronizadorInventarios(
 
             // Recusa definitiva deste inventário: registra e segue para os outros, sem travar a fila
             if (falha.motivo == MotivoFalha.REQUISICAO_RECUSADA || falha.motivo == MotivoFalha.SESSAO_INVALIDA) {
-                Log.e(TAG, "Servidor recusou o inventário ${inventario.id} (${inventario.local}): ${falha.mensagem}. Ele fica guardado no coletor")
-                dao.registrarErro(inventario.id, falha.mensagem)
+                recusado(inventario, falha.mensagem)
                 continue
             }
 
@@ -38,10 +44,43 @@ class SincronizadorInventarios(
             return falha
         }
 
+        return limpar()
+    }
+
+    private fun limpar(): RespostaServidor.Falha? {
         val apagados = dao.apagarConcluidos()
         if (apagados > 0) Log.i(TAG, "$apagados inventário(s) finalizado(s) e enviado(s) por completo removido(s) do coletor")
 
+        val recusadosApagados = dao.apagarRecusadosAntigos(relogio() - GUARDA_RECUSADOS_MS)
+        if (recusadosApagados > 0) Log.i(TAG, "$recusadosApagados inventário(s) recusado(s) pelo servidor há mais de 30 dias removido(s) do coletor")
+
         return null
+    }
+
+    /**
+     * O servidor recusou de vez (400/403, sessão inválida). Antes, o inventário ficava na fila para sempre e era
+     * recusado de novo a cada sincronização. Agora o coletor desiste depois de [LIMITE_RECUSAS] recusas seguidas
+     * espalhadas por pelo menos [PRAZO_DESISTIR_MS]: um problema passageiro do servidor (ex.: uma versão com
+     * defeito, corrigida no mesmo dia) não faz perder o inventário.
+     */
+    private fun recusado(inventario: InventarioEntity, motivo: String) {
+        val agora = relogio()
+        dao.registrarRecusa(inventario.id, motivo, agora)
+
+        val recusas = inventario.recusas + 1
+        val desde = inventario.primeiraRecusaEm ?: agora
+
+        if (recusas < LIMITE_RECUSAS || agora - desde < PRAZO_DESISTIR_MS) {
+            Log.e(TAG, "Servidor recusou o inventário ${inventario.id} (${inventario.local}): $motivo. " +
+                "Fica guardado no coletor e será tentado de novo (recusa $recusas)")
+            return
+        }
+
+        dao.desistir(inventario.id, agora)
+        val mensagem = "Inventário de ${inventario.local} recusado pelo servidor $recusas vezes desde " +
+            "${horario(desde)}: $motivo. O coletor parou de enviá-lo; fica guardado no aparelho por 30 dias"
+        Log.e(TAG, "$mensagem (inventário ${inventario.id})")
+        registrarErro(TipoErro.ENVIO_RECUSADO, mensagem)
     }
 
     private fun processar(inventario: InventarioEntity): RespostaServidor.Falha? {
@@ -54,6 +93,7 @@ class SincronizadorInventarios(
                 RespostaServidor.NaoEncontrado -> return RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Servidor sem suporte a inventário")
                 is RespostaServidor.Sucesso -> {
                     dao.definirAberturaEnviada(id, true)
+                    aceito(inventario)
                     Log.i(TAG, "Inventário $id (${inventario.local}) registrado no servidor")
                 }
             }
@@ -71,6 +111,7 @@ class SincronizadorInventarios(
                     RespostaServidor.NaoEncontrado -> return reabrir(inventario)
                     is RespostaServidor.Sucesso -> {
                         dao.marcarItensEnviados(grupo.map { it.id })
+                        aceito(inventario)
                         enviados += grupo.size
                     }
                 }
@@ -85,12 +126,18 @@ class SincronizadorInventarios(
                 RespostaServidor.NaoEncontrado -> return reabrir(inventario)
                 is RespostaServidor.Sucesso -> {
                     dao.marcarFinalizacaoEnviada(id)
+                    aceito(inventario)
                     Log.i(TAG, "Inventário $id (${inventario.local}) finalizado no servidor")
                 }
             }
         }
 
         return null
+    }
+
+    /** Alguma etapa foi aceita: as recusas anteriores não eram definitivas. */
+    private fun aceito(inventario: InventarioEntity) {
+        if (inventario.recusas > 0) dao.zerarRecusas(inventario.id)
     }
 
     /**
@@ -108,5 +155,17 @@ class SincronizadorInventarios(
 
         /** Etiquetas por requisição (o servidor aceita até 500). */
         internal const val TAMANHO_LOTE = 200
+
+        /** Recusas seguidas, espalhadas por pelo menos [PRAZO_DESISTIR_MS], para o coletor desistir de um inventário. */
+        internal const val LIMITE_RECUSAS = 3
+        internal const val PRAZO_DESISTIR_MS = 24L * 60 * 60 * 1000
+
+        /** Inventário recusado de vez fica no aparelho por 30 dias (para conferir) e depois é apagado. */
+        internal const val GUARDA_RECUSADOS_MS = 30L * 24 * 60 * 60 * 1000
+
+        private val FORMATO_HORARIO = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
+
+        private fun horario(epochMs: Long): String =
+            FORMATO_HORARIO.format(Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()))
     }
 }

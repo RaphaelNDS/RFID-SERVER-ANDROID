@@ -36,6 +36,7 @@ enum class EstadoLeitor(val descricao: String) {
  *
  * Enquanto há uma tela de leitura visível, o leitor é conectado sozinho e, se cair (bateria, encaixe,
  * Bluetooth), reconectado sozinho em intervalos ([ReconexaoLeitor]). A situação fica em [estado].
+ * Sem nenhuma tela de leitura por [ReconexaoLeitor.DESCONECTAR_OCIOSO_MS], o leitor é desconectado.
  *
  * Conectar e desconectar rodam numa thread própria: o SDK da Zebra pode demorar segundos, e na
  * thread principal isso travaria a tela (ANR). Tudo que mexe na conexão roda nessa thread.
@@ -181,9 +182,7 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         r.Events.setReaderDisconnectEvent(true)
 
         try {
-            val antConfig = r.Config.Antennas.getAntennaRfConfig(1)
-            antConfig.transmitPowerIndex = r.ReaderCapabilities.transmitPowerLevelValues.size - 1
-            r.Config.Antennas.setAntennaRfConfig(1, antConfig)
+            definirPotencia(r)
 
             // leitura SOMENTE no gatilho
             r.Config.setTriggerMode(ENUM_TRIGGER_MODE.RFID_MODE, true)
@@ -193,10 +192,35 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         }
     }
 
+    /** Potência escolhida nas Configurações (% da máxima). Menos potência: lê só o que está perto e gasta menos bateria. */
+    private fun definirPotencia(r: RFIDReader) {
+        val percentual = AppConfig.getPotenciaLeitor(appContext)
+        val niveis = r.ReaderCapabilities.transmitPowerLevelValues
+        val indice = ReconexaoLeitor.indicePotencia(niveis.size, percentual)
+
+        val antConfig = r.Config.Antennas.getAntennaRfConfig(1)
+        antConfig.transmitPowerIndex = indice
+        r.Config.Antennas.setAntennaRfConfig(1, antConfig)
+        Log.i(TAG, "Potência do leitor: $percentual% (nível ${indice + 1} de ${niveis.size}, valor ${niveis.getOrNull(indice)})")
+    }
+
+    /** As Configurações mudaram a potência: aplica já, se o leitor estiver conectado (senão, vale na próxima conexão). */
+    fun aplicarPotencia() {
+        executor.execute {
+            val r = reader?.takeIf { it.isConnected } ?: return@execute
+            try {
+                definirPotencia(r)
+            } catch (e: Exception) {
+                Log.e(TAG, "Erro ao mudar a potência do leitor", e)
+            }
+        }
+    }
+
     /** Desconecta em segundo plano. Chame só quando o app estiver saindo de vez. */
     fun desconectar() {
         executor.execute {
             cancelarProximaTentativa()
+            cancelarDesconexaoOciosa()
             tentativasSemSucesso = 0
             liberarSdk()
             atualizarEstado(EstadoLeitor.DESCONECTADO)
@@ -239,6 +263,7 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         Log.d(TAG, "Leituras agora vão para ${quem.javaClass.simpleName}")
 
         executor.execute {
+            cancelarDesconexaoOciosa()
             // Já há uma tentativa marcada: não antecipa (evita conectar duas vezes seguidas)
             if (proximaTentativa == null && this.ouvinte != null) tentarConectar()
         }
@@ -251,8 +276,34 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         ouvinte = null
         locatingEpc = null
 
-        // Sem tela de leitura, não adianta ficar tentando reconectar
-        executor.execute { if (ouvinte == null) cancelarProximaTentativa() }
+        // Sem tela de leitura, não adianta ficar tentando reconectar; e, se nenhuma abrir logo, desconecta
+        executor.execute {
+            if (ouvinte != null) return@execute
+            cancelarProximaTentativa()
+            agendarDesconexaoOciosa()
+        }
+    }
+
+    // ================= DESCONEXÃO SEM TELA DE LEITURA =================
+
+    // Só acessada na thread do executor
+    private var desconexaoOciosa: ScheduledFuture<*>? = null
+
+    private fun agendarDesconexaoOciosa() {
+        if (desconexaoOciosa != null || reader == null) return
+        desconexaoOciosa = executor.schedule({
+            desconexaoOciosa = null
+            if (ouvinte != null || reader == null) return@schedule
+            Log.i(TAG, "Nenhuma tela de leitura aberta há ${ReconexaoLeitor.DESCONECTAR_OCIOSO_MS / 60_000} min: " +
+                "leitor RFID desconectado para economizar bateria (reconecta ao abrir uma tela de leitura)")
+            liberarSdk()
+            atualizarEstado(EstadoLeitor.DESCONECTADO)
+        }, ReconexaoLeitor.DESCONECTAR_OCIOSO_MS, TimeUnit.MILLISECONDS)
+    }
+
+    private fun cancelarDesconexaoOciosa() {
+        desconexaoOciosa?.cancel(false)
+        desconexaoOciosa = null
     }
 
     // ================= MODO LOCALIZAÇÃO =================

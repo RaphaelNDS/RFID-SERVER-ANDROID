@@ -116,6 +116,25 @@
                         android:layout_marginTop="4dp"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"/>
+
+                    <!-- Também vale na hora: o leitor recebe a potência nova sem reconectar -->
+                    <TextView
+                        android:text="Potência do leitor"
+                        android:layout_marginTop="12dp"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"/>
+
+                    <Spinner
+                        android:id="@+id/spnPotencia"
+                        android:minHeight="48dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"/>
+
+                    <TextView
+                        android:text="Menos potência lê só as etiquetas mais próximas (útil para não pegar as da sala ao lado) e gasta menos bateria."
+                        android:textAppearance="@style/Texto.RFID.Secundario"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"/>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

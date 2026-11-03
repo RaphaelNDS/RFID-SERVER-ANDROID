@@ -51,7 +51,7 @@ O APK de produção de cada versão fica nas [Releases](https://github.com/Rapha
 | **Localizar patrimônio** | Busca o equipamento pelo patrimônio e indica a proximidade pela força do sinal (RSSI), com bip e vibração. |
 | **Inventário por local** | Escolhe ou digita o local (com sugestões dos locais já usados), inicia, lê com o gatilho e finaliza. |
 | **Cadastrar etiqueta** | Ao tocar numa etiqueta não cadastrada: código interno (obrigatório), patrimônio, nº de série e tipo → marca → modelo em cascata. Avisa se o cadastro ficar incompleto. |
-| **Configurações** | Endereço do servidor (IP ou IP:porta, conferido antes de salvar), chave do coletor, testar conexão e confirmar o certificado. |
+| **Configurações** | Endereço do servidor (IP ou IP:porta, conferido antes de salvar), chave do coletor, testar conexão e confirmar o certificado (protegidos pelo PIN). Bip e vibração a cada etiqueta nova e **potência do leitor** (Máxima, 75%, 50% ou 25%: menos potência lê só o que está perto e gasta menos bateria), que valem na hora. |
 
 ---
 
@@ -288,4 +288,6 @@ no coletor enquanto não há rede.
 | Leituras antigas recusadas | O coletor ficou offline mais que o prazo de sincronização do servidor (72 h por padrão). |
 | "Coletor sem permissão para cadastrar" | Inclua o nome do coletor em `RFID_COLETORES_CADASTRO` no servidor (e o operador precisa de RFID · Criar). |
 | Login pede para esperar | Bloqueio por senhas erradas: aguarde o tempo indicado. |
-| Leitor não lê | Confira se o leitor Zebra está conectado/carregado; a leitura só acontece com o gatilho e só na tela visível. |
+| Leitor não lê | Confira se o leitor Zebra está conectado/carregado; a leitura só acontece com o gatilho e só na tela visível. Sem nenhuma tela de leitura aberta por 2 min o leitor é desconectado (economia de bateria) e reconecta sozinho ao abrir uma. |
+| Leitor só lê etiquetas muito perto | Confira a **potência do leitor** nas Configurações (Máxima lê mais longe). |
+| Inventário "recusado pelo servidor" | O servidor recusou o envio por mais de um dia seguido (ex.: operador sem permissão): o coletor parou de enviá-lo, o motivo vai para a tela de erros do coletor no servidor e ele fica no aparelho por 30 dias. |

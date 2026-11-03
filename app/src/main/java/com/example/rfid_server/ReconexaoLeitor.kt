@@ -19,4 +19,21 @@ object ReconexaoLeitor {
 
     /** Registra no log as 3 primeiras falhas e depois só 1 a cada 6 (cerca de uma por minuto). */
     fun deveRegistrar(tentativa: Int): Boolean = tentativa <= 3 || tentativa % 6 == 0
+
+    /**
+     * Sem nenhuma tela de leitura aberta por este tempo (app em segundo plano, tela de configurações...), o leitor
+     * é desconectado: economiza bateria e libera o leitor para outros apps. Passar de uma tela de leitura para
+     * outra leva milissegundos e não desconecta.
+     */
+    const val DESCONECTAR_OCIOSO_MS = 2 * 60_000L
+
+    /**
+     * Índice da potência na lista do leitor (do menor para o maior valor) para [percentual] da máxima.
+     * 100 = a última (máxima). Nunca fica fora da lista.
+     */
+    fun indicePotencia(quantidadeNiveis: Int, percentual: Int): Int {
+        if (quantidadeNiveis <= 0) return 0
+        val ultimo = quantidadeNiveis - 1
+        return Math.round(ultimo * percentual.coerceIn(0, 100) / 100.0).toInt().coerceIn(0, ultimo)
+    }
 }

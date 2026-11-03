@@ -366,7 +366,8 @@ class Sincronizador internal constructor(
                         tagService = tagService,
                         executor = Executors.newSingleThreadExecutor(),
                         agendarNovaTentativa = { SincronizacaoWorker.agendarNovaTentativa(app) },
-                        inventarios = SincronizadorInventarios(banco.inventarioDao(), tagService),
+                        inventarios = SincronizadorInventarios(banco.inventarioDao(), tagService,
+                            registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) }),
                         cadastros = SincronizadorCadastros(banco.cadastroDao(), banco.leituraDao(), tagService),
                         registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) },
                         enviarErros = { RegistroErros.enviarPendentes(app) }

@@ -4,13 +4,12 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.example.rfid_server.R
 import com.example.rfid_server.view.TagView
 
-class TagAdapter : RecyclerView.Adapter<TagAdapter.VH>() {
-
-    private var list: List<TagView> = emptyList()
+class TagAdapter : ListAdapter<TagView, TagAdapter.VH>(Diferenca { it.epc }) {
 
     class VH(view: View) : RecyclerView.ViewHolder(view) {
         val txtCodigoInterno: TextView = view.findViewById(R.id.txtCodigoInterno)
@@ -21,17 +20,14 @@ class TagAdapter : RecyclerView.Adapter<TagAdapter.VH>() {
         val txtSerie: TextView = view.findViewById(R.id.txtSerie)
     }
 
-
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
         val v = LayoutInflater.from(parent.context)
             .inflate(R.layout.item_tag, parent, false)
         return VH(v)
     }
 
-    override fun getItemCount() = list.size
-
     override fun onBindViewHolder(holder: VH, position: Int) {
-        val t = list[position]
+        val t = getItem(position)
 
         holder.txtCodigoInterno.text = "Código: ${t.codigoInterno}"
         holder.txtTipo.text = "Tipo: ${t.tipo ?: "—"}"
@@ -39,11 +35,7 @@ class TagAdapter : RecyclerView.Adapter<TagAdapter.VH>() {
         holder.txtModelo.text = "Modelo: ${t.modelo ?: "—"}"
         holder.txtPatrimonio.text = "Patrimônio: ${t.patrimonio}"
         holder.txtSerie.text = "Série: ${t.numeroSerie}"
-
     }
 
-    fun atualizar(novaLista: List<TagView>) {
-        list = novaLista
-        notifyDataSetChanged()
-    }
+    fun atualizar(novaLista: List<TagView>) = submitList(novaLista)
 }

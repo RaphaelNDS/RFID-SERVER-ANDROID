@@ -50,7 +50,11 @@ class SincronizadorInventariosTest {
 
     private fun tagService() = TagService(HttpClient.criar { "chave-teste" }) { servidor.url("/").toString().trimEnd('/') }
 
-    private fun sincronizador() = SincronizadorInventarios(dao, tagService())
+    private var agora = 10_000_000_000L
+    private val errosRegistrados = mutableListOf<String>()
+
+    private fun sincronizador() =
+        SincronizadorInventarios(dao, tagService(), registrarErro = { _, mensagem -> errosRegistrados += mensagem }, relogio = { agora })
 
     private fun ok() = MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json").setBody("{}")
     private fun erro(codigo: Int) = MockResponse().setResponseCode(codigo).setBody("{}")
@@ -233,5 +237,84 @@ class SincronizadorInventariosTest {
         )
         assertEquals("E2", JSONObject(requisicoes[2].body.readUtf8()).getJSONArray("itens").getJSONObject(0).getString("tag"))
         assertEquals("/api/android/inventarios/inv-1/finalizar", requisicoes[3].path)
+    }
+
+    // ---------- Inventário recusado: não fica na fila para sempre ----------
+
+    private val horaMs = 60L * 60 * 1000
+
+    @Test(timeout = 10_000)
+    fun `recusado varias vezes no mesmo dia continua na fila`() {
+        inventario("ruim", finalizado = true, "E1")
+
+        repeat(SincronizadorInventarios.LIMITE_RECUSAS + 2) {
+            servidor.enqueue(erro(400))
+            assertNull(sincronizador().processar())
+            agora += horaMs
+        }
+
+        val inv = dao.inventario("ruim")
+        assertNull("Ainda não desistiu: menos de 24 h desde a primeira recusa", inv.recusadoEm)
+        assertEquals(SincronizadorInventarios.LIMITE_RECUSAS + 2, inv.recusas)
+        assertEquals(listOf("ruim"), dao.comPendencias().map { it.id })
+        assertTrue(errosRegistrados.isEmpty())
+    }
+
+    @Test(timeout = 10_000)
+    fun `recusado por mais de um dia sai da fila e vira erro para o servidor`() {
+        inventario("ruim", finalizado = true, "E1", "E2")
+        dao.contarItensNaoEnviados().observeForever { }
+
+        repeat(SincronizadorInventarios.LIMITE_RECUSAS) {
+            servidor.enqueue(erro(403))
+            assertNull(sincronizador().processar())
+            agora += 13 * horaMs
+        }
+
+        val inv = dao.inventario("ruim")
+        assertNotNull("Desistiu depois de ${SincronizadorInventarios.LIMITE_RECUSAS} recusas em mais de 24 h", inv.recusadoEm)
+        assertTrue("Não é mais tentado", dao.comPendencias().isEmpty())
+        assertEquals("Não conta como aguardando envio", 0, dao.contarItensNaoEnviados().value)
+        assertEquals(1, errosRegistrados.size)
+        assertTrue(errosRegistrados.single(), errosRegistrados.single().contains("Sala 101"))
+
+        // Próxima passada não chama o servidor por causa dele
+        val antes = servidor.requestCount
+        assertNull(sincronizador().processar())
+        assertEquals(antes, servidor.requestCount)
+        assertEquals("Continua no aparelho por 30 dias", listOf("ruim"), dao.inventarios.map { it.id })
+    }
+
+    @Test(timeout = 10_000)
+    fun `etapa aceita zera as recusas`() {
+        inventario("inv", finalizado = true, "E1")
+        servidor.enqueue(erro(400))
+        assertNull(sincronizador().processar())
+        assertEquals(1, dao.inventario("inv").recusas)
+
+        // Abertura aceita, e a falha seguinte é de conexão (não é recusa)
+        servidor.enqueue(ok())
+        servidor.enqueue(erro(503))
+        sincronizador().processar()
+
+        val inv = dao.inventario("inv")
+        assertEquals(0, inv.recusas)
+        assertNull(inv.primeiraRecusaEm)
+    }
+
+    @Test(timeout = 10_000)
+    fun `recusado de vez e apagado do aparelho depois de 30 dias`() {
+        inventario("ruim", finalizado = true, "E1")
+        dao.desistir("ruim", agora)
+
+        agora += SincronizadorInventarios.GUARDA_RECUSADOS_MS - horaMs
+        assertNull(sincronizador().processar())
+        assertEquals(listOf("ruim"), dao.inventarios.map { it.id })
+
+        agora += 2 * horaMs
+        assertNull(sincronizador().processar())
+        assertTrue(dao.inventarios.isEmpty())
+        assertTrue(dao.itens.isEmpty())
+        assertEquals(0, servidor.requestCount)
     }
 }
