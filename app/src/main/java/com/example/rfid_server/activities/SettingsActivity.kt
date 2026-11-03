@@ -18,17 +18,20 @@ import com.example.rfid_server.service.ResultadoConexao
 import com.example.rfid_server.service.StatusConexao
 import com.example.rfid_server.sincronizacao.Sincronizador
 import com.example.rfid_server.service.TagService
+import com.google.android.material.textfield.TextInputLayout
 
 class SettingsActivity : AppCompatActivity() {
 
     private lateinit var edtIp: EditText
     private lateinit var edtChave: EditText
+    private lateinit var layoutChave: TextInputLayout
     private lateinit var btnSalvar: Button
     private lateinit var btnTestar: Button
     private lateinit var txtStatus: TextView
     private lateinit var txtCertificado: TextView
 
     private lateinit var tagService: TagService
+    private lateinit var guardaPin: GuardaPin
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,15 +39,18 @@ class SettingsActivity : AppCompatActivity() {
 
         edtIp = findViewById(R.id.edtIp)
         edtChave = findViewById(R.id.edtChave)
+        layoutChave = findViewById(R.id.layoutChave)
         btnSalvar = findViewById(R.id.btnSalvar)
         btnTestar = findViewById(R.id.btnTestarServidor)
         txtStatus = findViewById(R.id.txtStatusServidor)
         txtCertificado = findViewById(R.id.txtCertificado)
 
         tagService = TagService(this)
+        guardaPin = GuardaPin(this, tagService)
 
         edtIp.setText(AppConfig.getServerIp(this))
-        edtChave.setText(AppConfig.getChaveDispositivo(this))
+        // A chave salva nunca volta para a tela: quem pega o coletor não consegue copiá-la
+        mostrarSituacaoChave()
         mostrarCertificadoConfirmado()
         findViewById<TextView>(R.id.txtVersao).text = "${getString(R.string.app_name)} · ${VersaoApp.descricao()}"
         findViewById<Button>(R.id.btnAtualizacao).setOnClickListener {
@@ -69,9 +75,14 @@ class SettingsActivity : AppCompatActivity() {
         btnSalvar.setOnClickListener { salvar() }
     }
 
+    private fun mostrarSituacaoChave() {
+        layoutChave.helperText = if (AppConfig.chaveConfigurada(this)) "Já salva neste coletor (não é mostrada). Digite só para trocar"
+        else "Fornecida pelo administrador do servidor"
+    }
+
     private fun salvar() {
         val ip = edtIp.text.toString().trim()
-        val chave = edtChave.text.toString().trim()
+        val chaveDigitada = edtChave.text.toString().trim()
 
         if (ip.isEmpty()) {
             Toast.makeText(this, "Informe o IP do servidor", Toast.LENGTH_SHORT).show()
@@ -84,8 +95,25 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         val anterior = AppConfig.getServerIp(this)
+        // Campo da chave em branco = manter a salva
+        val chave = chaveDigitada.ifEmpty { AppConfig.getChaveDispositivo(this) }
+
+        if (ip == anterior && chave == AppConfig.getChaveDispositivo(this) && AppConfig.temPin(this)) {
+            Toast.makeText(this, "Nada mudou nas Configurações", Toast.LENGTH_SHORT).show()
+            edtChave.text = null
+            Sincronizador.get(this).solicitar()
+            testarServidor()
+            return
+        }
+
+        guardaPin.exigir("salvar o servidor e a chave") { gravar(ip, chave, anterior) }
+    }
+
+    private fun gravar(ip: String, chave: String, anterior: String) {
         AppConfig.saveServerIp(this, ip)
         AppConfig.saveChaveDispositivo(this, chave)
+        edtChave.text = null
+        mostrarSituacaoChave()
 
         val endereco = AppConfig.montarEndereco(ip)
         when {
@@ -163,11 +191,10 @@ class SettingsActivity : AppCompatActivity() {
             .setTitle(if (anterior == null) "Confirmar o servidor" else "Certificado do servidor mudou")
             .setMessage(mensagem)
             .setPositiveButton("É igual, confiar") { _, _ ->
-                AppConfig.saveImpressaoDigital(this, impressao)
-                Log.i(TAG, (if (anterior == null) "Certificado do servidor confirmado" else "Novo certificado do servidor confirmado (antes: $anterior)") + ": $impressao")
-                mostrarCertificadoConfirmado()
-                Sincronizador.get(this).solicitar()
-                testarServidor()
+                // Certificado trocado exige o PIN (é exatamente o que um impostor na rede pediria para aceitar);
+                // o primeiro, na configuração inicial, só se o PIN já existir
+                if (anterior == null) guardaPin.exigirSeTiver("confiar no certificado do servidor") { confiar(impressao, anterior) }
+                else guardaPin.exigir("confiar no novo certificado do servidor") { confiar(impressao, anterior) }
             }
             .setNegativeButton("Não confiar") { _, _ ->
                 Log.w(TAG, "Certificado do servidor NÃO confirmado pelo responsável: $impressao")
@@ -175,6 +202,14 @@ class SettingsActivity : AppCompatActivity() {
             .show()
 
         dialogo.findViewById<TextView>(android.R.id.message)?.typeface = Typeface.MONOSPACE
+    }
+
+    private fun confiar(impressao: String, anterior: String?) {
+        AppConfig.saveImpressaoDigital(this, impressao)
+        Log.i(TAG, (if (anterior == null) "Certificado do servidor confirmado" else "Novo certificado do servidor confirmado (antes: $anterior)") + ": $impressao")
+        mostrarCertificadoConfirmado()
+        Sincronizador.get(this).solicitar()
+        testarServidor()
     }
 
     private fun mostrarCertificadoConfirmado() {

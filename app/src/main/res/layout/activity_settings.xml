@@ -60,6 +60,7 @@
                     </com.google.android.material.textfield.TextInputLayout>
 
                     <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/layoutChave"
                         android:hint="Chave do coletor"
                         app:helperText="Fornecida pelo administrador do servidor"
                         app:endIconMode="password_toggle"

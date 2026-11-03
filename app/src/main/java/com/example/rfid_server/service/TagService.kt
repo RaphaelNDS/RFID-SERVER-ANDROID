@@ -394,6 +394,48 @@ class TagService internal constructor(
     }
 
     /**
+     * "Esqueci o PIN" das Configurações: um ADMIN confirma com email e senha (sem abrir sessão nem derrubar a do
+     * operador). Sucesso = pode apagar o PIN. A recusa traz a mensagem do servidor para mostrar. Exige rede.
+     */
+    fun liberarPin(email: String, senha: String, callback: (RespostaServidor<Unit>) -> Unit) {
+        val url = url("pin/liberar") ?: return callback(falhaEndereco())
+        val corpo = JSONObject().put("email", email).put("senha", senha)
+
+        val request = Request.Builder().url(url).header(HttpClient.HEADER_SESSAO, "")
+            .post(corpo.toString().toRequestBody(json)).build()
+
+        client.newCall(request).enqueue(object : Callback {
+
+            override fun onFailure(call: Call, e: IOException) {
+                callback(falhaConexao("liberar o PIN com $email", e))
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                callback(response.use {
+                    when {
+                        it.isSuccessful -> {
+                            Log.w(TAG, "PIN das Configurações liberado pelo administrador $email")
+                            RespostaServidor.Sucesso(Unit)
+                        }
+
+                        it.code == 404 -> {
+                            Log.e(TAG, "O servidor não conhece /api/android/pin/liberar: servidor desatualizado?")
+                            RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Servidor desatualizado: atualize o servidor para liberar o PIN")
+                        }
+
+                        else -> {
+                            // Senha errada, não é ADMIN, bloqueio por tentativas, chave do coletor: a mensagem vem do servidor
+                            val mensagem = mensagemDoServidor(it) ?: "Não foi possível liberar o PIN (HTTP ${it.code})"
+                            Log.w(TAG, "Liberação do PIN com $email recusada pelo servidor (HTTP ${it.code}): $mensagem")
+                            RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, mensagem)
+                        }
+                    }
+                })
+            }
+        })
+    }
+
+    /**
      * "Esqueceu a senha?": pede uma senha nova ao administrador. O servidor responde igual exista ou não o
      * email; o [callback] recebe a mensagem para mostrar ao operador. Exige rede.
      */
