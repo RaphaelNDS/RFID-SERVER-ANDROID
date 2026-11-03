@@ -17,7 +17,7 @@ class FakeInventarioDao : InventarioDao {
 
     private fun publicar() {
         aberto.value = inventarioAbertoAgora()
-        naoEnviados.value = itens.count { !it.enviado }
+        naoEnviados.value = itens.count { item -> !item.enviado && inventarios.none { it.id == item.inventarioId && it.recusadoEm != null } }
     }
 
     private fun alterar(id: String, mudanca: (InventarioEntity) -> InventarioEntity) {
@@ -60,9 +60,9 @@ class FakeInventarioDao : InventarioDao {
 
     override fun comPendencias(): List<InventarioEntity> =
         inventarios.filter { inv ->
-            !inv.aberturaEnviada ||
+            inv.recusadoEm == null && (!inv.aberturaEnviada ||
                 (inv.finalizadoEm != null && !inv.finalizacaoEnviada) ||
-                itens.any { it.inventarioId == inv.id && !it.enviado }
+                itens.any { it.inventarioId == inv.id && !it.enviado })
         }.sortedBy { it.iniciadoEm }
 
     override fun itensNaoEnviados(inventarioId: String, limite: Int): List<InventarioItemEntity> =
@@ -80,6 +80,16 @@ class FakeInventarioDao : InventarioDao {
         alterar(id) { it.copy(finalizacaoEnviada = true, ultimoErro = null) }
 
     override fun registrarErro(id: String, erro: String) = alterar(id) { it.copy(ultimoErro = erro) }
+
+    override fun registrarRecusa(id: String, erro: String, agora: Long) =
+        alterar(id) { it.copy(ultimoErro = erro, recusas = it.recusas + 1, primeiraRecusaEm = it.primeiraRecusaEm ?: agora) }
+
+    override fun zerarRecusas(id: String) = alterar(id) { it.copy(recusas = 0, primeiraRecusaEm = null) }
+
+    override fun desistir(id: String, agora: Long) = alterar(id) { it.copy(recusadoEm = agora) }
+
+    override fun idsRecusadosAntes(antesDe: Long): List<String> =
+        inventarios.filter { it.recusadoEm != null && it.recusadoEm < antesDe }.map { it.id }
 
     override fun contarItensNaoEnviados(): LiveData<Int> = naoEnviados.also { publicar() }
 

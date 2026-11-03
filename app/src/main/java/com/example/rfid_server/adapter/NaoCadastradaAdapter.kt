@@ -4,6 +4,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.example.rfid_server.R
 import com.example.rfid_server.dados.ItemNaoCadastrada
@@ -11,9 +12,7 @@ import com.example.rfid_server.dados.ItemNaoCadastrada
 /** Aba "Não cadastradas": EPC + situação do cadastro. Tocar abre o cadastro da etiqueta. */
 class NaoCadastradaAdapter(
     private val aoTocar: (String) -> Unit
-) : RecyclerView.Adapter<NaoCadastradaAdapter.VH>() {
-
-    private var list: List<ItemNaoCadastrada> = emptyList()
+) : ListAdapter<ItemNaoCadastrada, NaoCadastradaAdapter.VH>(Diferenca { it.epc }) {
 
     class VH(view: View) : RecyclerView.ViewHolder(view) {
         val epc: TextView = view.findViewById(android.R.id.text1)
@@ -26,17 +25,12 @@ class NaoCadastradaAdapter(
         return VH(v)
     }
 
-    override fun getItemCount() = list.size
-
     override fun onBindViewHolder(holder: VH, position: Int) {
-        val item = list[position]
+        val item = getItem(position)
         holder.epc.text = item.epc
         holder.situacao.text = item.situacao
         holder.itemView.setOnClickListener { aoTocar(item.epc) }
     }
 
-    fun atualizar(novaLista: List<ItemNaoCadastrada>) {
-        list = novaLista
-        notifyDataSetChanged()
-    }
+    fun atualizar(novaLista: List<ItemNaoCadastrada>) = submitList(novaLista)
 }

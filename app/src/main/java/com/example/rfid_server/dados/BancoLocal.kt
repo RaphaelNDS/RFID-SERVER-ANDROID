@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  */
 @Database(
     entities = [LeituraEntity::class, InventarioEntity::class, InventarioItemEntity::class, CadastroEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = true
 )
 abstract class BancoLocal : RoomDatabase() {
@@ -95,13 +95,30 @@ abstract class BancoLocal : RoomDatabase() {
             "ALTER TABLE `leituras` ADD COLUMN `recusada` INTEGER NOT NULL DEFAULT 0"
         )
 
+        /**
+         * Versão 6: inventário recusado pelo servidor deixa de ficar na fila para sempre (contador de recusas e
+         * a data em que o coletor desistiu de enviar).
+         */
+        internal val MIGRACAO_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                Log.i(TAG, "Atualizando o banco local da versão 5 para a 6: recusas do inventário")
+                SQL_VERSAO_6.forEach { db.execSQL(it) }
+            }
+        }
+
+        internal val SQL_VERSAO_6 = listOf(
+            "ALTER TABLE `inventarios` ADD COLUMN `recusas` INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE `inventarios` ADD COLUMN `primeiraRecusaEm` INTEGER",
+            "ALTER TABLE `inventarios` ADD COLUMN `recusadoEm` INTEGER"
+        )
+
         @Volatile
         private var instancia: BancoLocal? = null
 
         fun get(context: Context): BancoLocal =
             instancia ?: synchronized(this) {
                 instancia ?: Room.databaseBuilder(context.applicationContext, BancoLocal::class.java, "rfid-local.db")
-                    .addMigrations(MIGRACAO_1_2, MIGRACAO_2_3, MIGRACAO_3_4, MIGRACAO_4_5)
+                    .addMigrations(MIGRACAO_1_2, MIGRACAO_2_3, MIGRACAO_3_4, MIGRACAO_4_5, MIGRACAO_5_6)
                     .build()
                     .also { instancia = it }
             }

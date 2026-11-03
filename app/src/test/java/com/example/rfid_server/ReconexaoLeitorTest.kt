@@ -27,4 +27,21 @@ class ReconexaoLeitorTest {
 
         assertEquals(listOf(1, 2, 3, 6, 12, 18, 24, 30), registradas)
     }
+
+    @Test
+    fun `potencia 100 e a maxima e as outras ficam dentro da lista`() {
+        // MC3300x: 271 níveis (0 a 270)
+        assertEquals(270, ReconexaoLeitor.indicePotencia(271, 100))
+        assertEquals(135, ReconexaoLeitor.indicePotencia(271, 50))
+        assertEquals(0, ReconexaoLeitor.indicePotencia(271, 0))
+        assertEquals(68, ReconexaoLeitor.indicePotencia(271, 25))
+    }
+
+    @Test
+    fun `potencia nunca sai da lista do leitor`() {
+        assertEquals(0, ReconexaoLeitor.indicePotencia(0, 100))
+        assertEquals(0, ReconexaoLeitor.indicePotencia(1, 75))
+        assertEquals(9, ReconexaoLeitor.indicePotencia(10, 150))
+        assertEquals(0, ReconexaoLeitor.indicePotencia(10, -5))
+    }
 }

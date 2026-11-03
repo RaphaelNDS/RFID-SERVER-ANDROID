@@ -3,9 +3,13 @@ package com.example.rfid_server.activities
 import android.graphics.Typeface
 import android.os.Bundle
 import android.util.Log
+import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
+import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -13,6 +17,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.example.rfid_server.AppConfig
 import com.example.rfid_server.R
+import com.example.rfid_server.RfidManager
 import com.example.rfid_server.VersaoApp
 import com.example.rfid_server.service.ResultadoConexao
 import com.example.rfid_server.service.StatusConexao
@@ -65,6 +70,8 @@ class SettingsActivity : AppCompatActivity() {
                 Log.i(TAG, "Bip e vibração a cada etiqueta nova ${if (ligado) "ligados" else "desligados"} pelo operador")
             }
         }
+
+        configurarPotencia()
 
         testarServidor()
 
@@ -134,6 +141,28 @@ class SettingsActivity : AppCompatActivity() {
         testarServidor()
     }
 
+    /** Potência do leitor (% da máxima). Muda na hora, sem o botão Salvar e sem PIN, como o bip. */
+    private fun configurarPotencia() {
+        val spinner = findViewById<Spinner>(R.id.spnPotencia)
+        val atual = AppConfig.getPotenciaLeitor(this)
+        // Valor fora da lista (não acontece pela tela): mostra o mais próximo
+        val selecionado = POTENCIAS.indices.minByOrNull { kotlin.math.abs(POTENCIAS[it].second - atual) } ?: 0
+
+        spinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, POTENCIAS.map { it.first })
+        spinner.setSelection(selecionado, false)
+        spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val percentual = POTENCIAS[position].second
+                if (percentual == AppConfig.getPotenciaLeitor(this@SettingsActivity)) return
+                AppConfig.setPotenciaLeitor(this@SettingsActivity, percentual)
+                RfidManager.get(this@SettingsActivity).aplicarPotencia()
+                Log.i(TAG, "Potência do leitor mudada pelo operador para ${POTENCIAS[position].first}")
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+    }
+
     private fun testarServidor() {
         // Coletor novo: não há servidor para testar (antes testava o IP de desenvolvimento que ficava no código)
         if (!AppConfig.servidorConfigurado(this)) {
@@ -147,7 +176,11 @@ class SettingsActivity : AppCompatActivity() {
         txtStatus.setTextColor(ContextCompat.getColor(this, R.color.texto_secundario))
 
         tagService.testarConexao { resultado ->
-            runOnUiThread { mostrarResultado(resultado) }
+            runOnUiThread {
+                // Saiu da tela enquanto o servidor respondia: o diálogo do certificado não pode abrir numa tela fechada
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                mostrarResultado(resultado)
+            }
         }
     }
 
@@ -224,5 +257,13 @@ class SettingsActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "SETTINGS"
+
+        /** Opções da potência do leitor: texto na tela e % da máxima. */
+        private val POTENCIAS = listOf(
+            "Máxima (100%)" to 100,
+            "Alta (75%)" to 75,
+            "Média (50%)" to 50,
+            "Baixa (25%)" to 25
+        )
     }
 }

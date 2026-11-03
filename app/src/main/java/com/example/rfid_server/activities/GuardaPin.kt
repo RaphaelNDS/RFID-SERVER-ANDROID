@@ -155,7 +155,7 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
                 botao.isEnabled = false
                 tagService.liberarPin(email, senha) { resposta ->
                     activity.runOnUiThread {
-                        if (activity.isFinishing) return@runOnUiThread
+                        if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
                         botao.isEnabled = true
                         when (resposta) {
                             is RespostaServidor.Sucesso -> {

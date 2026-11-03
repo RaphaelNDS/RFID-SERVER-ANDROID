@@ -1,7 +1,10 @@
 package com.example.rfid_server
 
 import android.content.Context
+import android.util.Log
+import com.example.rfid_server.dados.EsperadoGuardado
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import java.io.File
 
 object AppConfig {
 
@@ -103,22 +106,38 @@ object AppConfig {
     }
 
     // Esperado de cada local (JSON de /api/android/inventarios/esperado): o inventário mostra o que falta
-    // mesmo sem rede, com a última lista baixada. A chave ignora maiúsculas e espaços extras, como o servidor.
+    // mesmo sem rede, com a última lista baixada. Fica em arquivo, um por local (EsperadoGuardado).
     fun saveEsperadoJson(context: Context, local: String, json: String) {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        prefs.edit()
-            .putString(chaveEsperado(local), json)
-            .apply()
+        esperadoGuardado(context).salvar(local, json)
     }
 
     /** null se o esperado deste local nunca foi baixado neste coletor. */
-    fun getEsperadoJson(context: Context, local: String): String? {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        return prefs.getString(chaveEsperado(local), null)
-    }
+    fun getEsperadoJson(context: Context, local: String): String? = esperadoGuardado(context).ler(local)
 
-    private fun chaveEsperado(local: String) =
-        KEY_ESPERADO_PREFIXO + local.trim().replace(Regex("\\s+"), " ").lowercase()
+    @Volatile
+    private var esperadoMigrado = false
+
+    /**
+     * Até a versão 1.5.0 o esperado ficava no SharedPreferences (chaves "esperado_<local>"): na primeira vez,
+     * passa para os arquivos e tira de lá, o que deixa o arquivo de configurações pequeno de novo.
+     */
+    @Synchronized
+    private fun esperadoGuardado(context: Context): EsperadoGuardado {
+        val guardado = EsperadoGuardado(File(context.filesDir, PASTA_ESPERADO))
+        if (esperadoMigrado) return guardado
+
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val antigas = prefs.all.filterKeys { it.startsWith(KEY_ESPERADO_PREFIXO) }
+            .mapNotNull { (chave, valor) -> (valor as? String)?.let { chave.removePrefix(KEY_ESPERADO_PREFIXO) to it } }
+            .toMap()
+        if (antigas.isNotEmpty()) {
+            val trazidas = guardado.importar(antigas)
+            prefs.edit().apply { antigas.keys.forEach { remove(KEY_ESPERADO_PREFIXO + it) } }.apply()
+            Log.i("AppConfig", "Lista do esperado de $trazidas local(is) passada das configurações para arquivos")
+        }
+        esperadoMigrado = true
+        return guardado
+    }
 
     // Bip e vibração a cada etiqueta nova na leitura e no inventário (ligado por padrão)
     fun setAvisoLeitura(context: Context, ligado: Boolean) {
@@ -237,6 +256,21 @@ object AppConfig {
     private const val KEY_SESSAO_CADASTRAR = "sessao_pode_cadastrar"
     private const val KEY_ULTIMO_EMAIL = "ultimo_email"
     private const val KEY_AVISO_LEITURA = "aviso_leitura"
+    /** Só para trazer o que a versão 1.5.0 e anteriores guardavam aqui (ver esperadoGuardado). */
     private const val KEY_ESPERADO_PREFIXO = "esperado_"
+    private const val PASTA_ESPERADO = "esperado"
+
+    // Potência do leitor em % da máxima (Configurações). 100 = máxima, como era fixo até a versão 1.5.0
+    fun setPotenciaLeitor(context: Context, percentual: Int) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putInt(KEY_POTENCIA_LEITOR, percentual.coerceIn(POTENCIA_MINIMA, 100))
+            .apply()
+    }
+
+    fun getPotenciaLeitor(context: Context): Int =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_POTENCIA_LEITOR, 100).coerceIn(POTENCIA_MINIMA, 100)
+
+    private const val KEY_POTENCIA_LEITOR = "potencia_leitor"
+    const val POTENCIA_MINIMA = 10
 }
 

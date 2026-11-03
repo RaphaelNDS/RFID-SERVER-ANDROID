@@ -65,6 +65,9 @@ class InventarioActivity : AppCompatActivity() {
     private var naoEnviadas = 0
 
     private var esperado: EsperadoLocal? = null
+
+    // EPC → patrimônio do esperado: montado uma vez quando a lista chega, e não a cada etiqueta lida
+    private var patrimoniosEsperados: Map<String, String?> = emptyMap()
     private var comparacao: ComparacaoInventario? = null
     private var avisouCompleto = false
 
@@ -161,6 +164,7 @@ class InventarioActivity : AppCompatActivity() {
         painelInicio.visibility = View.GONE
         painelAndamento.visibility = View.VISIBLE
         txtLocal.text = "Local: ${inventario.local}"
+        atualizarResumo()
 
         if (mudou) {
             observarItens(inventario.id)
@@ -194,6 +198,7 @@ class InventarioActivity : AppCompatActivity() {
         epcsLidos = emptyList()
         naoEnviadas = 0
         esperado = null
+        patrimoniosEsperados = emptyMap()
         comparacao = null
         avisouCompleto = false
         adapterLidas.atualizar(emptyList())
@@ -209,7 +214,7 @@ class InventarioActivity : AppCompatActivity() {
         comparacao = nova
 
         // Lidas: com o patrimônio, quando a etiqueta está na lista do esperado
-        val patrimonios = atual?.itens?.associate { it.epc to it.patrimonio }.orEmpty()
+        val patrimonios = if (atual != null) patrimoniosEsperados else emptyMap()
         adapterLidas.atualizar(epcsLidos.map { epc -> patrimonios[epc]?.let { "Patrimônio $it  ($epc)" } ?: epc })
         adapterFaltando.atualizar(nova?.faltando.orEmpty())
 
@@ -248,7 +253,13 @@ class InventarioActivity : AppCompatActivity() {
                 if (c.faltando.isNotEmpty()) append("  •  faltam ${c.faltando.size}")
                 if (c.foraDaLista > 0) append("  •  ${c.foraDaLista} fora da lista")
             }
-            if (naoEnviadas > 0) append("  •  $naoEnviadas aguardando envio ao servidor")
+            val recusado = inventarioAtual?.takeIf { it.recusadoEm != null }
+            if (recusado != null) {
+                append("\n\nO servidor recusou este inventário" + (recusado.ultimoErro?.let { " ($it)" } ?: "") +
+                    ": ele não será mais enviado. Fale com o administrador.")
+            } else if (naoEnviadas > 0) {
+                append("  •  $naoEnviadas aguardando envio ao servidor")
+            }
         }
     }
 
@@ -296,6 +307,7 @@ class InventarioActivity : AppCompatActivity() {
 
     private fun aplicarEsperado(novo: EsperadoLocal, doServidor: Boolean) {
         esperado = novo
+        patrimoniosEsperados = novo.itens.associate { it.epc to it.patrimonio }
         val origem = if (doServidor) "do servidor" else "guardada no coletor"
 
         if (novo.temReferencia) {
