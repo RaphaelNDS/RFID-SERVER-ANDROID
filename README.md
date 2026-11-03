@@ -7,6 +7,11 @@ equipamentos por patrimônio, faz inventários por local e (se tiver permissão)
 O servidor fica em outro repositório: **RFID-Server** (pasta `RFID_Servidor/rfid-server`), que tem o
 README com a API, a segurança e a instalação do lado do servidor.
 
+**Manuais** (no repositório do servidor):
+[como instalar o servidor e conectar os coletores](https://github.com/RaphaelNDS/RFID-Server/blob/master/docs/manual-conexao.md) ·
+[principais erros e como resolver](https://github.com/RaphaelNDS/RFID-Server/blob/master/docs/erros-comuns.md).
+O APK de produção de cada versão fica nas [Releases](https://github.com/RaphaelNDS/RFID-SERVER-ANDROID/releases).
+
 ```
  Coletor (este app) ──HTTPS 8443──►  RFID Server
    banco local (Room)              chave do coletor + login do operador
@@ -16,7 +21,7 @@ README com a API, a segurança e a instalação do lado do servidor.
 | | |
 |---|---|
 | Pacote | `br.com.bkpbr.rfidandroid` |
-| Versão | 1.3.0 (6) |
+| Versão | 1.5.0 (42) |
 | Android | 8.0+ (minSdk 26, targetSdk 36) |
 | Leitor | Zebra, SDK RFID API3 2.0.4 (arquivos `.aar` em `gradle/libs`) |
 | Linguagem | Kotlin · Room · WorkManager · OkHttp |
