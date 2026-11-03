@@ -54,13 +54,17 @@ class SincronizadorTest {
     private val errosRegistrados = mutableListOf<Pair<String, String>>()
     private var enviosDeErros = 0
 
+    // Relógio dos testes do disjuntor: as leituras com lidoEm = 0 dos outros testes são antigas (não contam nele)
+    private var agora = System.currentTimeMillis()
+
     private fun sincronizador(executor: Executor = executorDireto) = Sincronizador(
         dao = dao,
         tagService = TagService(HttpClient.criar { "chave-teste" }) { servidor.url("/").toString().trimEnd('/') },
         executor = executor,
         agendarNovaTentativa = { novasTentativasAgendadas++ },
         registrarErro = { tipo, mensagem -> errosRegistrados += tipo to mensagem },
-        enviarErros = { enviosDeErros++ }
+        enviarErros = { enviosDeErros++ },
+        relogio = { agora }
     )
 
     // ---------- Erros do app para o servidor ----------
@@ -448,5 +452,96 @@ class SincronizadorTest {
             listOf("/api/android/leituras/lote", "/api/android/leituras/lote", "/api/android/tags/SEM-SESSAO"),
             caminhosRecebidos()
         )
+    }
+
+    // ---------- Leituras recusadas e disjuntor ----------
+
+    private val recusa400 = """{"status":400,"mensagem":"Pedido inválido"}"""
+
+    @Test(timeout = 10_000)
+    fun `recusada fica no aparelho marcada e aparece na contagem`() {
+        dao.inserir(LeituraEntity(epc = "RUIM", lidoEm = agora))
+        servidor.enqueue(json(400))
+
+        assertEquals(EstadoSincronizacao.SINCRONIZADO, sincronizador().processarPendentes())
+
+        assertTrue(dao.porEpc("RUIM").recusada)
+        assertEquals(1, dao.contarSessao().value!!.recusadas)
+    }
+
+    @Test(timeout = 10_000)
+    fun `recusadas de sessoes anteriores ficam 30 dias e depois saem do aparelho`() {
+        val dia = 24L * 60 * 60 * 1000
+        dao.inserir(LeituraEntity(epc = "VELHA", lidoEm = agora - 31 * dia, arquivada = true, envioConcluido = true, recusada = true, situacao = Situacao.ERRO))
+        dao.inserir(LeituraEntity(epc = "RECENTE", lidoEm = agora - 2 * dia, arquivada = true, envioConcluido = true, recusada = true, situacao = Situacao.ERRO))
+        dao.inserir(LeituraEntity(epc = "NOVA", lidoEm = agora))
+        servidor.enqueue(json(404))
+        servidor.enqueue(json(200))
+
+        sincronizador().processarPendentes()
+
+        assertEquals(listOf("RECENTE", "NOVA"), dao.leituras.map { it.epc })
+    }
+
+    @Test(timeout = 10_000)
+    fun `cinco recusas seguidas pelo mesmo motivo pausam a sincronizacao e devolvem as leituras para a fila`() {
+        (1..6).forEach { dao.inserir(LeituraEntity(epc = "E$it", lidoEm = agora)) }
+        repeat(5) { servidor.enqueue(json(400, recusa400)) } // a sexta nem é consultada: o timeout pega se for
+
+        val estado = sincronizador().processarPendentes()
+
+        assertEquals(EstadoSincronizacao.ERRO_SERVIDOR, estado)
+        assertEquals(5, servidor.requestCount)
+        assertEquals(1, novasTentativasAgendadas)
+        dao.leituras.forEach {
+            assertEquals("${it.epc} volta para a fila", Situacao.PENDENTE, it.situacao)
+            assertFalse(it.recusada)
+            assertFalse(it.envioConcluido)
+        }
+        assertTrue("Um aviso só, do disjuntor", errosRegistrados.none { it.second.startsWith("Servidor recusou uma leitura") })
+        assertTrue(errosRegistrados.single().second.contains("5 leituras seguidas"))
+    }
+
+    @Test(timeout = 10_000)
+    fun `recusas com motivos diferentes nao disparam o disjuntor`() {
+        (1..5).forEach { dao.inserir(LeituraEntity(epc = "E$it", lidoEm = agora)) }
+        // A mensagem da recusa leva o código HTTP: cada uma diferente da anterior
+        listOf(400, 409, 410, 415, 422).forEach { servidor.enqueue(json(it)) }
+
+        assertEquals(EstadoSincronizacao.SINCRONIZADO, sincronizador().processarPendentes())
+        assertTrue(dao.leituras.all { it.recusada })
+    }
+
+    @Test(timeout = 10_000)
+    fun `recusas de leituras antigas nao contam no disjuntor`() {
+        // Recusa que persiste há mais de um dia é de verdade: senão travaria a fila para sempre
+        (1..5).forEach { dao.inserir(LeituraEntity(epc = "E$it", lidoEm = agora - Sincronizador.JANELA_DISJUNTOR_MS - 1)) }
+        repeat(5) { servidor.enqueue(json(400, recusa400)) }
+
+        assertEquals(EstadoSincronizacao.SINCRONIZADO, sincronizador().processarPendentes())
+        assertTrue(dao.leituras.all { it.recusada })
+    }
+
+    @Test(timeout = 10_000)
+    fun `sessao invalida nao conta no disjuntor`() {
+        val sessaoRecusada = """{"status":401,"codigo":"SESSAO_OPERADOR","mensagem":"Usuário desativado"}"""
+        (1..5).forEach { dao.inserir(LeituraEntity(epc = "E$it", lidoEm = agora)) }
+        repeat(5) { servidor.enqueue(json(401, sessaoRecusada)) }
+
+        assertEquals(EstadoSincronizacao.SINCRONIZADO, sincronizador().processarPendentes())
+        assertTrue(dao.leituras.all { it.recusada })
+    }
+
+    @Test(timeout = 10_000)
+    fun `recusas seguidas dentro do lote disparam o disjuntor e uma aceita depois nao desfaz`() {
+        (0..5).forEach { dao.inserir(LeituraEntity(epc = "E$it", lidoEm = agora, sessaoOperador = "sessao-ana")) }
+        dao.inserir(LeituraEntity(epc = "OK", lidoEm = agora, sessaoOperador = "sessao-ana"))
+        servidor.enqueue(lote(*((0..5).map { noLote(it, "E$it", "RECUSADA", "Formato inválido") } + cadastradaNoLote(6, "OK")).toTypedArray()))
+
+        assertEquals(EstadoSincronizacao.ERRO_SERVIDOR, sincronizador().processarPendentes())
+
+        (0..5).forEach { assertEquals(Situacao.PENDENTE, dao.porEpc("E$it").situacao) }
+        assertEquals(Situacao.CADASTRADA, dao.porEpc("OK").situacao)
+        assertTrue(dao.porEpc("OK").envioConcluido)
     }
 }

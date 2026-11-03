@@ -167,6 +167,10 @@ class RepositorioLeiturasTest {
             "Lidas: 5  •  Cadastradas: 2  •  Não cadastradas: 1  •  Aguardando: 2",
             ContagemSessao(lidas = 5, cadastradas = 2, naoCadastradas = 1, aguardandoServidor = 2).resumo().replace(' ', ' ')
         )
+        assertEquals(
+            "Lidas: 4  •  Cadastradas: 2  •  Não cadastradas: 1  •  Recusadas: 1",
+            ContagemSessao(lidas = 4, cadastradas = 2, naoCadastradas = 1, recusadas = 1).resumo().replace(' ', ' ')
+        )
     }
 
     @Test

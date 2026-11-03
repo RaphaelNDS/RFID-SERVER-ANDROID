@@ -182,6 +182,52 @@ object AppConfig {
         return prefs.getString(KEY_IMPRESSAO_DIGITAL, null)
     }
 
+    // PIN das Configurações (PinColetor): só o hash e o sal, mais o controle de tentativas erradas
+    fun savePin(context: Context, hash: String, sal: String) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString(KEY_PIN_HASH, hash)
+            .putString(KEY_PIN_SAL, sal)
+            .remove(KEY_PIN_ERROS).remove(KEY_PIN_BLOQUEADO_ATE)
+            .apply()
+    }
+
+    /** (hash, sal) do PIN, ou null se o PIN ainda não foi criado neste coletor. */
+    fun getPin(context: Context): Pair<String, String>? {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val hash = prefs.getString(KEY_PIN_HASH, null) ?: return null
+        val sal = prefs.getString(KEY_PIN_SAL, null) ?: return null
+        return hash to sal
+    }
+
+    fun temPin(context: Context): Boolean = getPin(context) != null
+
+    fun apagarPin(context: Context) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs.edit()
+            .remove(KEY_PIN_HASH).remove(KEY_PIN_SAL).remove(KEY_PIN_ERROS).remove(KEY_PIN_BLOQUEADO_ATE)
+            .apply()
+    }
+
+    fun getErrosPin(context: Context): Int =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_PIN_ERROS, 0)
+
+    /** Epoch ms até quando o PIN não aceita tentativas (0 = livre). */
+    fun getPinBloqueadoAte(context: Context): Long =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(KEY_PIN_BLOQUEADO_ATE, 0)
+
+    fun saveTentativasPin(context: Context, erros: Int, bloqueadoAte: Long) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putInt(KEY_PIN_ERROS, erros)
+            .putLong(KEY_PIN_BLOQUEADO_ATE, bloqueadoAte)
+            .apply()
+    }
+
+    private const val KEY_PIN_HASH = "pin_hash"
+    private const val KEY_PIN_SAL = "pin_sal"
+    private const val KEY_PIN_ERROS = "pin_erros"
+    private const val KEY_PIN_BLOQUEADO_ATE = "pin_bloqueado_ate"
     private const val KEY_IMPRESSAO_DIGITAL = "certificado_sha256"
     private const val KEY_SESSAO_TOKEN = "sessao_token"
     private const val KEY_SESSAO_EXPIRA = "sessao_expira_em"

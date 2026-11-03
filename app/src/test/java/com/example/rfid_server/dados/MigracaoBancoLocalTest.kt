@@ -99,4 +99,27 @@ class MigracaoBancoLocalTest {
             colunas(3, tabela).forEach { (coluna, tipo) -> assertEquals("$tabela.$coluna mudou", tipo, colunas(4, tabela)[coluna]) }
         }
     }
+
+    @Test
+    fun `migracao 4 para 5 acrescenta so a coluna recusada como o Room espera`() {
+        assertEquals(5, esquema(5).getInt("version"))
+        assertEquals("Nenhuma tabela nova na versão 5", tabelas(4), tabelas(5))
+
+        val acrescentadas = tabelas(4).flatMap { tabela ->
+            (colunas(5, tabela) - colunas(4, tabela).keys).map { (coluna, tipo) -> Triple(tabela, coluna, tipo) }
+        }.toSet()
+        assertEquals(setOf(Triple("leituras", "recusada", "INTEGER" to true)), acrescentadas)
+        assertEquals(listOf("ALTER TABLE `leituras` ADD COLUMN `recusada` INTEGER NOT NULL DEFAULT 0"), BancoLocal.SQL_VERSAO_5)
+
+        // O DEFAULT da migração precisa ser o mesmo do esquema, senão o Room recusa abrir o banco migrado
+        val entidades = esquema(5).getJSONArray("entities")
+        val campos = (0 until entidades.length()).map { entidades.getJSONObject(it) }
+            .single { it.getString("tableName") == "leituras" }.getJSONArray("fields")
+        val recusada = (0 until campos.length()).map { campos.getJSONObject(it) }.single { it.getString("columnName") == "recusada" }
+        assertEquals("0", recusada.getString("defaultValue"))
+
+        tabelas(4).forEach { tabela ->
+            colunas(4, tabela).forEach { (coluna, tipo) -> assertEquals("$tabela.$coluna mudou", tipo, colunas(5, tabela)[coluna]) }
+        }
+    }
 }

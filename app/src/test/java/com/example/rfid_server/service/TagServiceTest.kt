@@ -149,6 +149,15 @@ class TagServiceTest {
     }
 
     @Test
+    fun `413 425 e 429 sao passageiros e a leitura fica na fila`() {
+        // 408 também, mas o próprio OkHttp já repete a requisição uma vez antes de devolver
+        listOf(413, 425, 429).forEach { codigo ->
+            servidor.enqueue(json(codigo, "{}"))
+            assertEquals("HTTP $codigo", MotivoFalha.ERRO_SERVIDOR, motivo(service.buscarTagAgora("E200XYZ")))
+        }
+    }
+
+    @Test
     fun `buscarTagAgora com HTML no lugar de JSON e erro do servidor`() {
         servidor.enqueue(MockResponse().setResponseCode(200).setBody("<html><body>Login</body></html>"))
 
