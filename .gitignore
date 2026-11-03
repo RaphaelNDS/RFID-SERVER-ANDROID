@@ -7,6 +7,8 @@
 /.idea/workspace.xml
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
+# Tema do plugin Material Theme UI: preferência pessoal de cada máquina
+/.idea/material_theme_project_new.xml
 .DS_Store
 /build
 /captures
