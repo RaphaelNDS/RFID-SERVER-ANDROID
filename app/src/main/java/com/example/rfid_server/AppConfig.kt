@@ -5,12 +5,14 @@ import android.util.Log
 import com.example.rfid_server.dados.EsperadoGuardado
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 object AppConfig {
 
     // Fica fora do backup do Android (res/xml/backup_rules.xml e data_extraction_rules.xml)
     // porque guarda a chave do coletor. Se mudar este nome, mude também nesses dois arquivos.
     private const val PREFS = "rfid_prefs"
+    private const val TAG = "CONFIG"
     private const val KEY_SERVER_IP = "server_ip"
     private const val KEY_CHAVE_DISPOSITIVO = "chave_dispositivo"
     private const val KEY_LOCAIS = "locais_inventario"
@@ -30,18 +32,50 @@ object AppConfig {
         return prefs.getString(KEY_SERVER_IP, "").orEmpty().trim()
     }
 
+    // ================= SEGREDOS CIFRADOS =================
+    // A chave do coletor e o token da sessão ficam cifrados no arquivo de preferências (ver SegredoGuardado).
+
+    /** Nos testes é trocada por uma falsa: o Keystore do Android não existe no computador. */
+    @Volatile
+    internal var cifra: Cifra = CifraKeystore
+
+    // Texto guardado → valor decifrado. A chave é lida a cada requisição e o token a cada leitura de etiqueta:
+    // decifrar no Keystore toda vez seria lento. Poucas entradas (uma chave e um token por login)
+    private val decifrados = ConcurrentHashMap<String, String>()
+
+    private fun guardarSegredo(valor: String, nome: String): String =
+        SegredoGuardado.paraGuardar(valor, cifra, nome).also { if (valor.isNotEmpty()) decifrados[it] = valor }
+
+    private fun lerSegredo(context: Context, chavePrefs: String, nome: String): String? {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val guardado = prefs.getString(chavePrefs, null) ?: return null
+        decifrados[guardado]?.let { return it }
+
+        val lido = SegredoGuardado.ler(guardado, cifra, nome)
+        val valor = lido.valor ?: return null
+        decifrados[guardado] = valor
+
+        // Guardado sem cifra por uma versão anterior do app: regrava cifrado (uma vez só)
+        if (lido.regravar) {
+            val novo = guardarSegredo(valor, nome)
+            if (novo != guardado) {
+                prefs.edit().putString(chavePrefs, novo).apply()
+                Log.i(TAG, "$nome guardado sem cifra por versão anterior do app: regravado cifrado")
+            }
+        }
+        return valor
+    }
+
     // Chave cadastrada no servidor (rfid.dispositivos.chaves) para este coletor
     fun saveChaveDispositivo(context: Context, chave: String) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         prefs.edit()
-            .putString(KEY_CHAVE_DISPOSITIVO, chave)
+            .putString(KEY_CHAVE_DISPOSITIVO, guardarSegredo(chave, "a chave do coletor"))
             .apply()
     }
 
-    fun getChaveDispositivo(context: Context): String {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        return prefs.getString(KEY_CHAVE_DISPOSITIVO, "") ?: ""
-    }
+    fun getChaveDispositivo(context: Context): String =
+        lerSegredo(context, KEY_CHAVE_DISPOSITIVO, "a chave do coletor").orEmpty()
 
     // Locais de inventário conhecidos (vindos do servidor ou digitados aqui): sugestões mesmo sem rede
     fun saveLocais(context: Context, locais: Collection<String>) {
@@ -74,7 +108,7 @@ object AppConfig {
     fun saveSessao(context: Context, sessao: SessaoOperador) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         prefs.edit()
-            .putString(KEY_SESSAO_TOKEN, sessao.token)
+            .putString(KEY_SESSAO_TOKEN, guardarSegredo(sessao.token, "o token da sessão"))
             .putLong(KEY_SESSAO_EXPIRA, sessao.expiraEm)
             .putString(KEY_SESSAO_NOME, sessao.nome)
             .putString(KEY_SESSAO_EMAIL, sessao.email)
@@ -86,7 +120,8 @@ object AppConfig {
 
     fun getSessao(context: Context): SessaoOperador? {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val token = prefs.getString(KEY_SESSAO_TOKEN, null) ?: return null
+        // Token que não dá para decifrar: sem sessão (o operador entra de novo)
+        val token = lerSegredo(context, KEY_SESSAO_TOKEN, "o token da sessão") ?: return null
         return SessaoOperador(
             token = token,
             expiraEm = prefs.getLong(KEY_SESSAO_EXPIRA, 0),

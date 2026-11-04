@@ -1,3 +1,5 @@
+import com.android.build.api.artifact.SingleArtifact
+import com.android.build.api.variant.BuiltArtifactsLoader
 import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -163,12 +165,37 @@ gradle.taskGraph.whenReady {
     if (empacotaRelease && problemasDoRelease.isNotEmpty()) throw GradleException(problemasDoRelease.joinToString("\n"))
 }
 
-// Nome do APK com a versão (ex.: RFID-Android-1.4.0-release.apk), em vez de app-release.apk
-android.applicationVariants.all {
-    val variante = this
-    outputs.all {
-        (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
-            "RFID-Android-${variante.versionName}-${variante.name}.apk"
+// APK com a versão no nome (ex.: RFID-Android-1.6.1-release.apk), ao lado do app-release.apk que o plugin gera.
+// Feito só com a API pública do plugin Android (androidComponents): a forma antiga (applicationVariants com cast
+// para uma classe interna) sai no plugin 9.
+abstract class CopiarApkComVersao : DefaultTask() {
+    @get:InputFiles
+    abstract val pastaApk: DirectoryProperty
+
+    @get:Internal
+    abstract val carregador: Property<BuiltArtifactsLoader>
+
+    @get:OutputFile
+    abstract val destino: RegularFileProperty
+
+    @TaskAction
+    fun copiar() {
+        val apk = carregador.get().load(pastaApk.get())?.elements?.singleOrNull()?.outputFile
+            ?: throw GradleException("APK não encontrado em ${pastaApk.get().asFile}")
+        File(apk).copyTo(destino.get().asFile, overwrite = true)
+        logger.lifecycle("APK: ${destino.get().asFile}")
+    }
+}
+
+androidComponents {
+    onVariants { variante ->
+        val sufixo = variante.name.replaceFirstChar { it.uppercase() }
+        val copia = tasks.register<CopiarApkComVersao>("copiarApkComVersao$sufixo") {
+            pastaApk.set(variante.artifacts.get(SingleArtifact.APK))
+            carregador.set(variante.artifacts.getBuiltArtifactsLoader())
+            destino.set(layout.buildDirectory.file("outputs/apk/${variante.name}/RFID-Android-$versaoApp-${variante.name}.apk"))
+        }
+        tasks.matching { it.name == "assemble$sufixo" }.configureEach { finalizedBy(copia) }
     }
 }
 
