@@ -23,7 +23,9 @@ import java.util.concurrent.TimeUnit
 enum class EstadoLeitor(val descricao: String) {
     CONECTANDO("Conectando ao leitor RFID..."),
     CONECTADO("Leitor RFID conectado"),
-    DESCONECTADO("Leitor RFID desconectado: tentando de novo")
+    DESCONECTADO("Leitor RFID desconectado: tentando de novo"),
+    /** Desconectado sem tentativa automática (nenhuma tela de leitura aberta): só o botão "Reconectar" ou abrir uma tela de leitura. */
+    PARADO("Leitor RFID desconectado")
 }
 
 /**
@@ -54,6 +56,9 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
     private val executor = Executors.newSingleThreadScheduledExecutor()
 
     private var readers: Readers? = null
+
+    // Trocado no executor, mas lido também na thread principal (conectado) e nas threads de eventos do SDK
+    @Volatile
     private var reader: RFIDReader? = null
 
     // Só acessados na thread do executor
@@ -77,7 +82,7 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
     @Volatile
     private var localizandoComGatilho = false
 
-    private val _estado = MutableLiveData(EstadoLeitor.DESCONECTADO)
+    private val _estado = MutableLiveData(EstadoLeitor.PARADO)
     val estado: LiveData<EstadoLeitor> = _estado
 
     val conectado: Boolean
@@ -100,6 +105,7 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         proximaTentativa = null
         if (conectado) {
             atualizarEstado(EstadoLeitor.CONECTADO)
+            desconectarSeOcioso()
             return
         }
 
@@ -109,6 +115,7 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
             if (tentativasSemSucesso > 0) Log.i(TAG, "Leitor RFID reconectado depois de $tentativasSemSucesso tentativa(s) sem sucesso")
             tentativasSemSucesso = 0
             atualizarEstado(EstadoLeitor.CONECTADO)
+            desconectarSeOcioso()
             return
         }
 
@@ -117,9 +124,19 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         if (tentativasSemSucesso == 1) {
             RegistroErros.registrar(appContext, TipoErro.LEITOR_RFID, "Leitor RFID não conectou: $motivoFalhaConexao", erroFalhaConexao)
         }
-        atualizarEstado(EstadoLeitor.DESCONECTADO)
+        atualizarEstado(estadoDesconectado())
         agendarNovaTentativa(ReconexaoLeitor.esperaMs(tentativasSemSucesso))
     }
+
+    // Roda na thread do executor. "Reconectar" numa tela que não lê (sem ouvinte) conectou o leitor: sem isto
+    // ele ficaria ligado em segundo plano para sempre, gastando bateria
+    private fun desconectarSeOcioso() {
+        if (ouvinte == null) agendarDesconexaoOciosa()
+    }
+
+    // Sem tela de leitura não há nova tentativa automática: a faixa não pode dizer "tentando de novo"
+    private fun estadoDesconectado(): EstadoLeitor =
+        if (ouvinte == null) EstadoLeitor.PARADO else EstadoLeitor.DESCONECTADO
 
     // Roda na thread do executor. Só tenta de novo se houver uma tela esperando leituras
     private fun agendarNovaTentativa(esperaMs: Long) {
@@ -223,7 +240,7 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
             cancelarDesconexaoOciosa()
             tentativasSemSucesso = 0
             liberarSdk()
-            atualizarEstado(EstadoLeitor.DESCONECTADO)
+            atualizarEstado(EstadoLeitor.PARADO)
             Log.i(TAG, "Leitor RFID desconectado")
         }
     }
@@ -243,7 +260,7 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
 
     // Compara com o último estado PUBLICADO (o value do LiveData só muda depois, na thread principal)
     @Volatile
-    private var ultimoEstado = EstadoLeitor.DESCONECTADO
+    private var ultimoEstado = EstadoLeitor.PARADO
 
     private fun atualizarEstado(novo: EstadoLeitor) {
         if (ultimoEstado == novo) return
@@ -280,6 +297,8 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         executor.execute {
             if (ouvinte != null) return@execute
             cancelarProximaTentativa()
+            // As tentativas acabaram de ser canceladas: a faixa deixa de dizer "tentando de novo"
+            if (ultimoEstado == EstadoLeitor.DESCONECTADO) atualizarEstado(EstadoLeitor.PARADO)
             agendarDesconexaoOciosa()
         }
     }
@@ -297,7 +316,7 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
             Log.i(TAG, "Nenhuma tela de leitura aberta há ${ReconexaoLeitor.DESCONECTAR_OCIOSO_MS / 60_000} min: " +
                 "leitor RFID desconectado para economizar bateria (reconecta ao abrir uma tela de leitura)")
             liberarSdk()
-            atualizarEstado(EstadoLeitor.DESCONECTADO)
+            atualizarEstado(EstadoLeitor.PARADO)
         }, ReconexaoLeitor.DESCONECTAR_OCIOSO_MS, TimeUnit.MILLISECONDS)
     }
 
@@ -308,16 +327,35 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
 
     // ================= MODO LOCALIZAÇÃO =================
 
-    fun iniciarLocalizacao(epc: String) {
+    /**
+     * Liga o modo localização para [epc], só se [quem] for a tela que está recebendo as leituras. Uma resposta
+     * do servidor que chega depois de a tela de localização sair não pode prender o leitor numa etiqueta
+     * enquanto a tela principal ou o inventário estão abertos (eles parariam de registrar leituras).
+     * Devolve false se ignorou o pedido.
+     */
+    fun iniciarLocalizacao(quem: Any, epc: String): Boolean {
+        if (dono !== quem) {
+            Log.w(TAG, "Pedido de localização de $epc ignorado: ${quem.javaClass.simpleName} não está recebendo as leituras")
+            return false
+        }
         locatingEpc = epc
         Log.i(TAG, "Modo localização iniciado: $epc")
+        return true
     }
 
+    /**
+     * Sai do modo localização. Chamado no onPause (thread principal): o filtro acaba na hora, e o Stop do SDK
+     * (que pode demorar e não pode rodar junto com uma desconexão) vai para a thread do leitor.
+     */
     fun pararLocalizacao() {
         if (locatingEpc != null) Log.i(TAG, "Modo localização encerrado")
         locatingEpc = null
         // Saiu da tela com o gatilho ainda apertado: não deixa a antena ligada
-        if (localizandoComGatilho) pararLocalizacaoNoLeitor()
+        if (!localizandoComGatilho) return
+        executor.execute {
+            // Outra localização pode ter começado antes de chegar a vez: aí não para a nova
+            if (localizandoComGatilho && locatingEpc == null) pararLocalizacaoNoLeitor()
+        }
     }
 
     private fun pararLocalizacaoNoLeitor() {
@@ -346,7 +384,7 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
                 Log.w(TAG, "Leitor RFID desconectou (bateria, encaixe ou Bluetooth): reconectando automaticamente")
                 executor.execute {
                     liberarSdk()
-                    atualizarEstado(EstadoLeitor.DESCONECTADO)
+                    atualizarEstado(estadoDesconectado())
                     agendarNovaTentativa(ReconexaoLeitor.ESPERA_APOS_DESCONEXAO_MS)
                 }
             }

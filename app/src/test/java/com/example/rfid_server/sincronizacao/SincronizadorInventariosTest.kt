@@ -170,6 +170,37 @@ class SincronizadorInventariosTest {
     }
 
     @Test(timeout = 10_000)
+    fun `ao reabrir todas as etiquetas e a finalizacao vao de novo menos as desistidas por recusa`() {
+        inventario("inv-1", finalizado = true, "E1", "E2", "E3", "E4")
+        dao.definirAberturaEnviada("inv-1", true)
+        dao.marcarFinalizacaoEnviada("inv-1")
+        val (e1, e2, e3, _) = dao.itens.sortedBy { it.id }
+        dao.marcarItensEnviados(listOf(e1.id, e2.id))
+        // E3: o coletor já desistiu dela (recusada 3 vezes em mais de um dia)
+        repeat(SincronizadorInventarios.LIMITE_RECUSAS) { dao.registrarRecusaItens(listOf(e3.id), "Usuário desativado", 0) }
+        dao.desistirItens(listOf(e3.id), SincronizadorInventarios.LIMITE_RECUSAS, 0)
+        servidor.enqueue(erro(404))     // E4: inventário desconhecido (banco do servidor restaurado)
+
+        assertNotNull(sincronizador().processar())
+        proximas(1)
+
+        val inv = dao.inventario("inv-1")
+        assertFalse(inv.aberturaEnviada)
+        assertFalse("A finalização também se perdeu no servidor", inv.finalizacaoEnviada)
+        assertEquals("E1 e E2 já enviadas voltam; E3 desistida continua fora",
+            listOf("E1", "E2", "E4"), dao.itens.filter { !it.enviado }.map { it.epc })
+
+        // Próxima passada: abertura, as 3 etiquetas num lote e a finalização
+        repeat(3) { servidor.enqueue(ok()) }
+        assertNull(sincronizador().processar())
+        val (abertura, itens, finalizacao) = proximas(3)
+        assertEquals("/api/android/inventarios", abertura.path)
+        assertEquals(3, JSONObject(itens.body.readUtf8()).getJSONArray("itens").length())
+        assertEquals("/api/android/inventarios/inv-1/finalizar", finalizacao.path)
+        assertTrue(dao.inventarios.isEmpty())
+    }
+
+    @Test(timeout = 10_000)
     fun `inventario recusado pelo servidor nao trava os outros`() {
         inventario("ruim", finalizado = true, iniciadoEm = 1_000)
         inventario("bom", finalizado = true, "E1", iniciadoEm = 2_000)
@@ -300,6 +331,125 @@ class SincronizadorInventariosTest {
         val inv = dao.inventario("inv")
         assertEquals(0, inv.recusas)
         assertNull(inv.primeiraRecusaEm)
+    }
+
+    @Test(timeout = 10_000)
+    fun `recusa da finalizacao depois de uma etapa aceita conta a partir do banco e nao da copia velha`() {
+        // Duas recusas antigas da abertura; nesta passada a abertura é aceita (zera) e a finalização é recusada
+        dao.inserirInventario(
+            InventarioEntity("inv", "Sala 101", 1_000, finalizadoEm = 2_000, recusas = 2, primeiraRecusaEm = agora - 48 * horaMs)
+        )
+        servidor.enqueue(ok())          // abertura
+        servidor.enqueue(erro(400))     // finalização
+
+        assertNull(sincronizador().processar())
+
+        val inv = dao.inventario("inv")
+        assertNull("Primeira recusa da nova sequência: não desiste", inv.recusadoEm)
+        assertEquals(1, inv.recusas)
+        assertEquals(agora, inv.primeiraRecusaEm)
+        assertTrue(errosRegistrados.isEmpty())
+    }
+
+    // ---------- Etiquetas recusadas de um operador não travam o inventário ----------
+
+    private fun sessaoInvalida() = MockResponse().setResponseCode(401).setHeader("Content-Type", "application/json")
+        .setBody("""{"status":401,"codigo":"SESSAO_OPERADOR","mensagem":"Seu usuário foi desativado. Fale com o administrador."}""")
+
+    /** Ana abriu e finalizou; Bruno leu E2 e foi desativado antes da sincronização. */
+    private fun inventarioDeDoisOperadores() {
+        dao.inserirInventario(
+            InventarioEntity("inv-1", "Sala 101", 1_000, finalizadoEm = 3_000, sessaoOperador = "sessao-ana", sessaoFinalizacao = "sessao-ana")
+        )
+        dao.inserirItem(InventarioItemEntity(inventarioId = "inv-1", epc = "E1", lidoEm = 1_500, sessaoOperador = "sessao-ana"))
+        dao.inserirItem(InventarioItemEntity(inventarioId = "inv-1", epc = "E2", lidoEm = 2_500, sessaoOperador = "sessao-bruno"))
+        dao.inserirItem(InventarioItemEntity(inventarioId = "inv-1", epc = "E3", lidoEm = 2_600, sessaoOperador = "sessao-ana"))
+    }
+
+    @Test(timeout = 10_000)
+    fun `etiquetas recusadas de um operador nao travam as dos outros nem a finalizacao`() {
+        inventarioDeDoisOperadores()
+        servidor.enqueue(ok())              // abertura
+        servidor.enqueue(ok())              // E1 e E3 (Ana)
+        servidor.enqueue(sessaoInvalida())  // E2 (Bruno)
+        servidor.enqueue(ok())              // finalização
+
+        assertNull(sincronizador().processar())
+
+        val requisicoes = proximas(4)
+        assertEquals("/api/android/inventarios/inv-1/finalizar", requisicoes[3].path)
+        val inv = dao.inventario("inv-1")
+        assertTrue(inv.finalizacaoEnviada)
+        assertNull("O inventário não é recusado por causa de um grupo", inv.recusadoEm)
+        assertEquals(0, inv.recusas)
+
+        val (e1, e2, e3) = dao.itens.sortedBy { it.id }
+        assertTrue(e1.enviado && e3.enviado)
+        assertFalse("E2 fica guardada para nova tentativa", e2.enviado)
+        assertEquals(1, e2.recusas)
+        assertEquals("Seu usuário foi desativado. Fale com o administrador.", e2.ultimoErro)
+        assertTrue(errosRegistrados.isEmpty())
+    }
+
+    @Test(timeout = 10_000)
+    fun `etiqueta recusada aceita numa passada seguinte e enviada normalmente`() {
+        inventarioDeDoisOperadores()
+        servidor.enqueue(ok()); servidor.enqueue(ok()); servidor.enqueue(sessaoInvalida()); servidor.enqueue(ok())
+        assertNull(sincronizador().processar())
+        proximas(4)
+
+        // O problema era passageiro (ex.: banco do servidor restaurado): na próxima passada só a E2 vai, e é aceita
+        agora += horaMs
+        servidor.enqueue(ok())
+        assertNull(sincronizador().processar())
+
+        val itens = proximas(1).single()
+        assertEquals("sessao-bruno", itens.getHeader("X-Sessao-Operador"))
+        assertTrue("Tudo enviado: sai do coletor", dao.inventarios.isEmpty() && dao.itens.isEmpty())
+    }
+
+    @Test(timeout = 10_000)
+    fun `etiquetas recusadas por mais de um dia saem da fila e viram erro para o servidor`() {
+        inventarioDeDoisOperadores()
+        servidor.enqueue(ok()); servidor.enqueue(ok()); servidor.enqueue(sessaoInvalida()); servidor.enqueue(ok())
+        assertNull(sincronizador().processar())
+        proximas(4)
+
+        // Recusas 2 e 3, com 13 h entre cada passada: a terceira já passa de 24 h desde a primeira
+        repeat(SincronizadorInventarios.LIMITE_RECUSAS - 1) {
+            agora += 13 * horaMs
+            servidor.enqueue(sessaoInvalida())
+            assertNull(sincronizador().processar())
+            proximas(1)
+        }
+
+        assertEquals(1, errosRegistrados.size)
+        assertTrue(errosRegistrados.single(), errosRegistrados.single().contains("Sala 101"))
+        assertTrue("Finalizado e sem nada pendente: sai do coletor", dao.inventarios.isEmpty())
+
+        val antes = servidor.requestCount
+        assertNull(sincronizador().processar())
+        assertEquals("Não tenta mais", antes, servidor.requestCount)
+    }
+
+    @Test(timeout = 10_000)
+    fun `etiquetas recusadas varias vezes no mesmo dia continuam na fila`() {
+        inventarioDeDoisOperadores()
+        servidor.enqueue(ok()); servidor.enqueue(ok()); servidor.enqueue(sessaoInvalida()); servidor.enqueue(ok())
+        assertNull(sincronizador().processar())
+        proximas(4)
+
+        repeat(SincronizadorInventarios.LIMITE_RECUSAS + 1) {
+            agora += horaMs
+            servidor.enqueue(sessaoInvalida())
+            assertNull(sincronizador().processar())
+            proximas(1)
+        }
+
+        val e2 = dao.itens.single { it.epc == "E2" }
+        assertFalse("Menos de 24 h desde a primeira recusa: não desiste", e2.enviado)
+        assertEquals(SincronizadorInventarios.LIMITE_RECUSAS + 2, e2.recusas)
+        assertTrue(errosRegistrados.isEmpty())
     }
 
     @Test(timeout = 10_000)

@@ -63,5 +63,16 @@ data class InventarioItemEntity(
     val enviado: Boolean = false,
 
     /** Sessão do operador que leu esta etiqueta. */
-    val sessaoOperador: String? = null
+    val sessaoOperador: String? = null,
+
+    /**
+     * Recusas definitivas do servidor para esta etiqueta (ex.: sessão de quem leu inválida). A etiqueta recusada não
+     * trava as outras nem a finalização; o coletor só desiste dela (marca como enviada, com o motivo em [ultimoErro])
+     * depois de [com.example.rfid_server.sincronizacao.SincronizadorInventarios.LIMITE_RECUSAS] recusas espalhadas
+     * por mais de um dia.
+     */
+    @ColumnInfo(defaultValue = "0")
+    val recusas: Int = 0,
+    val primeiraRecusaEm: Long? = null,
+    val ultimoErro: String? = null
 )

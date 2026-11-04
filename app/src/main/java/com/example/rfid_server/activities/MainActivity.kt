@@ -1,5 +1,6 @@
 package com.example.rfid_server.activities
 
+import com.example.rfid_server.erros.MascaraSensivel
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
@@ -57,9 +58,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var aviso: AvisoLeitura
 
     // A leitura vai direto para o banco local; o Sincronizador cuida do servidor. Tag nova: bip/vibração
-    // Avisa antes de a sessão acabar e deixa renovar sem sair da tela
-    private val avisoSessao = AvisoSessao(this) { mostrarOperador(it) }
-
     private val ouvinte = RfidManager.OuvinteLeitura { epc, _ -> repositorio.registrar(epc) { aviso.tagNova() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -80,7 +78,7 @@ class MainActivity : AppCompatActivity() {
         pager.adapter = MainPagerAdapter(this)
 
         TabLayoutMediator(tabs, pager) { tab, pos ->
-            tab.text = if (pos == 0) "Leitura" else "Não cadastradas"
+            tab.setText(if (pos == 0) R.string.main_aba_leitura else R.string.main_aba_nao_cadastradas)
         }.attach()
 
         repositorio = RepositorioLeituras.get(this)
@@ -89,6 +87,18 @@ class MainActivity : AppCompatActivity() {
         rfidManager = RfidManager.get(this)
         aviso = AvisoLeitura(this)
         mostrarEstadoLeitor(rfidManager)
+
+        // Visível: leituras vêm para cá, envia o pendente a cada minuto e avisa antes de a sessão acabar
+        // (deixa renovar sem sair da tela). Ao pausar, solta o leitor e para o envio periódico
+        TelaDeLeitura(
+            this, rfidManager, ouvinte,
+            aoMudarSessao = { mostrarOperador(it) },
+            aoRetomar = {
+                sincronizador.solicitar()
+                handler.postDelayed(sincronizacaoPeriodica, INTERVALO_SINCRONIZACAO_MS)
+            },
+            aoPausar = { handler.removeCallbacks(sincronizacaoPeriodica) }
+        )
 
         // App aberto do zero: tela limpa, como antes. (Ao recriar por rotação, mantém a sessão.)
         // O que não foi enviado continua na fila.
@@ -109,26 +119,8 @@ class MainActivity : AppCompatActivity() {
         viewModel.contagem.observe(this) { txtContadores.text = it.resumo() }
     }
 
-    override fun onResume() {
-        super.onResume()
-        exigirSessao() ?: return
-
-        rfidManager.definirOuvinte(this, ouvinte)   // conecta o leitor, se preciso, e reconecta sozinho se cair
-
-        sincronizador.solicitar()
-        handler.postDelayed(sincronizacaoPeriodica, INTERVALO_SINCRONIZACAO_MS)
-        avisoSessao.iniciar()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        rfidManager.removerOuvinte(this)
-        handler.removeCallbacks(sincronizacaoPeriodica)
-        avisoSessao.parar()
-    }
-
     private fun mostrarOperador(sessao: com.example.rfid_server.SessaoOperador) {
-        findViewById<TextView>(R.id.txtSessao).text = "Operador: ${sessao.nome} · sessão até ${AvisoSessao.horario(sessao.expiraEm)}"
+        findViewById<TextView>(R.id.txtSessao).text = getString(R.string.main_operador, sessao.nome, AvisoSessao.horario(sessao.expiraEm))
     }
 
     private fun atualizarAvisoSincronizacao() {
@@ -140,9 +132,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         val estado = viewModel.estadoSincronizacao.value
-        val motivo = if (estado == null || estado == EstadoSincronizacao.SINCRONIZADO) "Enviando" else estado.descricao
+        val motivo = if (estado == null || estado == EstadoSincronizacao.SINCRONIZADO) getString(R.string.main_enviando) else estado.descricao
 
-        txtSincronizacao.text = "$motivo — $pendentes leitura(s) guardada(s) no coletor, aguardando envio"
+        txtSincronizacao.text = getString(R.string.main_aviso_sincronizacao, motivo, pendentes)
         txtSincronizacao.visibility = View.VISIBLE
     }
 
@@ -188,22 +180,22 @@ class MainActivity : AppCompatActivity() {
         val pendentes = viewModel.pendentes.value ?: 0
 
         val mensagem = buildString {
-            append("Sair como ${sessao.nome}? O próximo operador entra com o próprio usuário.")
+            append(getString(R.string.main_sair_mensagem, sessao.nome))
             if (pendentes > 0) {
-                append("\n\n$pendentes registro(s) ainda não chegaram ao servidor: continuam guardados no coletor e serão enviados com o seu nome.")
+                append("\n\n").append(getString(R.string.main_sair_pendentes, pendentes))
             }
         }
 
         AlertDialog.Builder(this)
-            .setTitle("Sair do coletor")
+            .setTitle(R.string.main_sair_titulo)
             .setMessage(mensagem)
-            .setPositiveButton("Sair") { _, _ -> sair(sessao.token, sessao.email) }
-            .setNegativeButton("Cancelar", null)
+            .setPositiveButton(R.string.main_sair) { _, _ -> sair(sessao.token, sessao.email) }
+            .setNegativeButton(R.string.comum_cancelar, null)
             .show()
     }
 
     private fun sair(token: String, email: String) {
-        Log.i(TAG, "Operador $email saiu do coletor")
+        Log.i(TAG, "Operador ${MascaraSensivel.email(email)} saiu do coletor")
         rfidManager.removerOuvinte(this)
         TagService(this).sair(token)   // sem rede, a sessão expira sozinha no servidor
         AppConfig.limparSessao(this)
@@ -219,26 +211,26 @@ class MainActivity : AppCompatActivity() {
         val contagem = viewModel.contagem.value ?: ContagemSessao()
 
         if (contagem.lidas == 0) {
-            Toast.makeText(this, "A tela já está vazia", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.main_tela_vazia, Toast.LENGTH_SHORT).show()
             return
         }
 
         val pendentes = viewModel.pendentes.value ?: 0
         val mensagem = buildString {
-            append("As ${contagem.lidas} tag(s) lidas vão sair da tela, e a mesma tag poderá ser lida de novo.")
+            append(getString(R.string.main_nova_leitura_mensagem, contagem.lidas))
             if (pendentes > 0) {
-                append("\n\n$pendentes leitura(s) ainda não chegaram ao servidor: elas continuam guardadas no coletor e serão enviadas assim que possível.")
+                append("\n\n").append(getString(R.string.main_nova_leitura_pendentes, pendentes))
             }
         }
 
         AlertDialog.Builder(this)
-            .setTitle("Começar nova leitura?")
+            .setTitle(R.string.main_nova_leitura_titulo)
             .setMessage(mensagem)
-            .setPositiveButton("Nova leitura") { _, _ ->
+            .setPositiveButton(R.string.main_nova_leitura) { _, _ ->
                 Log.i(TAG, "Operador iniciou nova leitura (${contagem.lidas} tag(s) na tela, $pendentes aguardando envio)")
                 viewModel.novaLeitura()
             }
-            .setNegativeButton("Cancelar") { _, _ ->
+            .setNegativeButton(R.string.comum_cancelar) { _, _ ->
                 Log.d(TAG, "Nova leitura cancelada pelo operador")
             }
             .show()

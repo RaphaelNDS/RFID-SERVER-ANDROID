@@ -15,7 +15,7 @@ data class VersaoPublicada(
     fun maisNovaQue(codigoInstalado: Int): Boolean = codigo > codigoInstalado
 
     /** "1,5 MB" para a mensagem de atualização. */
-    fun tamanhoLegivel(): String = "%.1f MB".format(java.util.Locale("pt", "BR"), tamanho / (1024.0 * 1024.0))
+    fun tamanhoLegivel(): String = "%.1f MB".format(java.util.Locale.forLanguageTag("pt-BR"), tamanho / (1024.0 * 1024.0))
 
     companion object {
         /** Lança JSONException se a resposta não for a esperada. */

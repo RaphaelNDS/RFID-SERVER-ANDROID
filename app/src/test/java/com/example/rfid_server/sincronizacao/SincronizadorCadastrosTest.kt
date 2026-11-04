@@ -81,6 +81,46 @@ class SincronizadorCadastrosTest {
     }
 
     @Test(timeout = 10_000)
+    fun `cadastro aceito marca as leituras e sai da fila na mesma transacao`() {
+        val leituras = FakeLeituraDao(LeituraEntity(epc = "E1", lidoEm = 0, situacao = Situacao.NAO_CADASTRADA, envioConcluido = true))
+        cadastros.salvar(cadastro("E1"))
+        servidor.enqueue(json(200))
+        var transacoes = 0
+        var cadastroAntes: Boolean? = null
+
+        val sincronizador = SincronizadorCadastros(cadastros, leituras, tagService()) { bloco ->
+            transacoes++
+            cadastroAntes = cadastros.porEpcAgora("E1") != null
+            bloco()
+        }
+        assertNull(sincronizador.processar())
+
+        assertEquals(1, transacoes)
+        assertEquals("Nada gravado antes de abrir a transação", true, cadastroAntes)
+        assertNull("Apagado dentro da transação", cadastros.porEpcAgora("E1"))
+        assertEquals(Situacao.CADASTRADA, leituras.porEpc("E1").situacao)
+    }
+
+    @Test(timeout = 10_000)
+    fun `leitura recusada antes volta para a fila sem a marca de recusada`() {
+        val leituras = FakeLeituraDao(
+            LeituraEntity(epc = "E1", lidoEm = 0, situacao = Situacao.ERRO, envioConcluido = true, recusada = true,
+                arquivada = true, ultimoErro = "Recusada")
+        )
+        cadastros.salvar(cadastro("E1"))
+        servidor.enqueue(json(200))
+
+        assertNull(SincronizadorCadastros(cadastros, leituras, tagService()).processar())
+
+        with(leituras.porEpc("E1")) {
+            assertEquals(Situacao.CADASTRADA, situacao)
+            assertFalse("Volta para a fila", envioConcluido)
+            assertFalse("Não conta mais como recusada", recusada)
+        }
+        assertEquals("Na fila, não é apagada como recusada antiga", 0, leituras.apagarRecusadasAntigas(Long.MAX_VALUE))
+    }
+
+    @Test(timeout = 10_000)
     fun `recusa do servidor guarda o motivo e a fila segue`() {
         cadastros.salvar(cadastro("E1"))
         cadastros.salvar(cadastro("E2"))

@@ -3,6 +3,7 @@ package com.example.rfid_server.dados
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.LiveData
+import com.example.rfid_server.CofreSessoes
 import com.example.rfid_server.SessaoAtual
 import com.example.rfid_server.sincronizacao.Sincronizador
 import java.util.UUID
@@ -102,12 +103,23 @@ class RepositorioInventario internal constructor(
         }
     }
 
-    /** Finaliza o inventário aberto. [aoTerminar] recebe quantas etiquetas foram lidas (ou null se não havia inventário aberto). */
+    /**
+     * Finaliza o inventário aberto. [aoTerminar] recebe quantas etiquetas foram lidas, ou null se não havia
+     * inventário aberto ou ninguém está logado (a tela manda entrar de novo).
+     */
     fun finalizar(aoTerminar: (Int?) -> Unit = {}) {
         val finalizadoEm = relogio()
         val sessao = sessaoAtual()
 
         executor.execute {
+            // Como no abrir: sem sessão a finalização iria ao servidor sem operador e seria recusada.
+            // O inventário continua aberto, e o operador finaliza depois de entrar de novo
+            if (sessao == null) {
+                Log.w(TAG, "Inventário não finalizado: nenhum operador logado")
+                aoTerminar(null)
+                return@execute
+            }
+
             val id = abertoId ?: run {
                 Log.w(TAG, "Pedido de finalização sem inventário aberto")
                 aoTerminar(null)
@@ -139,7 +151,7 @@ class RepositorioInventario internal constructor(
                         dao = BancoLocal.get(app).inventarioDao(),
                         executor = Executors.newSingleThreadExecutor(),
                         solicitarSincronizacao = sincronizador::solicitar,
-                        sessaoAtual = { SessaoAtual.token(app) }
+                        sessaoAtual = { SessaoAtual.token(app)?.let { CofreSessoes.get(app).referencia(it) } }
                     )
                 }.also { instancia = it }
             }

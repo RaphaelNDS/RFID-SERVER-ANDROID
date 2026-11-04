@@ -1,4 +1,7 @@
+import com.android.build.api.artifact.SingleArtifact
+import com.android.build.api.variant.BuiltArtifactsLoader
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
@@ -10,31 +13,48 @@ plugins {
 // versionName: mude à mão a cada versão entregue (1.4.0 → 1.4.1 correção, 1.5.0 funcionalidade nova).
 // versionCode: número de commits do git, então sobe sozinho a cada commit e o Android sempre aceita
 // instalar por cima da versão anterior. Para forçar um valor: ./gradlew assembleRelease -Prfid.codigoVersao=N
-val versaoApp = "1.6.0"
+val versaoApp = "1.6.1"
 
 // Abaixo disto o Android recusa instalar por cima (a 1.3.0 instalada nos coletores tem versionCode 6)
 val codigoVersaoMinimo = 7
 
+// APK de produção pedido (assembleRelease, bundleRelease...): aí nada de valor provisório, o build falha com a
+// explicação. No debug e nos testes os avisos continuam só avisos.
+val pedidoRelease = gradle.startParameter.taskNames.any { it.contains("Release") || it.contains("release") }
+
+// "build" e "assemble" também empacotam o APK de produção, sem "Release" no nome pedido: estes problemas são
+// conferidos de novo quando o Gradle já sabe quais tarefas vão rodar (ver taskGraph.whenReady no fim do arquivo)
+val problemasDoRelease = mutableListOf<String>()
+
 val codigoVersaoInformado = providers.gradleProperty("rfid.codigoVersao").orNull?.toIntOrNull()
-val commitsDoGit: Int? = try {
+
+fun saidaDoGit(vararg argumentos: String): String? = try {
     providers.exec {
-        commandLine("git", "rev-list", "--count", "HEAD")
+        commandLine("git", *argumentos)
         workingDir = rootDir
         isIgnoreExitValue = true
-    }.standardOutput.asText.get().trim().toIntOrNull()
+    }.standardOutput.asText.get().trim().ifEmpty { null }
 } catch (e: Exception) {
     null
 }
+
+val commitsDoGit: Int? = saidaDoGit("rev-list", "--count", "HEAD")?.toIntOrNull()
+// Clone raso (ex.: CI com fetch-depth 1): o git conta só parte dos commits e o código sairia baixo demais
+val cloneRaso = commitsDoGit != null && saidaDoGit("rev-parse", "--is-shallow-repository") == "true"
 val codigoVersao: Int = codigoVersaoInformado ?: commitsDoGit ?: codigoVersaoMinimo
 
 if (codigoVersaoInformado == null && commitsDoGit != null && commitsDoGit < codigoVersaoMinimo) {
-    // Ex.: clone raso (CI com fetch-depth 1) conta só o último commit
     throw GradleException("O git contou só $commitsDoGit commit(s), abaixo do código de versão mínimo $codigoVersaoMinimo " +
         "(clone raso?). Faça o clone completo ou informe -Prfid.codigoVersao=N")
 }
-if (codigoVersaoInformado == null && commitsDoGit == null) {
-    logger.warn("AVISO: não foi possível contar os commits do git (git fora do PATH ou projeto sem .git). " +
-        "Código de versão provisório $codigoVersao: no APK de produção informe -Prfid.codigoVersao=N")
+if (codigoVersaoInformado == null && (commitsDoGit == null || cloneRaso)) {
+    val motivo = if (commitsDoGit == null) "não foi possível contar os commits do git (git fora do PATH ou projeto sem .git)"
+                 else "o projeto é um clone raso do git ($commitsDoGit commit(s) visíveis)"
+    val problema = "APK de produção recusado: $motivo, então o código de versão sairia errado e o Android " +
+        "poderia recusar a atualização. Gere com o git no PATH e o clone completo (git fetch --unshallow) ou informe -Prfid.codigoVersao=N"
+    if (pedidoRelease) throw GradleException(problema)
+    problemasDoRelease += problema
+    logger.warn("AVISO: $motivo. Código de versão provisório $codigoVersao: no APK de produção informe -Prfid.codigoVersao=N")
 }
 
 // ================= ASSINATURA DO APK DE PRODUÇÃO =================
@@ -56,10 +76,21 @@ val aliasChave = configAssinatura("keyAlias", "RFID_KEYSTORE_ALIAS")
 val senhaChave = configAssinatura("keyPassword", "RFID_KEYSTORE_SENHA_CHAVE") ?: senhaArquivoChave
 val assinaturaConfigurada = arquivoChave?.isFile == true && senhaArquivoChave != null && aliasChave != null
 
+// -Prfid.semAssinatura=true: gera o APK de produção sem assinar, de propósito (CI, que não tem a chave).
+// Esse APK serve só para conferir o build (R8 etc.): o Android não instala APK sem assinatura.
+val semAssinaturaPermitido = providers.gradleProperty("rfid.semAssinatura").orNull?.toBoolean() == true
+
 if (!assinaturaConfigurada) {
-    logger.warn("AVISO: assinatura de produção não configurada (keystore.properties ausente ou incompleto, " +
-        "ou arquivo da chave não encontrado: ${arquivoChave ?: "não informado"}). " +
-        "O APK de produção sairá SEM assinatura e o Android não instala. Veja \"APK de produção\" no README.")
+    val motivo = "assinatura de produção não configurada (keystore.properties ausente ou incompleto, " +
+        "ou arquivo da chave não encontrado: ${arquivoChave ?: "não informado"})"
+    if (!semAssinaturaPermitido) {
+        val problema = "APK de produção recusado: $motivo. Sem assinatura o Android não instala o APK. " +
+            "Configure a chave (veja \"APK de produção\" no README) ou, só para testar o build, use -Prfid.semAssinatura=true"
+        if (pedidoRelease) throw GradleException(problema)
+        problemasDoRelease += problema
+    }
+    logger.warn("AVISO: $motivo. O APK de produção sairá SEM assinatura e o Android não instala. " +
+        "Veja \"APK de produção\" no README.")
 }
 
 android {
@@ -111,9 +142,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
-    }
     // Esquema do banco local (Room) de cada versão, versionado no git para conferir as migrações
     ksp {
         arg("room.schemaLocation", "$projectDir/schemas")
@@ -124,12 +152,50 @@ android {
     }
 }
 
-// Nome do APK com a versão (ex.: RFID-Android-1.4.0-release.apk), em vez de app-release.apk
-android.applicationVariants.all {
-    val variante = this
-    outputs.all {
-        (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
-            "RFID-Android-${variante.versionName}-${variante.name}.apk"
+// Bytecode Kotlin no mesmo alvo do Java (compileOptions acima)
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_11)
+    }
+}
+
+// "build"/"assemble" vão empacotar o APK (ou bundle) de produção: mesmas travas de quando se pede assembleRelease
+gradle.taskGraph.whenReady {
+    val empacotaRelease = allTasks.any { it.project == project && it.name.startsWith("package") && it.name.contains("Release") }
+    if (empacotaRelease && problemasDoRelease.isNotEmpty()) throw GradleException(problemasDoRelease.joinToString("\n"))
+}
+
+// APK com a versão no nome (ex.: RFID-Android-1.6.1-release.apk), ao lado do app-release.apk que o plugin gera.
+// Feito só com a API pública do plugin Android (androidComponents): a forma antiga (applicationVariants com cast
+// para uma classe interna) sai no plugin 9.
+abstract class CopiarApkComVersao : DefaultTask() {
+    @get:InputFiles
+    abstract val pastaApk: DirectoryProperty
+
+    @get:Internal
+    abstract val carregador: Property<BuiltArtifactsLoader>
+
+    @get:OutputFile
+    abstract val destino: RegularFileProperty
+
+    @TaskAction
+    fun copiar() {
+        val apk = carregador.get().load(pastaApk.get())?.elements?.singleOrNull()?.outputFile
+            ?: throw GradleException("APK não encontrado em ${pastaApk.get().asFile}")
+        File(apk).copyTo(destino.get().asFile, overwrite = true)
+        logger.lifecycle("APK: ${destino.get().asFile}")
+    }
+}
+
+androidComponents {
+    onVariants { variante ->
+        val sufixo = variante.name.replaceFirstChar { it.uppercase() }
+        val copia = tasks.register<CopiarApkComVersao>("copiarApkComVersao$sufixo") {
+            pastaApk.set(variante.artifacts.get(SingleArtifact.APK))
+            carregador.set(variante.artifacts.getBuiltArtifactsLoader())
+            destino.set(layout.buildDirectory.file("outputs/apk/${variante.name}/RFID-Android-$versaoApp-${variante.name}.apk"))
+        }
+        tasks.matching { it.name == "assemble$sufixo" }.configureEach { finalizedBy(copia) }
     }
 }
 
@@ -145,6 +211,8 @@ dependencies {
     testImplementation(libs.okhttp.tls)                    // certificados de teste: MockWebServer em HTTPS
     testImplementation(libs.org.json)                      // org.json real: o do android.jar é só um esqueleto nos testes
     testImplementation(libs.androidx.arch.core.testing)    // LiveData síncrono nos testes do ViewModel
+    testImplementation(libs.robolectric)                   // Android simulado no computador: banco local (Room) num SQLite de verdade
+    testImplementation(libs.androidx.test.core)            // contexto do app nos testes com Robolectric
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     implementation(libs.lifecycle.viewmodel.ktx)

@@ -38,7 +38,7 @@ import com.google.android.material.tabs.TabLayout
  *
  * Se o local já teve inventário finalizado, a tela mostra ao vivo o que falta, comparando com o que foi
  * encontrado da última vez (GET /api/android/inventarios/esperado). Tocar num item que falta abre o
- * Localizar já com o patrimônio dele. A lista fica guardada no coletor e vale sem rede.
+ * Localizar já com o EPC dele (sem depender do servidor). A lista fica guardada no coletor e vale sem rede.
  */
 class InventarioActivity : AppCompatActivity() {
 
@@ -73,20 +73,26 @@ class InventarioActivity : AppCompatActivity() {
 
     private lateinit var aviso: AvisoLeitura
 
-    // Inventário costuma ser longo: avisa antes de a sessão acabar e deixa renovar sem sair da tela
-    private val avisoSessao = AvisoSessao(this)
-
     // Etiqueta nova no inventário: bip/vibração
     private val ouvinte = RfidManager.OuvinteLeitura { epc, _ -> repositorio.registrar(epc) { aviso.tagNova() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Sessão vencida: vai para o login já aqui. Esperar o onResume não basta: no onStart o inventário
+        // aberto já ligaria o leitor e consultaria o servidor sem sessão
+        exigirSessao() ?: return
         setContentView(R.layout.activity_inventario)
 
         repositorio = RepositorioInventario.get(this)
         rfidManager = RfidManager.get(this)
         tagService = TagService(this)
         aviso = AvisoLeitura(this)
+
+        // O leitor só manda leituras para cá enquanto há inventário aberto e a tela está visível.
+        // Inventário costuma ser longo: avisa antes de a sessão acabar e deixa renovar sem sair da tela.
+        // Criada só depois do exigirSessao() acima: se a tela fechou por sessão vencida, nada é registrado
+        // (antes o onPause precisava conferir se o rfidManager já existia)
+        TelaDeLeitura(this, rfidManager, ouvinte, lerAoRetomar = { inventarioAtual != null })
 
         painelInicio = findViewById(R.id.painelInicio)
         painelAndamento = findViewById(R.id.painelAndamento)
@@ -104,8 +110,8 @@ class InventarioActivity : AppCompatActivity() {
             adapter = adapterLidas
         }
 
-        tabs.addTab(tabs.newTab().setText("Faltando"))
-        tabs.addTab(tabs.newTab().setText("Lidas"))
+        tabs.addTab(tabs.newTab().setText(R.string.inventario_aba_faltando))
+        tabs.addTab(tabs.newTab().setText(R.string.inventario_aba_lidas))
         tabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
                 recycler.adapter = if (tab.position == ABA_FALTANDO) adapterFaltando else adapterLidas
@@ -123,20 +129,7 @@ class InventarioActivity : AppCompatActivity() {
         repositorio.inventarioAberto.observe(this) { mostrar(it) }
     }
 
-    // O leitor só manda leituras para cá enquanto há inventário aberto e a tela está visível
-    override fun onResume() {
-        super.onResume()
-        exigirSessao() ?: return
-        if (inventarioAtual != null) ativarLeitor()
-        avisoSessao.iniciar()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        rfidManager.removerOuvinte(this)
-        avisoSessao.parar()
-    }
-
+    // Um inventário passou a aparecer na tela (ver mostrar). No onResume quem liga é a TelaDeLeitura.
     // Conecta o leitor, se preciso, e reconecta sozinho se cair; a situação aparece na faixa do topo
     private fun ativarLeitor() {
         rfidManager.definirOuvinte(this, ouvinte)
@@ -144,7 +137,7 @@ class InventarioActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        aviso.liberar()
+        if (::aviso.isInitialized) aviso.liberar()
     }
 
     // ================= TELA =================
@@ -163,7 +156,7 @@ class InventarioActivity : AppCompatActivity() {
 
         painelInicio.visibility = View.GONE
         painelAndamento.visibility = View.VISIBLE
-        txtLocal.text = "Local: ${inventario.local}"
+        txtLocal.text = getString(R.string.inventario_local, inventario.local)
         atualizarResumo()
 
         if (mudou) {
@@ -215,7 +208,7 @@ class InventarioActivity : AppCompatActivity() {
 
         // Lidas: com o patrimônio, quando a etiqueta está na lista do esperado
         val patrimonios = if (atual != null) patrimoniosEsperados else emptyMap()
-        adapterLidas.atualizar(epcsLidos.map { epc -> patrimonios[epc]?.let { "Patrimônio $it  ($epc)" } ?: epc })
+        adapterLidas.atualizar(epcsLidos.map { epc -> patrimonios[epc]?.let { getString(R.string.inventario_lida_com_patrimonio, it, epc) } ?: epc })
         adapterFaltando.atualizar(nova?.faltando.orEmpty())
 
         if (nova == null) {
@@ -227,8 +220,8 @@ class InventarioActivity : AppCompatActivity() {
                 tabs.getTabAt(ABA_FALTANDO)?.select()
                 recycler.adapter = adapterFaltando
             }
-            tabs.getTabAt(ABA_FALTANDO)?.text = "Faltando (${nova.faltando.size})"
-            tabs.getTabAt(ABA_LIDAS)?.text = "Lidas (${epcsLidos.size})"
+            tabs.getTabAt(ABA_FALTANDO)?.text = getString(R.string.inventario_aba_faltando_qtd, nova.faltando.size)
+            tabs.getTabAt(ABA_LIDAS)?.text = getString(R.string.inventario_aba_lidas_qtd, epcsLidos.size)
             avisarSeCompleto(nova)
         }
 
@@ -241,24 +234,26 @@ class InventarioActivity : AppCompatActivity() {
 
         val local = inventarioAtual?.local
         Log.i(TAG, "Todas as ${nova.esperados} etiqueta(s) esperada(s) em $local foram encontradas (${nova.foraDaLista} fora da lista)")
-        Toast.makeText(this, "Todas as ${nova.esperados} etiquetas esperadas foram encontradas", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, getString(R.string.inventario_todas_encontradas, nova.esperados), Toast.LENGTH_LONG).show()
     }
 
     private fun atualizarResumo() {
         val c = comparacao
         txtResumo.text = buildString {
-            append("${epcsLidos.size} etiqueta(s) lida(s)")
+            append(getString(R.string.inventario_resumo_lidas, epcsLidos.size))
             if (c != null) {
-                append("  •  ${c.encontradas} de ${c.esperados} esperada(s)")
-                if (c.faltando.isNotEmpty()) append("  •  faltam ${c.faltando.size}")
-                if (c.foraDaLista > 0) append("  •  ${c.foraDaLista} fora da lista")
+                append(SEPARADOR).append(getString(R.string.inventario_resumo_esperadas, c.encontradas, c.esperados))
+                if (c.faltando.isNotEmpty()) append(SEPARADOR).append(getString(R.string.inventario_resumo_faltam, c.faltando.size))
+                if (c.foraDaLista > 0) append(SEPARADOR).append(getString(R.string.inventario_resumo_fora_da_lista, c.foraDaLista))
             }
             val recusado = inventarioAtual?.takeIf { it.recusadoEm != null }
             if (recusado != null) {
-                append("\n\nO servidor recusou este inventário" + (recusado.ultimoErro?.let { " ($it)" } ?: "") +
-                    ": ele não será mais enviado. Fale com o administrador.")
+                append("\n\n").append(
+                    recusado.ultimoErro?.let { getString(R.string.inventario_recusado_motivo, it) }
+                        ?: getString(R.string.inventario_recusado)
+                )
             } else if (naoEnviadas > 0) {
-                append("  •  $naoEnviadas aguardando envio ao servidor")
+                append(SEPARADOR).append(getString(R.string.inventario_resumo_aguardando, naoEnviadas))
             }
         }
     }
@@ -276,7 +271,7 @@ class InventarioActivity : AppCompatActivity() {
             }
         }
         guardado?.let { aplicarEsperado(it, doServidor = false) }
-            ?: run { txtReferencia.text = "Buscando no servidor o que é esperado neste local..." }
+            ?: run { txtReferencia.setText(R.string.inventario_buscando_esperado) }
 
         tagService.buscarEsperado(local) { resposta ->
             runOnUiThread {
@@ -291,14 +286,14 @@ class InventarioActivity : AppCompatActivity() {
 
                     RespostaServidor.NaoEncontrado -> {
                         Log.w(TAG, "Servidor sem a lista do esperado (versão antiga): inventário de '$local' sem comparação")
-                        if (guardado == null) txtReferencia.text = "Servidor desatualizado: sem a lista do que é esperado"
+                        if (guardado == null) txtReferencia.setText(R.string.inventario_servidor_desatualizado)
                     }
 
                     is RespostaServidor.Falha -> {
                         Log.w(TAG, "Lista do esperado de '$local' indisponível (${resposta.mensagem})" +
                             if (guardado != null) ": usando a guardada no coletor" else ": inventário sem comparação")
-                        txtReferencia.text = if (guardado != null) "Comparando com o ${guardado.descricaoReferencia()} (lista guardada no coletor)"
-                        else "Sem conexão: não deu para buscar o que é esperado neste local"
+                        txtReferencia.text = if (guardado != null) getString(R.string.inventario_comparando_guardada, guardado.descricaoReferencia())
+                        else getString(R.string.inventario_sem_conexao_esperado)
                     }
                 }
             }
@@ -311,26 +306,27 @@ class InventarioActivity : AppCompatActivity() {
         val origem = if (doServidor) "do servidor" else "guardada no coletor"
 
         if (novo.temReferencia) {
-            txtReferencia.text = "Comparando com o ${novo.descricaoReferencia()}: ${novo.itens.size} etiqueta(s) esperada(s)"
+            txtReferencia.text = getString(R.string.inventario_comparando, novo.descricaoReferencia(), novo.itens.size)
             Log.i(TAG, "Lista do esperado ($origem) de '${novo.local}': ${novo.itens.size} etiqueta(s), do ${novo.descricaoReferencia()}")
         } else {
-            txtReferencia.text = "Primeiro inventário deste local: não há lista do que é esperado"
+            txtReferencia.setText(R.string.inventario_primeiro)
             Log.i(TAG, "Local '${novo.local}' sem inventário finalizado ($origem): primeiro inventário, sem lista do esperado")
         }
 
         atualizarComparacao()
     }
 
-    /** Item que falta: abre o Localizar já buscando o patrimônio. */
+    /**
+     * Item que falta: abre o Localizar já com o EPC, que a lista do esperado já traz. Assim localiza sem
+     * consultar o servidor (funciona sem rede) e também item sem patrimônio. O patrimônio vai só para exibir.
+     */
     private fun localizar(item: ItemEsperado) {
-        val patrimonio = item.patrimonio ?: run {
-            Log.w(TAG, "Item esperado ${item.epc} sem patrimônio no cadastro: não dá para localizar pelo patrimônio")
-            Toast.makeText(this, "Esta etiqueta não tem patrimônio cadastrado: não dá para localizar", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        Log.i(TAG, "Operador foi localizar o patrimônio $patrimonio, que falta em ${inventarioAtual?.local}")
-        startActivity(Intent(this, LocalizarActivity::class.java).putExtra(LocalizarActivity.EXTRA_PATRIMONIO, patrimonio))
+        Log.i(TAG, "Operador foi localizar a etiqueta ${item.epc} (patrimônio ${item.patrimonio ?: "não cadastrado"}), que falta em ${inventarioAtual?.local}")
+        startActivity(
+            Intent(this, LocalizarActivity::class.java)
+                .putExtra(LocalizarActivity.EXTRA_EPC, item.epc)
+                .putExtra(LocalizarActivity.EXTRA_PATRIMONIO, item.patrimonio)
+        )
     }
 
     // ================= AÇÕES =================
@@ -339,7 +335,7 @@ class InventarioActivity : AppCompatActivity() {
         val local = edtLocal.text.toString().trim()
 
         if (local.isEmpty()) {
-            Toast.makeText(this, "Informe o local do inventário", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.inventario_informe_local, Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -349,7 +345,7 @@ class InventarioActivity : AppCompatActivity() {
                     lembrarLocal(local)
                     edtLocal.setText("")
                 } else {
-                    Toast.makeText(this, "Já existe um inventário em andamento", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, R.string.inventario_em_andamento, Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -361,28 +357,31 @@ class InventarioActivity : AppCompatActivity() {
         val c = comparacao
 
         val mensagem = buildString {
-            append("$totalLidas etiqueta(s) lida(s) em ${inventario.local}. Depois de finalizar, não é possível ler mais neste inventário.")
+            append(getString(R.string.inventario_finalizar_mensagem, totalLidas, inventario.local))
             if (c != null && c.faltando.isNotEmpty()) {
-                append("\n\nAtenção: faltam ${c.faltando.size} das ${c.esperados} etiqueta(s) encontradas no último inventário deste local.")
+                append("\n\n").append(getString(R.string.inventario_finalizar_faltam, c.faltando.size, c.esperados))
             }
-            if (naoEnviadas > 0) append("\n\n$naoEnviadas ainda não chegaram ao servidor: continuam guardadas no coletor e serão enviadas assim que possível.")
+            if (naoEnviadas > 0) append("\n\n").append(getString(R.string.inventario_finalizar_nao_enviadas, naoEnviadas))
         }
 
         AlertDialog.Builder(this)
-            .setTitle("Finalizar inventário?")
+            .setTitle(R.string.inventario_finalizar_titulo)
             .setMessage(mensagem)
-            .setPositiveButton("Finalizar") { _, _ ->
+            .setPositiveButton(R.string.inventario_finalizar_confirmar) { _, _ ->
                 Log.i(TAG, "Operador finalizou o inventário de ${inventario.local} com $totalLidas etiqueta(s)" +
                     if (c != null) " (${c.encontradas} de ${c.esperados} esperada(s), faltando ${c.faltando.size}, ${c.foraDaLista} fora da lista)" else "")
                 repositorio.finalizar { total ->
                     runOnUiThread {
                         if (total != null) {
-                            Toast.makeText(this, "Inventário de ${inventario.local} finalizado: $total etiqueta(s)", Toast.LENGTH_LONG).show()
+                            Toast.makeText(this, getString(R.string.inventario_finalizado, inventario.local, total), Toast.LENGTH_LONG).show()
+                        } else {
+                            // Não finalizou porque a sessão terminou: manda para o login ("entre de novo para continuar")
+                            exigirSessao()
                         }
                     }
                 }
             }
-            .setNegativeButton("Continuar lendo", null)
+            .setNegativeButton(R.string.inventario_continuar_lendo, null)
             .show()
     }
 
@@ -421,5 +420,8 @@ class InventarioActivity : AppCompatActivity() {
         private const val TAG = "INVENTARIO"
         private const val ABA_FALTANDO = 0
         private const val ABA_LIDAS = 1
+
+        // Separa as partes do resumo do inventário (não é texto a traduzir)
+        private const val SEPARADOR = "  •  "
     }
 }

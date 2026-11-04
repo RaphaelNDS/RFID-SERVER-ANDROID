@@ -21,9 +21,13 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- RfidApp: guarda os travamentos do app para enviar ao servidor (tela Coletores → Erros) -->
+    <!-- allowBackup="false": nada do coletor (chave, sessão, PIN, fila de leituras) vai para backup/adb backup.
+         As regras de backup_rules/data_extraction_rules continuam como segunda barreira.
+         tools:replace: a biblioteca de código de barras da Zebra declara allowBackup="true", o que daria conflito na junção dos manifestos. -->
     <application
         android:name=".RfidApp"
-        android:allowBackup="true"
+        android:allowBackup="false"
+        tools:replace="android:allowBackup"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"

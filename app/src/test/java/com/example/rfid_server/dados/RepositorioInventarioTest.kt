@@ -116,6 +116,28 @@ class RepositorioInventarioTest {
     }
 
     @Test
+    fun `finalizar sem operador logado nao finaliza e o inventario continua aberto`() {
+        val repositorio = repositorio()
+        repositorio.abrir("Sala 101")
+        repositorio.registrar("E1")
+        val pedidosAntes = sincronizacoes
+        sessao = null   // sessão expirou com a tela aberta
+        var total: Int? = -1
+
+        repositorio.finalizar { total = it }
+
+        assertNull("A tela manda entrar de novo", total)
+        assertNull(dao.inventario("inv-1").finalizadoEm)
+        assertEquals(pedidosAntes, sincronizacoes)
+
+        // Depois de entrar de novo, finaliza com a sessão nova
+        sessao = "sessao-ana-2"
+        repositorio.finalizar { total = it }
+        assertEquals(1, total)
+        assertEquals("sessao-ana-2", dao.inventario("inv-1").sessaoFinalizacao)
+    }
+
+    @Test
     fun `finalizar sem inventario aberto devolve null`() {
         var total: Int? = -1
 

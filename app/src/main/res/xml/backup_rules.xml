@@ -7,5 +7,7 @@
 -->
 <full-backup-content>
     <exclude domain="sharedpref" path="rfid_prefs.xml" />
+    <!-- Tokens das sessões dos operadores (cifrados), referenciados pelas linhas da fila -->
+    <exclude domain="sharedpref" path="cofre_sessoes.xml" />
     <exclude domain="database" path="rfid-local.db" />
 </full-backup-content>

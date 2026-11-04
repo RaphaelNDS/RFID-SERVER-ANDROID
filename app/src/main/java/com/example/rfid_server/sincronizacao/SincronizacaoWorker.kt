@@ -24,17 +24,34 @@ class SincronizacaoWorker(context: Context, params: WorkerParameters) : Worker(c
     override fun doWork(): Result {
         Log.i(TAG, "Sincronização em segundo plano iniciada (tentativa ${runAttemptCount + 1})")
 
-        val estado = Sincronizador.get(applicationContext).processarPendentes()
+        // Sem agendar outra tentativa lá dentro: quem pede a nova tentativa aqui é o Result.retry()
+        val estado = Sincronizador.get(applicationContext).processarPendentes(agendarSeFalhar = false)
 
-        return if (estado == EstadoSincronizacao.SINCRONIZADO) {
-            Result.success()
-        } else {
-            Log.w(TAG, "Sincronização em segundo plano não terminou (${estado.descricao}): nova tentativa agendada")
-            Result.retry()
+        return when {
+            estado == EstadoSincronizacao.SINCRONIZADO -> Result.success()
+
+            !tentarDeNovo(estado) -> {
+                Log.w(TAG, "Sincronização em segundo plano parada (${estado.descricao}): volta quando as Configurações " +
+                    "forem salvas ou na próxima verificação periódica")
+                Result.success()
+            }
+
+            else -> {
+                Log.w(TAG, "Sincronização em segundo plano não terminou (${estado.descricao}): nova tentativa agendada")
+                Result.retry()
+            }
         }
     }
 
     companion object {
+
+        /**
+         * Chave, endereço e certificado só mudam nas Configurações (que pedem a sincronização ao salvar): repetir
+         * com espera crescente só acordaria o coletor à toa. A periódica de 15 min continua conferindo.
+         */
+        internal fun tentarDeNovo(estado: EstadoSincronizacao): Boolean =
+            estado != EstadoSincronizacao.SINCRONIZADO && !estado.dependeDasConfiguracoes
+
         private const val TAG = "SINCRONIZACAO"
         private const val NOME_TENTATIVA = "sincronizar-leituras"
         private const val NOME_PERIODICA = "sincronizar-leituras-periodica"

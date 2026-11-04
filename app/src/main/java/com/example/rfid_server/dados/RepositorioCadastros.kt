@@ -3,6 +3,7 @@ package com.example.rfid_server.dados
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.LiveData
+import com.example.rfid_server.CofreSessoes
 import com.example.rfid_server.SessaoAtual
 import com.example.rfid_server.sincronizacao.Sincronizador
 import java.util.concurrent.Executor
@@ -102,7 +103,7 @@ class RepositorioCadastros internal constructor(
                         dao = BancoLocal.get(app).cadastroDao(),
                         executor = Executors.newSingleThreadExecutor(),
                         solicitarSincronizacao = Sincronizador.get(app)::solicitar,
-                        sessaoAtual = { SessaoAtual.token(app) }
+                        sessaoAtual = { SessaoAtual.token(app)?.let { CofreSessoes.get(app).referencia(it) } }
                     )
                 }.also { instancia = it }
             }

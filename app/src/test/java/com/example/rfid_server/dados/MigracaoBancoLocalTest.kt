@@ -160,4 +160,41 @@ class MigracaoBancoLocalTest {
             colunas(5, tabela).forEach { (coluna, tipo) -> assertEquals("$tabela.$coluna mudou", tipo, colunas(6, tabela)[coluna]) }
         }
     }
+
+    @Test
+    fun `migracao 6 para 7 acrescenta so as colunas de recusa das etiquetas do inventario como o Room espera`() {
+        assertEquals(7, esquema(7).getInt("version"))
+        assertEquals("Nenhuma tabela nova na versão 7", tabelas(6), tabelas(7))
+
+        val acrescentadas = tabelas(6).flatMap { tabela ->
+            (colunas(7, tabela) - colunas(6, tabela).keys).map { (coluna, tipo) -> Triple(tabela, coluna, tipo) }
+        }.toSet()
+        assertEquals(
+            setOf(
+                Triple("inventario_itens", "recusas", "INTEGER" to true),
+                Triple("inventario_itens", "primeiraRecusaEm", "INTEGER" to false),
+                Triple("inventario_itens", "ultimoErro", "TEXT" to false)
+            ),
+            acrescentadas
+        )
+
+        val daMigracao = BancoLocal.SQL_VERSAO_7.map { sql ->
+            val (tabela, coluna, tipo, resto) =
+                Regex("ALTER TABLE `(\\w+)` ADD COLUMN `(\\w+)` (\\w+)(.*)").matchEntire(sql)!!.destructured
+            Triple(tabela, coluna, tipo to resto.contains("NOT NULL"))
+        }.toSet()
+        assertEquals(acrescentadas, daMigracao)
+
+        // O DEFAULT da coluna obrigatória precisa ser o mesmo do esquema, senão o Room recusa abrir o banco migrado
+        val entidades = esquema(7).getJSONArray("entities")
+        val campos = (0 until entidades.length()).map { entidades.getJSONObject(it) }
+            .single { it.getString("tableName") == "inventario_itens" }.getJSONArray("fields")
+        val recusas = (0 until campos.length()).map { campos.getJSONObject(it) }.single { it.getString("columnName") == "recusas" }
+        assertEquals("0", recusas.getString("defaultValue"))
+        assertTrue(BancoLocal.SQL_VERSAO_7.any { it.endsWith("`recusas` INTEGER NOT NULL DEFAULT 0") })
+
+        tabelas(6).forEach { tabela ->
+            colunas(6, tabela).forEach { (coluna, tipo) -> assertEquals("$tabela.$coluna mudou", tipo, colunas(7, tabela)[coluna]) }
+        }
+    }
 }

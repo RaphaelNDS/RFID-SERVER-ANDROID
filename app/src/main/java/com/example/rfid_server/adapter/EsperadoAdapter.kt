@@ -24,8 +24,10 @@ class EsperadoAdapter(private val aoTocar: (ItemEsperado) -> Unit) :
     override fun onBindViewHolder(holder: VH, position: Int) {
         val item = getItem(position)
 
-        holder.patrimonio.text = item.patrimonio?.let { "Patrimônio $it" } ?: "Sem patrimônio (EPC ${item.epc})"
-        holder.descricao.text = item.descricao().ifEmpty { item.codigoInterno?.let { "Código $it" } ?: item.epc }
+        val ctx = holder.itemView.context
+        holder.patrimonio.text = item.patrimonio?.let { ctx.getString(R.string.esperado_patrimonio, it) }
+            ?: ctx.getString(R.string.esperado_sem_patrimonio, item.epc)
+        holder.descricao.text = item.descricao().ifEmpty { item.codigoInterno?.let { ctx.getString(R.string.esperado_codigo, it) } ?: item.epc }
         holder.itemView.setOnClickListener { aoTocar(item) }
     }
 

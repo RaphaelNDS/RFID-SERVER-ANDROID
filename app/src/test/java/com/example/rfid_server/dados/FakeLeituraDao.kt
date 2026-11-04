@@ -78,7 +78,7 @@ class FakeLeituraDao(vararg iniciais: LeituraEntity) : LeituraDao {
                 it.copy(
                     situacao = Situacao.CADASTRADA, codigoInterno = codigoInterno, tipo = tipo, marca = marca,
                     modelo = modelo, patrimonio = patrimonio, numeroSerie = numeroSerie,
-                    envioConcluido = false, ultimoErro = null
+                    envioConcluido = false, recusada = false, ultimoErro = null
                 )
             } else it
         }
@@ -116,7 +116,7 @@ class FakeLeituraDao(vararg iniciais: LeituraEntity) : LeituraDao {
 
     override fun apagarRecusadasAntigas(antesDe: Long): Int {
         val antes = leituras.size
-        leituras.removeAll { it.recusada && it.arquivada && it.lidoEm < antesDe }
+        leituras.removeAll { it.recusada && it.arquivada && it.envioConcluido && it.lidoEm < antesDe }
         publicar()
         return antes - leituras.size
     }

@@ -47,14 +47,65 @@ interface InventarioDao {
     )
     fun comPendencias(): List<InventarioEntity>
 
-    @Query("SELECT * FROM inventario_itens WHERE inventarioId = :inventarioId AND enviado = 0 ORDER BY id LIMIT :limite")
-    fun itensNaoEnviados(inventarioId: String, limite: Int): List<InventarioItemEntity>
+    /** Etiquetas ainda não enviadas com id maior que [aposId] (paginação: as recusadas na passada ficam para trás). */
+    @Query("SELECT * FROM inventario_itens WHERE inventarioId = :inventarioId AND enviado = 0 AND id > :aposId ORDER BY id LIMIT :limite")
+    fun itensNaoEnviados(inventarioId: String, aposId: Long, limite: Int): List<InventarioItemEntity>
+
+    @Query("SELECT * FROM inventarios WHERE id = :id")
+    fun inventarioAgora(id: String): InventarioEntity?
+
+    /** O servidor recusou estas etiquetas: conta mais uma e guarda quando foi a primeira recusa de cada uma. */
+    @Query(
+        """UPDATE inventario_itens SET ultimoErro = :erro, recusas = recusas + 1,
+           primeiraRecusaEm = COALESCE(primeiraRecusaEm, :agora) WHERE id IN (:ids)"""
+    )
+    fun registrarRecusaItens(ids: List<Long>, erro: String, agora: Long)
+
+    /**
+     * Desiste das etiquetas recusadas pelo menos [limite] vezes, a primeira antes de [antesDe]: saem da fila
+     * (enviado = 1), com o motivo guardado em ultimoErro. Devolve quantas.
+     */
+    @Query(
+        """UPDATE inventario_itens SET enviado = 1 WHERE id IN (:ids) AND recusas >= :limite
+           AND primeiraRecusaEm IS NOT NULL AND primeiraRecusaEm <= :antesDe"""
+    )
+    fun desistirItens(ids: List<Long>, limite: Int, antesDe: Long): Int
 
     @Query("UPDATE inventarios SET aberturaEnviada = :enviada, ultimoErro = NULL WHERE id = :id")
     fun definirAberturaEnviada(id: String, enviada: Boolean)
 
-    @Query("UPDATE inventario_itens SET enviado = 1 WHERE id IN (:ids)")
+    /**
+     * Aceitas pelo servidor: saem da fila e as recusas anteriores são apagadas. Assim "enviada com recusa
+     * guardada" passa a significar só "o coletor desistiu dela" (ver [reenviarItens]).
+     */
+    @Query("UPDATE inventario_itens SET enviado = 1, recusas = 0, primeiraRecusaEm = NULL, ultimoErro = NULL WHERE id IN (:ids)")
     fun marcarItensEnviados(ids: List<Long>)
+
+    /**
+     * O servidor não conhece o inventário (ex.: banco dele restaurado de um backup): abertura, etiquetas e
+     * finalização vão de novo, senão o inventário ficaria incompleto lá. Reenviar é seguro (o id do inventário
+     * é um UUID e o servidor ignora etiqueta repetida). As etiquetas de que o coletor já desistiu por recusa
+     * continuam fora da fila. Devolve quantas etiquetas voltaram.
+     */
+    @Transaction
+    fun prepararReabertura(id: String): Int {
+        reabrirEtapas(id)
+        return reenviarItens(id)
+    }
+
+    @Query("UPDATE inventarios SET aberturaEnviada = 0, finalizacaoEnviada = 0, ultimoErro = NULL WHERE id = :id")
+    fun reabrirEtapas(id: String)
+
+    /**
+     * Volta para a fila as etiquetas já enviadas, menos as desistidas: enviada com primeiraRecusaEm guardada só
+     * acontece quando o coletor desistiu (as aceitas têm as recusas apagadas em [marcarItensEnviados]). Vale
+     * também para a desistência na primeira recusa (sessão do operador recusada de vez).
+     */
+    @Query(
+        """UPDATE inventario_itens SET enviado = 0 WHERE inventarioId = :inventarioId AND enviado = 1
+           AND primeiraRecusaEm IS NULL"""
+    )
+    fun reenviarItens(inventarioId: String): Int
 
     @Query("UPDATE inventarios SET finalizacaoEnviada = 1, ultimoErro = NULL WHERE id = :id")
     fun marcarFinalizacaoEnviada(id: String)

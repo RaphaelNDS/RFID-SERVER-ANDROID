@@ -1,5 +1,7 @@
 package com.example.rfid_server.activities
 
+import com.example.rfid_server.erros.MascaraSensivel
+import android.os.SystemClock
 import android.util.Log
 import android.view.View
 import android.widget.TextView
@@ -31,30 +33,33 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
     }
 
     private fun pedir(acao: String, liberado: () -> Unit) {
-        val bloqueadoAte = AppConfig.getPinBloqueadoAte(activity)
-        val agora = System.currentTimeMillis()
-        if (bloqueadoAte > agora) {
-            val minutos = (bloqueadoAte - agora) / 60_000 + 1
+        // Relógio de parede e tempo desde a ligação: adiantar o relógio do Android não acaba com o bloqueio
+        val restante = PinColetor.restanteBloqueio(
+            AppConfig.getTentativasPin(activity), System.currentTimeMillis(), SystemClock.elapsedRealtime()
+        )
+        if (restante > 0) {
+            val minutos = (restante - 1) / 60_000 + 1
+            Log.w(TAG, "PIN das Configurações bloqueado: faltam $minutos minuto(s)")
             AlertDialog.Builder(activity)
-                .setTitle("PIN bloqueado")
-                .setMessage("Muitas tentativas erradas. Aguarde $minutos minuto(s) ou peça a um administrador para liberar o PIN.")
-                .setPositiveButton("OK", null)
-                .setNeutralButton("Esqueci o PIN") { _, _ -> esqueci(liberado) }
+                .setTitle(R.string.pin_bloqueado_titulo)
+                .setMessage(activity.getString(R.string.pin_bloqueado_mensagem, minutos))
+                .setPositiveButton(R.string.comum_ok, null)
+                .setNeutralButton(R.string.pin_esqueci) { _, _ -> esqueci(liberado) }
                 .show()
             return
         }
 
         val vista = activity.layoutInflater.inflate(R.layout.dialogo_pin, null)
-        vista.findViewById<TextView>(R.id.txtPinExplicacao).text = "Digite o PIN das Configurações para $acao."
+        vista.findViewById<TextView>(R.id.txtPinExplicacao).text = activity.getString(R.string.pin_digite, acao)
         val layoutPin = vista.findViewById<TextInputLayout>(R.id.layoutPin)
         val edtPin = vista.findViewById<TextInputEditText>(R.id.edtPin)
 
         val dialogo = AlertDialog.Builder(activity)
-            .setTitle("PIN do coletor")
+            .setTitle(R.string.pin_titulo)
             .setView(vista)
-            .setPositiveButton("Confirmar", null)
-            .setNegativeButton("Cancelar", null)
-            .setNeutralButton("Esqueci o PIN", null)
+            .setPositiveButton(R.string.pin_confirmar, null)
+            .setNegativeButton(R.string.comum_cancelar, null)
+            .setNeutralButton(R.string.pin_esqueci, null)
             .create()
 
         // Botões tratados no onShow: com o PIN errado o diálogo continua aberto, mostrando o erro
@@ -63,24 +68,27 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
                 val (hash, sal) = AppConfig.getPin(activity) ?: return@setOnClickListener run { dialogo.dismiss(); liberado() }
 
                 if (PinColetor.confere(edtPin.text.toString(), sal, hash)) {
-                    AppConfig.saveTentativasPin(activity, 0, 0)
+                    AppConfig.limparTentativasPin(activity)
                     dialogo.dismiss()
                     liberado()
                     return@setOnClickListener
                 }
 
-                val erros = AppConfig.getErrosPin(activity) + 1
-                val bloqueio = PinColetor.bloqueioAposErro(erros, System.currentTimeMillis())
+                // O contador não zera no bloqueio: cada novo bloqueio dura mais (5 min, 15 min, 1 h...)
+                val antes = AppConfig.getTentativasPin(activity)
+                val depois = PinColetor.aposErro(antes, System.currentTimeMillis(), SystemClock.elapsedRealtime())
+                AppConfig.saveTentativasPin(activity, depois)
+                val erros = depois.erros
                 edtPin.text = null
-                if (bloqueio != null) {
-                    AppConfig.saveTentativasPin(activity, 0, bloqueio)
-                    Log.w(TAG, "PIN das Configurações errado $erros vezes seguidas: bloqueado por ${PinColetor.BLOQUEIO_MS / 60_000} min")
+                if (erros % PinColetor.MAX_ERROS == 0) {
+                    val minutos = depois.duracao / 60_000
+                    Log.w(TAG, "PIN das Configurações errado $erros vezes desde o último acerto: bloqueado por $minutos min")
                     dialogo.dismiss()
-                    Toast.makeText(activity, "PIN errado $erros vezes: bloqueado por ${PinColetor.BLOQUEIO_MS / 60_000} minutos", Toast.LENGTH_LONG).show()
+                    Toast.makeText(activity, activity.getString(R.string.pin_errado_bloqueado, erros, minutos), Toast.LENGTH_LONG).show()
                 } else {
-                    AppConfig.saveTentativasPin(activity, erros, 0)
-                    Log.w(TAG, "PIN das Configurações errado (tentativa $erros de ${PinColetor.MAX_ERROS})")
-                    layoutPin.error = "PIN incorreto. Restam ${PinColetor.MAX_ERROS - erros} tentativa(s)"
+                    val restam = PinColetor.restantesAteBloqueio(erros)
+                    Log.w(TAG, "PIN das Configurações errado ($erros erro(s) desde o último acerto; $restam até o próximo bloqueio)")
+                    layoutPin.error = activity.getString(R.string.pin_incorreto, restam)
                 }
             }
             dialogo.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
@@ -94,19 +102,18 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
     private fun criar(criado: () -> Unit) {
         val vista = activity.layoutInflater.inflate(R.layout.dialogo_pin, null)
         vista.findViewById<TextView>(R.id.txtPinExplicacao).text =
-            "Crie um PIN de ${PinColetor.TAMANHO_MINIMO} a ${PinColetor.TAMANHO_MAXIMO} números. Ele protege o servidor, " +
-                "a chave e o certificado deste coletor. Guarde-o com o responsável: sem ele, só um administrador libera."
+            activity.getString(R.string.pin_criar_explicacao, PinColetor.TAMANHO_MINIMO, PinColetor.TAMANHO_MAXIMO)
         val layoutPin = vista.findViewById<TextInputLayout>(R.id.layoutPin)
         val edtPin = vista.findViewById<TextInputEditText>(R.id.edtPin)
         val edtConfirmar = vista.findViewById<TextInputEditText>(R.id.edtPinConfirmar)
         vista.findViewById<View>(R.id.layoutPinConfirmar).visibility = View.VISIBLE
-        layoutPin.hint = "PIN novo"
+        layoutPin.hint = activity.getString(R.string.pin_novo)
 
         val dialogo = AlertDialog.Builder(activity)
-            .setTitle("Criar o PIN do coletor")
+            .setTitle(R.string.pin_criar_titulo)
             .setView(vista)
-            .setPositiveButton("Criar", null)
-            .setNegativeButton("Cancelar", null)
+            .setPositiveButton(R.string.pin_criar, null)
+            .setNegativeButton(R.string.comum_cancelar, null)
             .create()
 
         dialogo.setOnShowListener {
@@ -121,7 +128,7 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
                 val sal = PinColetor.novoSal()
                 AppConfig.savePin(activity, PinColetor.hash(pin, sal), sal)
                 Log.i(TAG, "PIN das Configurações criado neste coletor")
-                Toast.makeText(activity, "PIN criado", Toast.LENGTH_SHORT).show()
+                Toast.makeText(activity, R.string.pin_criado, Toast.LENGTH_SHORT).show()
                 dialogo.dismiss()
                 criado()
             }
@@ -136,10 +143,10 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
         val edtSenha = vista.findViewById<TextInputEditText>(R.id.edtSenhaAdmin)
 
         val dialogo = AlertDialog.Builder(activity)
-            .setTitle("Liberar o PIN")
+            .setTitle(R.string.pin_liberar_titulo)
             .setView(vista)
-            .setPositiveButton("Liberar", null)
-            .setNegativeButton("Cancelar", null)
+            .setPositiveButton(R.string.pin_liberar, null)
+            .setNegativeButton(R.string.comum_cancelar, null)
             .create()
 
         dialogo.setOnShowListener {
@@ -148,7 +155,7 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
                 val email = edtEmail.text.toString().trim()
                 val senha = edtSenha.text.toString()
                 if (email.isEmpty() || senha.isEmpty()) {
-                    Toast.makeText(activity, "Informe o email e a senha do administrador", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(activity, R.string.pin_informe_admin, Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
 
@@ -160,7 +167,7 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
                         when (resposta) {
                             is RespostaServidor.Sucesso -> {
                                 AppConfig.apagarPin(activity)
-                                Log.w(TAG, "PIN das Configurações apagado: liberado pelo administrador $email")
+                                Log.w(TAG, "PIN das Configurações apagado: liberado pelo administrador ${MascaraSensivel.email(email)}")
                                 dialogo.dismiss()
                                 criar(liberado)
                             }

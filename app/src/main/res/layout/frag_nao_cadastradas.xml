@@ -1,11 +1,10 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:orientation="vertical"
-    android:background="@color/fundo"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
     <TextView
-        android:text="Etiquetas não cadastradas · toque para cadastrar"
+        android:text="@string/nao_cadastradas_titulo"
         android:textAppearance="@style/Texto.RFID.Secao"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"

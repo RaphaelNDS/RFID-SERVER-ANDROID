@@ -118,6 +118,77 @@ class TagServiceTest {
     }
 
     @Test
+    fun `buscarTagAgora com campos obrigatorios nulos ou faltando aceita a tag com eles vazios`() {
+        // No Android, getString de um null devolveria o texto "null"; um campo faltando derrubaria a resposta
+        servidor.enqueue(json(200, """{"codigoInterno":"CI-03","patrimonio":null}"""))
+
+        val tag = (service.buscarTagAgora("E200GHI") as RespostaServidor.Sucesso).valor
+
+        assertEquals(TagView("E200GHI", "CI-03", null, null, null, "", ""), tag)
+    }
+
+    // ================= enviarLoteAgora =================
+
+    private fun resultadosDoLote(corpo: String, quantidade: Int = 3): List<ResultadoLote> {
+        servidor.enqueue(json(200, corpo))
+        val resposta = service.enviarLoteAgora((1..quantidade).map { "E$it" to 0L }, "sessao-ana")
+        return (resposta as RespostaServidor.Sucesso).valor
+    }
+
+    @Test
+    fun `lote com um item estranho aproveita os outros`() {
+        val resultados = resultadosDoLote(
+            """{"resultados":[
+                {"indice":0,"tag":"E1","status":"CADASTRADA","dados":{"codigoInterno":"CI-1","patrimonio":null,"numeroSerie":"SN"}},
+                "não é objeto",
+                {"indice":"abc","status":"NAO_CADASTRADA"},
+                {"indice":2,"tag":"E3","status":"NAO_CADASTRADA"}
+            ]}"""
+        )
+
+        assertEquals(listOf(0, 2), resultados.map { it.indice })
+        assertEquals(StatusLote.CADASTRADA, resultados[0].status)
+        assertEquals("Campo null vira vazio, não o texto \"null\"", "", resultados[0].tag!!.patrimonio)
+        assertEquals(StatusLote.NAO_CADASTRADA, resultados[1].status)
+    }
+
+    @Test
+    fun `lote com dados da tag fora do formato aceita a leitura sem os dados`() {
+        val resultado = resultadosDoLote("""{"resultados":[{"indice":0,"tag":"E1","status":"CADASTRADA","dados":"???"}]}""", 1).single()
+
+        assertEquals(StatusLote.CADASTRADA, resultado.status)
+        assertNull(resultado.tag)
+    }
+
+    @Test
+    fun `lote sem indice usa a posicao e status desconhecido vira aceita`() {
+        val resultados = resultadosDoLote(
+            """{"resultados":[{"status":"NAO_CADASTRADA"},{"status":"DUPLICADA"},{"indice":2,"status":null,"mensagem":null}]}"""
+        )
+
+        assertEquals(listOf(0, 1, 2), resultados.map { it.indice })
+        assertEquals(listOf(StatusLote.NAO_CADASTRADA, StatusLote.ACEITA, StatusLote.ACEITA), resultados.map { it.status })
+        assertNull("mensagem null não vira o texto \"null\"", resultados[2].mensagem)
+    }
+
+    @Test
+    fun `lote com corpo fora do formato continua erro do servidor`() {
+        servidor.enqueue(json(200, """{"outra":"coisa"}"""))
+
+        assertEquals(MotivoFalha.ERRO_SERVIDOR, motivo(service.enviarLoteAgora(listOf("E1" to 0L), "sessao-ana")))
+    }
+
+    @Test
+    fun `lote espera mais pela resposta e usa o mesmo cliente com a chave`() {
+        assertEquals(TagService.LEITURA_LOTE_S * 1000, service.clienteLote.readTimeoutMillis.toLong())
+        servidor.enqueue(json(200, """{"resultados":[]}"""))
+
+        service.enviarLoteAgora(listOf("E1" to 0L), "sessao-ana")
+
+        assertEquals(chave, proximaRequisicao().getHeader(HttpClient.HEADER_CHAVE))
+    }
+
+    @Test
     fun `buscarTagAgora com 404 indica tag nao cadastrada`() {
         servidor.enqueue(json(404, """{"status":404}"""))
 
@@ -512,6 +583,20 @@ class TagServiceTest {
 
         assertTrue((resposta as RespostaServidor.Falha).mensagem.contains("não confere"))
         assertTrue("Arquivo errado não fica no aparelho", !destino.exists())
+    }
+
+    @Test
+    fun `download maior que o publicado e interrompido e apagado`() {
+        // 1 MB no lugar de um APK publicado com 16 bytes: para no primeiro bloco que passa do tamanho
+        servidor.enqueue(MockResponse().setResponseCode(200).setBody(okio.Buffer().write(ByteArray(1024 * 1024))))
+        val destino = java.io.File.createTempFile("atualizacao", ".apk").apply { delete() }
+        val progresso = mutableListOf<Long>()
+
+        val resposta = service.baixarAtualizacaoAgora(versao(tamanho = 16), destino) { progresso += it }
+
+        assertTrue((resposta as RespostaServidor.Falha).mensagem.contains("maior que o esperado"))
+        assertTrue("Arquivo errado não fica no aparelho", !destino.exists())
+        assertTrue("Nada além do tamanho publicado foi gravado", progresso.all { it <= 16 })
     }
 
     // ================= cadastro de etiqueta =================

@@ -1,16 +1,20 @@
 package com.example.rfid_server
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
+import androidx.core.content.edit
 import com.example.rfid_server.dados.EsperadoGuardado
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 object AppConfig {
 
     // Fica fora do backup do Android (res/xml/backup_rules.xml e data_extraction_rules.xml)
     // porque guarda a chave do coletor. Se mudar este nome, mude também nesses dois arquivos.
     private const val PREFS = "rfid_prefs"
+    private const val TAG = "CONFIG"
     private const val KEY_SERVER_IP = "server_ip"
     private const val KEY_CHAVE_DISPOSITIVO = "chave_dispositivo"
     private const val KEY_LOCAIS = "locais_inventario"
@@ -20,9 +24,7 @@ object AppConfig {
 
     fun saveServerIp(context: Context, ip: String) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        prefs.edit()
-            .putString(KEY_SERVER_IP, ip)
-            .apply()
+        prefs.edit { putString(KEY_SERVER_IP, ip) }
     }
 
     fun getServerIp(context: Context): String {
@@ -30,25 +32,53 @@ object AppConfig {
         return prefs.getString(KEY_SERVER_IP, "").orEmpty().trim()
     }
 
+    // ================= SEGREDOS CIFRADOS =================
+    // A chave do coletor e o token da sessão ficam cifrados no arquivo de preferências (ver SegredoGuardado).
+
+    /** Nos testes é trocada por uma falsa: o Keystore do Android não existe no computador. */
+    @Volatile
+    internal var cifra: Cifra = CifraKeystore
+
+    // Texto guardado → valor decifrado. A chave é lida a cada requisição e o token a cada leitura de etiqueta:
+    // decifrar no Keystore toda vez seria lento. Poucas entradas (uma chave e um token por login)
+    private val decifrados = ConcurrentHashMap<String, String>()
+
+    private fun guardarSegredo(valor: String, nome: String): String =
+        SegredoGuardado.paraGuardar(valor, cifra, nome).also { if (valor.isNotEmpty()) decifrados[it] = valor }
+
+    private fun lerSegredo(context: Context, chavePrefs: String, nome: String): String? {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val guardado = prefs.getString(chavePrefs, null) ?: return null
+        decifrados[guardado]?.let { return it }
+
+        val lido = SegredoGuardado.ler(guardado, cifra, nome)
+        val valor = lido.valor ?: return null
+        decifrados[guardado] = valor
+
+        // Guardado sem cifra por uma versão anterior do app: regrava cifrado (uma vez só)
+        if (lido.regravar) {
+            val novo = guardarSegredo(valor, nome)
+            if (novo != guardado) {
+                prefs.edit { putString(chavePrefs, novo) }
+                Log.i(TAG, "$nome guardado sem cifra por versão anterior do app: regravado cifrado")
+            }
+        }
+        return valor
+    }
+
     // Chave cadastrada no servidor (rfid.dispositivos.chaves) para este coletor
     fun saveChaveDispositivo(context: Context, chave: String) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        prefs.edit()
-            .putString(KEY_CHAVE_DISPOSITIVO, chave)
-            .apply()
+        prefs.edit { putString(KEY_CHAVE_DISPOSITIVO, guardarSegredo(chave, "a chave do coletor")) }
     }
 
-    fun getChaveDispositivo(context: Context): String {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        return prefs.getString(KEY_CHAVE_DISPOSITIVO, "") ?: ""
-    }
+    fun getChaveDispositivo(context: Context): String =
+        lerSegredo(context, KEY_CHAVE_DISPOSITIVO, "a chave do coletor").orEmpty()
 
     // Locais de inventário conhecidos (vindos do servidor ou digitados aqui): sugestões mesmo sem rede
     fun saveLocais(context: Context, locais: Collection<String>) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        prefs.edit()
-            .putStringSet(KEY_LOCAIS, locais.toSet())
-            .apply()
+        prefs.edit { putStringSet(KEY_LOCAIS, locais.toSet()) }
     }
 
     fun getLocais(context: Context): List<String> {
@@ -59,9 +89,7 @@ object AppConfig {
     // Catálogo de tipo/marca/modelo (JSON de /api/android/catalogo): formulário de cadastro offline
     fun saveCatalogoJson(context: Context, json: String) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        prefs.edit()
-            .putString(KEY_CATALOGO, json)
-            .apply()
+        prefs.edit { putString(KEY_CATALOGO, json) }
     }
 
     /** null se o catálogo nunca foi baixado neste coletor. */
@@ -73,20 +101,21 @@ object AppConfig {
     // Sessão do operador logado (token + permissões). Use SessaoAtual, que já trata a expiração
     fun saveSessao(context: Context, sessao: SessaoOperador) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        prefs.edit()
-            .putString(KEY_SESSAO_TOKEN, sessao.token)
-            .putLong(KEY_SESSAO_EXPIRA, sessao.expiraEm)
-            .putString(KEY_SESSAO_NOME, sessao.nome)
-            .putString(KEY_SESSAO_EMAIL, sessao.email)
-            .putBoolean(KEY_SESSAO_LER, sessao.podeLer)
-            .putBoolean(KEY_SESSAO_CADASTRAR, sessao.podeCadastrar)
-            .putString(KEY_ULTIMO_EMAIL, sessao.email)
-            .apply()
+        prefs.edit {
+            putString(KEY_SESSAO_TOKEN, guardarSegredo(sessao.token, "o token da sessão"))
+            putLong(KEY_SESSAO_EXPIRA, sessao.expiraEm)
+            putString(KEY_SESSAO_NOME, sessao.nome)
+            putString(KEY_SESSAO_EMAIL, sessao.email)
+            putBoolean(KEY_SESSAO_LER, sessao.podeLer)
+            putBoolean(KEY_SESSAO_CADASTRAR, sessao.podeCadastrar)
+            putString(KEY_ULTIMO_EMAIL, sessao.email)
+        }
     }
 
     fun getSessao(context: Context): SessaoOperador? {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val token = prefs.getString(KEY_SESSAO_TOKEN, null) ?: return null
+        // Token que não dá para decifrar: sem sessão (o operador entra de novo)
+        val token = lerSegredo(context, KEY_SESSAO_TOKEN, "o token da sessão") ?: return null
         return SessaoOperador(
             token = token,
             expiraEm = prefs.getLong(KEY_SESSAO_EXPIRA, 0),
@@ -99,10 +128,10 @@ object AppConfig {
 
     fun limparSessao(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        prefs.edit()
-            .remove(KEY_SESSAO_TOKEN).remove(KEY_SESSAO_EXPIRA).remove(KEY_SESSAO_NOME)
-            .remove(KEY_SESSAO_EMAIL).remove(KEY_SESSAO_LER).remove(KEY_SESSAO_CADASTRAR)
-            .apply()
+        prefs.edit {
+            remove(KEY_SESSAO_TOKEN).remove(KEY_SESSAO_EXPIRA).remove(KEY_SESSAO_NOME)
+                .remove(KEY_SESSAO_EMAIL).remove(KEY_SESSAO_LER).remove(KEY_SESSAO_CADASTRAR)
+        }
     }
 
     // Esperado de cada local (JSON de /api/android/inventarios/esperado): o inventário mostra o que falta
@@ -132,7 +161,7 @@ object AppConfig {
             .toMap()
         if (antigas.isNotEmpty()) {
             val trazidas = guardado.importar(antigas)
-            prefs.edit().apply { antigas.keys.forEach { remove(KEY_ESPERADO_PREFIXO + it) } }.apply()
+            prefs.edit { antigas.keys.forEach { remove(KEY_ESPERADO_PREFIXO + it) } }
             Log.i("AppConfig", "Lista do esperado de $trazidas local(is) passada das configurações para arquivos")
         }
         esperadoMigrado = true
@@ -142,9 +171,7 @@ object AppConfig {
     // Bip e vibração a cada etiqueta nova na leitura e no inventário (ligado por padrão)
     fun setAvisoLeitura(context: Context, ligado: Boolean) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        prefs.edit()
-            .putBoolean(KEY_AVISO_LEITURA, ligado)
-            .apply()
+        prefs.edit { putBoolean(KEY_AVISO_LEITURA, ligado) }
     }
 
     fun isAvisoLeitura(context: Context): Boolean {
@@ -191,9 +218,7 @@ object AppConfig {
     // O app só aceita o servidor que apresentar exatamente este certificado.
     fun saveImpressaoDigital(context: Context, impressao: String) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        prefs.edit()
-            .putString(KEY_IMPRESSAO_DIGITAL, impressao.uppercase())
-            .apply()
+        prefs.edit { putString(KEY_IMPRESSAO_DIGITAL, impressao.uppercase()) }
     }
 
     fun getImpressaoDigital(context: Context): String? {
@@ -204,11 +229,12 @@ object AppConfig {
     // PIN das Configurações (PinColetor): só o hash e o sal, mais o controle de tentativas erradas
     fun savePin(context: Context, hash: String, sal: String) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        prefs.edit()
-            .putString(KEY_PIN_HASH, hash)
-            .putString(KEY_PIN_SAL, sal)
-            .remove(KEY_PIN_ERROS).remove(KEY_PIN_BLOQUEADO_ATE)
-            .apply()
+        prefs.edit {
+            putString(KEY_PIN_HASH, hash)
+            putString(KEY_PIN_SAL, sal)
+            remove(KEY_PIN_ERROS).remove(KEY_PIN_BLOQUEADO_ATE)
+                .remove(KEY_PIN_BLOQUEIO_INICIO_DECORRIDO).remove(KEY_PIN_BLOQUEIO_DURACAO)
+        }
     }
 
     /** (hash, sal) do PIN, ou null se o PIN ainda não foi criado neste coletor. */
@@ -223,30 +249,44 @@ object AppConfig {
 
     fun apagarPin(context: Context) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        prefs.edit()
-            .remove(KEY_PIN_HASH).remove(KEY_PIN_SAL).remove(KEY_PIN_ERROS).remove(KEY_PIN_BLOQUEADO_ATE)
-            .apply()
+        prefs.edit {
+            remove(KEY_PIN_HASH).remove(KEY_PIN_SAL).remove(KEY_PIN_ERROS).remove(KEY_PIN_BLOQUEADO_ATE)
+                .remove(KEY_PIN_BLOQUEIO_INICIO_DECORRIDO).remove(KEY_PIN_BLOQUEIO_DURACAO)
+        }
     }
 
-    fun getErrosPin(context: Context): Int =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_PIN_ERROS, 0)
-
-    /** Epoch ms até quando o PIN não aceita tentativas (0 = livre). */
-    fun getPinBloqueadoAte(context: Context): Long =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(KEY_PIN_BLOQUEADO_ATE, 0)
-
-    fun saveTentativasPin(context: Context, erros: Int, bloqueadoAte: Long) {
+    /** Erros e bloqueio do PIN. Gravado pela 1.6.1 ou antes: só erros e bloqueado_ate (os outros ficam desconhecidos). */
+    fun getTentativasPin(context: Context): PinColetor.EstadoTentativas {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        prefs.edit()
-            .putInt(KEY_PIN_ERROS, erros)
-            .putLong(KEY_PIN_BLOQUEADO_ATE, bloqueadoAte)
-            .apply()
+        return PinColetor.EstadoTentativas(
+            erros = prefs.getInt(KEY_PIN_ERROS, 0),
+            bloqueadoAte = prefs.getLong(KEY_PIN_BLOQUEADO_ATE, 0),
+            inicioDecorrido = prefs.getLong(KEY_PIN_BLOQUEIO_INICIO_DECORRIDO, -1),
+            duracao = prefs.getLong(KEY_PIN_BLOQUEIO_DURACAO, 0)
+        )
     }
+
+    /** commit() e não apply(): o erro precisa estar gravado mesmo se o app for fechado logo em seguida. */
+    @SuppressLint("ApplySharedPref")
+    fun saveTentativasPin(context: Context, estado: PinColetor.EstadoTentativas) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        prefs.edit(commit = true) {
+            putInt(KEY_PIN_ERROS, estado.erros)
+            putLong(KEY_PIN_BLOQUEADO_ATE, estado.bloqueadoAte)
+            putLong(KEY_PIN_BLOQUEIO_INICIO_DECORRIDO, estado.inicioDecorrido)
+            putLong(KEY_PIN_BLOQUEIO_DURACAO, estado.duracao)
+        }
+    }
+
+    /** PIN certo: zera os erros e o bloqueio. */
+    fun limparTentativasPin(context: Context) = saveTentativasPin(context, PinColetor.EstadoTentativas())
 
     private const val KEY_PIN_HASH = "pin_hash"
     private const val KEY_PIN_SAL = "pin_sal"
     private const val KEY_PIN_ERROS = "pin_erros"
     private const val KEY_PIN_BLOQUEADO_ATE = "pin_bloqueado_ate"
+    private const val KEY_PIN_BLOQUEIO_INICIO_DECORRIDO = "pin_bloqueio_inicio_decorrido"
+    private const val KEY_PIN_BLOQUEIO_DURACAO = "pin_bloqueio_duracao"
     private const val KEY_IMPRESSAO_DIGITAL = "certificado_sha256"
     private const val KEY_SESSAO_TOKEN = "sessao_token"
     private const val KEY_SESSAO_EXPIRA = "sessao_expira_em"
@@ -262,9 +302,9 @@ object AppConfig {
 
     // Potência do leitor em % da máxima (Configurações). 100 = máxima, como era fixo até a versão 1.5.0
     fun setPotenciaLeitor(context: Context, percentual: Int) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
-            .putInt(KEY_POTENCIA_LEITOR, percentual.coerceIn(POTENCIA_MINIMA, 100))
-            .apply()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putInt(KEY_POTENCIA_LEITOR, percentual.coerceIn(POTENCIA_MINIMA, 100))
+        }
     }
 
     fun getPotenciaLeitor(context: Context): Int =

@@ -207,6 +207,28 @@ class SincronizadorTest {
         assertEquals(EstadoSincronizacao.CHAVE_INVALIDA, estado)
         assertEquals(EstadoSincronizacao.CHAVE_INVALIDA, sincronizador.estado.value)
         assertEquals(Situacao.PENDENTE, dao.porEpc("E1").situacao)
+        assertEquals("Só as Configurações resolvem: não agenda tentativas à toa", 0, novasTentativasAgendadas)
+    }
+
+    @Test(timeout = 10_000)
+    fun `chamado pelo worker nao agenda outra tentativa porque o worker ja pede a dele`() {
+        dao.inserir(LeituraEntity(epc = "E1", lidoEm = 0))
+        servidor.enqueue(json(503))
+
+        val estado = sincronizador().processarPendentes(agendarSeFalhar = false)
+
+        assertEquals(EstadoSincronizacao.ERRO_SERVIDOR, estado)
+        assertEquals(0, novasTentativasAgendadas)
+    }
+
+    @Test
+    fun `worker so tenta de novo quando repetir pode resolver`() {
+        assertFalse(SincronizacaoWorker.tentarDeNovo(EstadoSincronizacao.SINCRONIZADO))
+        assertTrue(SincronizacaoWorker.tentarDeNovo(EstadoSincronizacao.SEM_CONEXAO))
+        assertTrue(SincronizacaoWorker.tentarDeNovo(EstadoSincronizacao.ERRO_SERVIDOR))
+        listOf(EstadoSincronizacao.CHAVE_INVALIDA, EstadoSincronizacao.ENDERECO_INVALIDO, EstadoSincronizacao.CERTIFICADO).forEach {
+            assertFalse("$it depende das Configurações", SincronizacaoWorker.tentarDeNovo(it))
+        }
     }
 
     @Test(timeout = 10_000)
@@ -382,6 +404,51 @@ class SincronizadorTest {
     }
 
     @Test(timeout = 10_000)
+    fun `resultado do lote e gravado inteiro numa transacao`() {
+        (1..3).forEach { dao.inserir(LeituraEntity(epc = "E$it", lidoEm = 0, sessaoOperador = "sessao-ana")) }
+        servidor.enqueue(lote(cadastradaNoLote(0, "E1"), noLote(1, "E2", "NAO_CADASTRADA"), noLote(2, "E3", "RECUSADA", "Formato inválido")))
+        var transacoes = 0
+        var foraDaFilaAntes = -1
+
+        Sincronizador(
+            dao = dao,
+            tagService = TagService(HttpClient.criar { "chave-teste" }) { servidor.url("/").toString().trimEnd('/') },
+            executor = executorDireto,
+            agendarNovaTentativa = {},
+            emTransacao = { bloco ->
+                transacoes++
+                foraDaFilaAntes = dao.leituras.count { it.envioConcluido }
+                bloco()
+            }
+        ).processarPendentes()
+
+        assertEquals(1, transacoes)
+        assertEquals("Nenhuma gravação antes de abrir a transação", 0, foraDaFilaAntes)
+        assertTrue("Todas gravadas dentro dela", dao.leituras.all { it.envioConcluido })
+    }
+
+    @Test(timeout = 10_000)
+    fun `status desconhecido no lote e aceito e a leitura nao e reenviada`() {
+        dao.inserir(LeituraEntity(epc = "E1", lidoEm = 0, sessaoOperador = "sessao-ana"))
+        dao.inserir(LeituraEntity(epc = "E2", lidoEm = 0, sessaoOperador = "sessao-ana"))
+        servidor.enqueue(lote(noLote(0, "E1", "DUPLICADA"), noLote(1, "E2", "NAO_CADASTRADA")))
+
+        assertEquals(EstadoSincronizacao.SINCRONIZADO, sincronizador().processarPendentes())
+        caminhosRecebidos()
+
+        with(dao.porEpc("E1")) {
+            assertTrue("Servidor respondeu 2xx: sai da fila", envioConcluido)
+            assertEquals("Sem classificação ainda", Situacao.PENDENTE, situacao)
+        }
+
+        // Próxima passada: só consulta a tag para classificar, sem registrar a leitura de novo pelo lote
+        servidor.enqueue(json(200, tagCadastrada))
+        assertEquals(EstadoSincronizacao.SINCRONIZADO, sincronizador().processarPendentes())
+        assertEquals(listOf("/api/android/tags/E1"), caminhosRecebidos())
+        assertEquals(Situacao.CADASTRADA, dao.porEpc("E1").situacao)
+    }
+
+    @Test(timeout = 10_000)
     fun `erro passageiro numa leitura do lote mantem ela na fila e agenda nova tentativa`() {
         dao.inserir(LeituraEntity(epc = "E1", lidoEm = 0, sessaoOperador = "sessao-ana"))
         dao.inserir(LeituraEntity(epc = "E2", lidoEm = 0, sessaoOperador = "sessao-ana"))
@@ -432,26 +499,116 @@ class SincronizadorTest {
         )
     }
 
+    private val sessaoRecusada = """{"status":401,"codigo":"SESSAO_OPERADOR","mensagem":"O usuário desta sessão não existe mais"}"""
+
     @Test(timeout = 10_000)
     fun `sessao invalida num lote faz cada leitura ser conferida sozinha sem travar a fila`() {
         dao.inserir(LeituraEntity(epc = "SEM-SESSAO", lidoEm = 0, sessaoOperador = "sessao-de-usuario-excluido"))
         dao.inserir(LeituraEntity(epc = "E2", lidoEm = 0, sessaoOperador = "sessao-ana"))
-        val sessaoRecusada = """{"status":401,"codigo":"SESSAO_OPERADOR","mensagem":"O usuário desta sessão não existe mais"}"""
         servidor.enqueue(json(401, sessaoRecusada))                // lote da sessão excluída
         servidor.enqueue(lote(noLote(0, "E2", "NAO_CADASTRADA")))  // lote da Ana
-        servidor.enqueue(json(401, sessaoRecusada))                // SEM-SESSAO sozinha: recusada de vez
+        servidor.enqueue(json(401, sessaoRecusada))                // SEM-SESSAO sozinha: recusada, fica na fila (prazo)
 
         val estado = sincronizador().processarPendentes()
 
-        assertEquals(EstadoSincronizacao.SINCRONIZADO, estado)
-        val recusada = dao.porEpc("SEM-SESSAO")
-        assertEquals(Situacao.ERRO, recusada.situacao)
-        assertEquals("O usuário desta sessão não existe mais", recusada.ultimoErro)
+        assertEquals("Não está tudo enviado", EstadoSincronizacao.ERRO_SERVIDOR, estado)
+        assertEquals(1, novasTentativasAgendadas)
+        val retida = dao.porEpc("SEM-SESSAO")
+        assertFalse("Fica na fila durante o prazo", retida.envioConcluido)
+        assertFalse(retida.recusada)
+        assertEquals("O usuário desta sessão não existe mais", retida.ultimoErro)
         assertTrue(dao.porEpc("E2").envioConcluido)
         assertEquals(
             listOf("/api/android/leituras/lote", "/api/android/leituras/lote", "/api/android/tags/SEM-SESSAO"),
             caminhosRecebidos()
         )
+        assertTrue("Retida não é recusa: sem aviso de recusa", errosRegistrados.isEmpty())
+    }
+
+    // ---------- Sessão recusada: as leituras esperam um prazo antes de virar recusadas ----------
+
+    private val recusasDeSessao = RecusasDeSessaoEmMemoria()
+
+    private fun sincronizadorComRecusas() = Sincronizador(
+        dao = dao,
+        tagService = TagService(HttpClient.criar { "chave-teste" }) { servidor.url("/").toString().trimEnd('/') },
+        executor = executorDireto,
+        agendarNovaTentativa = { novasTentativasAgendadas++ },
+        registrarErro = { tipo, mensagem -> errosRegistrados += tipo to mensagem },
+        relogio = { agora },
+        recusasDeSessao = recusasDeSessao
+    )
+
+    @Test(timeout = 10_000)
+    fun `servidor que nao conhece a sessao nao faz perder as leituras e so uma e tentada por passada`() {
+        // Ex.: banco do servidor restaurado sem as sessões: todas as leituras da Ana seriam recusadas de vez
+        (1..5).forEach { dao.inserir(LeituraEntity(epc = "E$it", lidoEm = agora, sessaoOperador = "sessao-ana")) }
+        servidor.enqueue(json(401, sessaoRecusada))   // lote
+        servidor.enqueue(json(401, sessaoRecusada))   // E1 sozinha; E2..E5 nem são tentadas
+
+        assertEquals(EstadoSincronizacao.ERRO_SERVIDOR, sincronizadorComRecusas().processarPendentes())
+
+        assertEquals(listOf("/api/android/leituras/lote", "/api/android/tags/E1"), caminhosRecebidos())
+        dao.leituras.forEach {
+            assertFalse("${it.epc} continua na fila", it.envioConcluido)
+            assertFalse(it.recusada)
+        }
+        assertEquals(agora, recusasDeSessao.primeiraRecusa("sessao-ana"))
+    }
+
+    @Test(timeout = 10_000)
+    fun `sessao que volta a ser aceita dentro do prazo envia tudo e esquece a recusa`() {
+        (1..2).forEach { dao.inserir(LeituraEntity(epc = "E$it", lidoEm = agora, sessaoOperador = "sessao-ana")) }
+        servidor.enqueue(json(401, sessaoRecusada))
+        servidor.enqueue(json(401, sessaoRecusada))
+        sincronizadorComRecusas().processarPendentes()
+        caminhosRecebidos()
+
+        // O servidor foi corrigido algumas horas depois
+        agora += 3 * 60 * 60 * 1000
+        servidor.enqueue(lote(noLote(0, "E1", "NAO_CADASTRADA"), noLote(1, "E2", "NAO_CADASTRADA")))
+
+        assertEquals(EstadoSincronizacao.SINCRONIZADO, sincronizadorComRecusas().processarPendentes())
+        assertTrue(dao.leituras.all { it.envioConcluido && !it.recusada })
+        assertNull(recusasDeSessao.primeiraRecusa("sessao-ana"))
+    }
+
+    @Test(timeout = 10_000)
+    fun `sessao recusada por mais que o prazo vira recusa de verdade`() {
+        dao.inserir(LeituraEntity(epc = "E1", lidoEm = agora, sessaoOperador = "sessao-ana"))
+        dao.inserir(LeituraEntity(epc = "E2", lidoEm = agora, sessaoOperador = "sessao-ana"))
+        recusasDeSessao.registrar("sessao-ana", agora - Sincronizador.PRAZO_SESSAO_RECUSADA_MS)
+        servidor.enqueue(json(401, sessaoRecusada))   // lote
+        servidor.enqueue(json(401, sessaoRecusada))   // E1
+        servidor.enqueue(json(401, sessaoRecusada))   // E2
+
+        assertEquals(EstadoSincronizacao.SINCRONIZADO, sincronizadorComRecusas().processarPendentes())
+
+        assertTrue(dao.leituras.all { it.recusada && it.envioConcluido })
+        assertEquals(2, errosRegistrados.size)
+        // Sem leituras dela na fila, a recusa da sessão é esquecida na próxima passada
+        sincronizadorComRecusas().processarPendentes()
+        assertNull(recusasDeSessao.primeiraRecusa("sessao-ana"))
+    }
+
+    @Test(timeout = 10_000)
+    fun `sessao retida nao trava os inventarios`() {
+        val inventarioDao = com.example.rfid_server.dados.FakeInventarioDao()
+        inventarioDao.inserirInventario(com.example.rfid_server.dados.InventarioEntity("inv-1", "Sala 101", 1_000, sessaoOperador = "sessao-bruno"))
+        dao.inserir(LeituraEntity(epc = "E1", lidoEm = agora, sessaoOperador = "sessao-ana"))
+        servidor.enqueue(json(401, sessaoRecusada))   // lote da Ana
+        servidor.enqueue(json(401, sessaoRecusada))   // E1 sozinha: retida
+        servidor.enqueue(json(200))                   // abertura do inventário do Bruno
+
+        val tagService = TagService(HttpClient.criar { "chave-teste" }) { servidor.url("/").toString().trimEnd('/') }
+        val estado = Sincronizador(
+            dao = dao, tagService = tagService, executor = executorDireto, agendarNovaTentativa = { novasTentativasAgendadas++ },
+            inventarios = SincronizadorInventarios(inventarioDao, tagService), relogio = { agora }
+        ).processarPendentes()
+
+        assertEquals(EstadoSincronizacao.ERRO_SERVIDOR, estado)
+        assertTrue(inventarioDao.inventario("inv-1").aberturaEnviada)
+        assertEquals(1, novasTentativasAgendadas)
     }
 
     // ---------- Leituras recusadas e disjuntor ----------

@@ -65,7 +65,9 @@ O APK de produção de cada versão fica nas [Releases](https://github.com/Rapha
   Leitura, Inventário e Localizar, o app avisa com 30 min e de novo com 5 min, e deixa **renovar** com a senha sem
   sair da tela (é um login novo: renovar exige rede). O que está na tela e o que ainda não foi enviado continuam:
   cada leitura guardada vai para o servidor com a sessão em que foi feita.
-- O token da sessão fica nas preferências do app (fora do backup do Android).
+- O token da sessão fica nas preferências do app, **cifrado** com uma chave do Android Keystore (desde a 1.6.1) e
+  fora do backup do Android. A chave do coletor também. Se o Android perder a chave de cifra (ex.: aparelho
+  restaurado), o operador entra de novo e a chave do coletor precisa ser digitada de novo nas Configurações.
 - Cada leitura, inventário (quem abriu, quem leu cada etiqueta, quem finalizou) e cadastro guarda **quem fez**.
 - Login bloqueado por excesso de senhas erradas (regra do servidor): o app mostra quanto tempo esperar.
 
@@ -73,8 +75,9 @@ O APK de produção de cada versão fica nas [Releases](https://github.com/Rapha
 
 ## Offline e sincronização
 
-Tudo é gravado primeiro no banco local (**Room**, `rfid-local.db`, versão 4; esquemas exportados em
-`app/schemas` e migrações testadas contra eles). Nada é apagado antes da confirmação do servidor.
+Tudo é gravado primeiro no banco local (**Room**, `rfid-local.db`, versão 7; esquemas exportados em
+`app/schemas`, migrações testadas contra eles e num SQLite de verdade com Robolectric). Nada é apagado antes da
+confirmação do servidor.
 
 O **Sincronizador** envia em 3 etapas, nesta ordem:
 
@@ -89,9 +92,23 @@ periódica a cada 15 min).
 
 Regras de erro:
 
-- **Falha de conexão:** para tudo e tenta de novo depois (nada se perde).
-- **Recusa de um item específico** (erro 4xx ou sessão inválida): marca só aquele item e segue com o resto da fila.
-- Reenviar é seguro: o servidor não duplica (inventários têm id gerado no coletor).
+- **Falha de conexão:** para tudo e tenta de novo depois (nada se perde). Chave, endereço ou certificado errados
+  também param, mas o app só tenta de novo quando alguém salva as Configurações (e na checagem de 15 min).
+- **Recusa de um item específico** (erro 4xx): marca só aquele item e segue com o resto da fila. Se 5 itens
+  recentes seguidos forem recusados pelo mesmo motivo, o app desconfia do servidor: devolve esses itens à fila e
+  pausa o envio.
+- **Sessão do operador recusada** (401): se o servidor disser que é definitivo (usuário desativado, sessão
+  expirada ou encerrada, ação antiga demais), o item é recusado na hora. Se a sessão for **desconhecida** ou de
+  **outro coletor** (banco do servidor restaurado, servidor novo, coletor com outro nome), ou se o servidor não
+  disser o motivo, as leituras dessa sessão **esperam 24 h na fila** antes de virar recusadas: dá tempo de
+  corrigir o servidor sem perder nada.
+- **Inventário com vários operadores:** etiquetas recusadas de um operador não travam as dos outros nem a
+  finalização. O coletor desiste delas depois de 3 recusas em mais de 24 h (ou na hora, se a sessão foi recusada de
+  vez) e avisa o servidor.
+- **Servidor que não conhece o inventário** (404, ex.: banco restaurado): o coletor registra de novo a abertura,
+  todas as etiquetas e a finalização.
+- Reenviar é seguro: o servidor não duplica (inventários têm id gerado no coletor; leitura repetida, mesma etiqueta
+  e mesma hora, é ignorada). A resposta de cada lote é gravada de uma vez (transação).
 
 Cada envio leva o operador (`X-Sessao-Operador`) e a **hora real da ação** (`X-Momento`). O servidor aceita se a
 sessão valia naquele momento e se o envio chegou dentro do **prazo de sincronização** (72 h por padrão,
@@ -104,6 +121,11 @@ configurado no servidor). **Um coletor que fique mais tempo que isso sem rede pe
 - `RfidManager` é um gerenciador único: conecta ao leitor Zebra em segundo plano.
 - Só a tela visível recebe as leituras.
 - A leitura só acontece com o **gatilho** do coletor.
+- Bip e vibração a cada etiqueta nova (desligável nas Configurações) e no Localizar usam o **volume de alarme**:
+  tocam mesmo com o coletor no silencioso. Para mudar a altura, ajuste o volume de alarme do Android.
+- **Localizar:** pelo patrimônio (consulta o servidor) ou tocando num item da aba "Faltando" do inventário, que já
+  traz a etiqueta e funciona sem rede. O Enter do teclado ou do leitor de código de barras busca. Sem sinal da
+  etiqueta por quase 1 s, a barra volta a zero.
 
 ---
 
@@ -187,13 +209,18 @@ Gradle para um JDK 17/21.
 
 ```bash
 ./gradlew :app:assembleDebug          # APK de desenvolvimento
-./gradlew :app:testDebugUnitTest      # testes JVM (MockWebServer, inclusive HTTPS com okhttp-tls; DAOs falsos)
+./gradlew :app:testDebugUnitTest      # testes JVM (MockWebServer, HTTPS com okhttp-tls, DAOs falsos e Room real via Robolectric)
+./gradlew :app:lintDebug              # lint
 ./gradlew :app:assembleRelease        # APK de produção, assinado
 ```
 
+**CI:** `.github/workflows/android.yml` roda testes, lint e o build de produção (sem assinatura, com
+`-Prfid.semAssinatura=true`) a cada push e PR na master.
+
 ### APK de produção
 
-Sai em `app/build/outputs/apk/release/RFID-Android-<versão>-release.apk`, **assinado** com a chave da empresa:
+Sai em `app/build/outputs/apk/release/RFID-Android-<versão>-release.apk` (cópia do `app-release.apk` com a versão no
+nome), **assinado** com a chave da empresa:
 
 - R8 com minify e shrink; remove `Log.d`/`Log.v`; mantém `com.zebra.**`.
 - **Guarde o `mapping.txt` de cada versão** (`app/build/outputs/mapping/release/`): sem ele não dá para ler os
@@ -204,7 +231,8 @@ Sai em `app/build/outputs/apk/release/RFID-Android-<versão>-release.apk`, **ass
 **Versão.** O `versionName` fica em `app/build.gradle.kts` (`versaoApp`) e é mudado à mão a cada entrega
 (1.4.0 → 1.4.1 correção, 1.5.0 funcionalidade nova). O `versionCode` é o **número de commits do git** e sobe
 sozinho, então o Android sempre aceita instalar por cima. Por isso o build precisa do histórico completo do git:
-num clone raso (ex.: CI com `fetch-depth: 1`) o build para com mensagem, e dá para forçar com
+num clone raso (ex.: CI com `fetch-depth: 1`) ou sem o git no PATH, o build do APK de produção (`assembleRelease`,
+`assemble` ou `build`) para com mensagem, e dá para forçar com
 `./gradlew assembleRelease -Prfid.codigoVersao=N`. A versão aparece na tela de login, nas Configurações e na
 primeira linha do log.
 
@@ -219,8 +247,8 @@ keyPassword=...
 ```
 
 Em vez do arquivo, dá para usar as variáveis `RFID_KEYSTORE_ARQUIVO`, `RFID_KEYSTORE_SENHA`, `RFID_KEYSTORE_ALIAS`
-e `RFID_KEYSTORE_SENHA_CHAVE`. Sem nenhum dos dois, o build avisa e o APK de produção sai sem assinatura (o
-Android não instala).
+e `RFID_KEYSTORE_SENHA_CHAVE`. Sem nenhum dos dois, o build do APK de produção **para** com mensagem (o Android
+não instalaria um APK sem assinatura). Só para conferir o build, sem gerar APK instalável: `-Prfid.semAssinatura=true`.
 
 > **Guarde o `.jks` e o `keystore.properties` num lugar seguro fora do computador de build** (cofre de senhas,
 > backup da empresa). O Android só instala uma atualização assinada com a **mesma** chave: se ela se perder, cada
@@ -240,7 +268,9 @@ Depois da primeira instalação do APK assinado, as versões seguintes chegam pe
 2. Na tela de login (no máximo uma consulta a cada 30 min) ou em Configurações → **Procurar atualização do app**, o
    coletor oferece a versão nova, com o que mudou e o tamanho.
 3. Na primeira vez, o Android pede para autorizar o app a instalar atualizações ("Permitir desta fonte").
-4. O app baixa o APK, confere o SHA-256 informado pelo servidor e abre o instalador do Android; o operador confirma.
+4. O app baixa o APK, confere o SHA-256 e o tamanho informados pelo servidor e, antes de abrir o instalador, confere
+   que o APK é **deste app, assinado com a mesma chave e com a versão anunciada** (senão apaga e avisa). O operador
+   confirma no instalador do Android.
    O Android só aceita o APK assinado com a mesma chave do app instalado. A fila de leituras e as configurações
    continuam depois da atualização.
 
@@ -267,7 +297,10 @@ SessaoOperador.kt, AppConfig.kt        sessão do operador e configurações
 Em português, filtráveis no Logcat pelas tags:
 
 `MAIN` · `LOGIN` · `SESSAO` · `LEITURAS` · `INVENTARIO` · `CADASTRO` · `SINCRONIZACAO` · `TAG_SERVICE` ·
-`HTTP_CLIENT` · `CERTIFICADO` · `RfidManager` · `BANCO_LOCAL` · `ERROS_APP` · `ATUALIZACAO` · `APP`
+`HTTP_CLIENT` · `CERTIFICADO` · `RfidManager` · `BANCO_LOCAL` · `ERROS_APP` · `ATUALIZACAO` · `APP` ·
+`LOCALIZAR` · `AVISO_LEITURA` · `CONFIG` · `SEGREDO`
+
+O email do operador aparece mascarado no Logcat (ex.: `r***@empresa.com.br`).
 
 **Erros enviados ao servidor.** Além do Logcat, o app guarda os travamentos e as falhas relevantes (envio recusado,
 erro do servidor, leitor RFID que não conecta, atualização que não baixou) num arquivo próprio e envia ao servidor
@@ -288,6 +321,9 @@ no coletor enquanto não há rede.
 | Leituras antigas recusadas | O coletor ficou offline mais que o prazo de sincronização do servidor (72 h por padrão). |
 | "Coletor sem permissão para cadastrar" | Inclua o nome do coletor em `RFID_COLETORES_CADASTRO` no servidor (e o operador precisa de RFID · Criar). |
 | Login pede para esperar | Bloqueio por senhas erradas: aguarde o tempo indicado. |
+| "PIN bloqueado" nas Configurações | 5 erros seguidos bloqueiam por 5 min; de novo, 15 min; depois 1 h. Mudar o relógio ou reiniciar não encurta. Um ADMIN libera pelo "Esqueci o PIN". |
+| Pede a chave do coletor de novo depois de restaurar o aparelho | A chave fica cifrada com uma chave do Android que se perde na restauração: digite a chave do coletor de novo. |
+| Leituras "aguardando" com sessão recusada | O servidor não reconheceu a sessão (banco restaurado, servidor novo, coletor com outro nome): as leituras esperam 24 h. Corrija o servidor nesse prazo. |
 | Leitor não lê | Confira se o leitor Zebra está conectado/carregado; a leitura só acontece com o gatilho e só na tela visível. Sem nenhuma tela de leitura aberta por 2 min o leitor é desconectado (economia de bateria) e reconecta sozinho ao abrir uma. |
 | Leitor só lê etiquetas muito perto | Confira a **potência do leitor** nas Configurações (Máxima lê mais longe). |
 | Inventário "recusado pelo servidor" | O servidor recusou o envio por mais de um dia seguido (ex.: operador sem permissão): o coletor parou de enviá-lo, o motivo vai para a tela de erros do coletor no servidor e ele fica no aparelho por 30 dias. |

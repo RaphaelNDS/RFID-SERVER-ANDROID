@@ -25,3 +25,6 @@ keystore/
 
 # Mapping do R8 de cada versão (releases/<versão>/mapping.txt, ~27 MB): fica só nesta máquina, com backup
 releases/
+
+# Cópias de trabalho temporárias do Claude Code (git worktree)
+/.claude/worktrees/

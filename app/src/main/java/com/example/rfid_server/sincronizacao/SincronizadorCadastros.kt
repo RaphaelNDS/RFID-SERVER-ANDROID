@@ -14,7 +14,9 @@ import com.example.rfid_server.service.TagService
 class SincronizadorCadastros(
     private val cadastros: CadastroDao,
     private val leituras: LeituraDao,
-    private val tagService: TagService
+    private val tagService: TagService,
+    /** Transação do banco (em produção, runInTransaction; nos testes, direto). */
+    private val emTransacao: (() -> Unit) -> Unit = { it() }
 ) {
 
     /** Devolve a falha que deve interromper a sincronização, ou null. */
@@ -27,11 +29,16 @@ class SincronizadorCadastros(
         for (cadastro in pendentes) {
             when (val resposta = tagService.cadastrarTagAgora(cadastro)) {
                 is RespostaServidor.Sucesso -> {
-                    val atualizadas = leituras.marcarCadastradaPorEpc(
-                        cadastro.epc, cadastro.codigoInterno, cadastro.tipoNome, cadastro.marcaNome,
-                        cadastro.modeloNome, cadastro.patrimonio, cadastro.numeroSerie
-                    )
-                    cadastros.apagar(cadastro.id)
+                    // Juntos numa transação: se o app morresse entre os dois, o cadastro iria de novo, o servidor
+                    // responderia 409 (já cadastrada) e ele viraria "recusado" mesmo tendo dado certo
+                    var atualizadas = 0
+                    emTransacao {
+                        atualizadas = leituras.marcarCadastradaPorEpc(
+                            cadastro.epc, cadastro.codigoInterno, cadastro.tipoNome, cadastro.marcaNome,
+                            cadastro.modeloNome, cadastro.patrimonio, cadastro.numeroSerie
+                        )
+                        cadastros.apagar(cadastro.id)
+                    }
                     Log.i(
                         TAG,
                         "Etiqueta ${cadastro.epc} cadastrada no servidor (patrimônio ${cadastro.patrimonio.ifBlank { "—" }}); " +

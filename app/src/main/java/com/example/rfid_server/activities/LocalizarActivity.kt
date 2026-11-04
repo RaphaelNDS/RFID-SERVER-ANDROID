@@ -1,8 +1,5 @@
 package com.example.rfid_server.activities
 
-import android.Manifest
-import android.media.AudioManager
-import android.media.ToneGenerator
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
@@ -10,15 +7,20 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Lifecycle
+import com.example.rfid_server.AvisoLeitura
 import com.example.rfid_server.EstadoLeitor
 import com.example.rfid_server.Proximidade
 import com.example.rfid_server.R
+import com.example.rfid_server.RegrasLocalizar
 import com.example.rfid_server.RfidManager
+import com.example.rfid_server.RitmoAviso
+import com.example.rfid_server.VigiaSinal
 import com.example.rfid_server.service.RespostaServidor
 import com.example.rfid_server.service.TagService
-import android.os.*
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
-import androidx.annotation.RequiresPermission
 
 
 class LocalizarActivity : AppCompatActivity() {
@@ -26,16 +28,18 @@ class LocalizarActivity : AppCompatActivity() {
     // Leitor compartilhado com a tela principal (uma conexão só). Esta tela não desconecta
     private lateinit var rfidManager: RfidManager
     private var epcLocalizando: String? = null
+    // Número da busca mais recente: a resposta de uma busca anterior (cliques seguidos em "Buscar") é descartada
+    private var ultimaBusca = 0
     // Sem etiqueta definida (busca ainda não voltou do servidor) o leitor entrega qualquer etiqueta:
     // ignora, senão a barra e o bip guiariam até o item errado
     private val ouvinte = object : RfidManager.OuvinteLeitura {
         override fun aoLer(epc: String, rssi: Int) {
-            if (epcLocalizando != null) runOnUiThread { atualizarFeedback(Proximidade.nivel(rssi)) }
+            if (epcLocalizando != null) runOnUiThread { aoReceberSinal(Proximidade.nivel(rssi)) }
         }
 
         // Com a etiqueta definida o gatilho liga o TagLocationing do leitor, que manda a distância direto
         override fun aoLocalizar(epc: String, distancia: Int) {
-            if (epcLocalizando != null) runOnUiThread { atualizarFeedback(Proximidade.nivelDaDistancia(distancia)) }
+            if (epcLocalizando != null) runOnUiThread { aoReceberSinal(Proximidade.nivelDaDistancia(distancia)) }
         }
     }
     private lateinit var txtStatus: TextView
@@ -44,12 +48,22 @@ class LocalizarActivity : AppCompatActivity() {
     private lateinit var btnBuscar: Button
 
     private lateinit var tagService: TagService
-    private val avisoSessao = AvisoSessao(this)
 
-    private var lastFeedback = 0L
-    // Nulo se o aparelho não liberar o gerador de som: a localização segue só com vibração
-    private var tone: ToneGenerator? = null
-    private lateinit var vibrator: Vibrator
+    // Bip e vibração da localização (sempre tocam: não dependem do ajuste "aviso a cada etiqueta nova").
+    // Quanto mais perto, mais rápido o bip ([Proximidade.intervaloFeedbackMs])
+    private lateinit var aviso: AvisoLeitura
+    private val ritmoBip = RitmoAviso()
+
+    // Sem leitura da etiqueta por um instante (saiu do alcance, gatilho solto): a barra não pode ficar parada no último valor
+    private val handler = Handler(Looper.getMainLooper())
+    private val vigiaSinal = VigiaSinal(
+        agendador = { ms, acao ->
+            val r = Runnable { acao() }
+            handler.postDelayed(r, ms)
+            ({ handler.removeCallbacks(r) })
+        },
+        aoPerderSinal = { aoPerderSinal() }
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,55 +75,109 @@ class LocalizarActivity : AppCompatActivity() {
         progress = findViewById(R.id.progressDistancia)
         edtPatrimonio = findViewById(R.id.edtPatrimonio)
         btnBuscar = findViewById(R.id.btnBuscar)
-        if (epcLocalizando != null) txtStatus.text = MSG_APERTE_GATILHO
+        if (epcLocalizando != null) txtStatus.setText(R.string.localizar_aperte_gatilho)
 
         tagService = TagService(this)
         rfidManager = RfidManager.get(this)
         mostrarEstadoLeitor(rfidManager)
         rfidManager.estado.observe(this) { aoMudarEstadoLeitor(it) }
 
-        tone = criarGeradorDeSom()
-        vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
+        // Enquanto esta tela está visível, as leituras vêm para cá (e não para a tela principal).
+        // Ao voltar, retoma a localização da etiqueta guardada; ao sair, encerra a localização ANTES de
+        // soltar o leitor (o RfidManager só aceita pedidos de localização da tela dona das leituras)
+        TelaDeLeitura(
+            this, rfidManager, ouvinte,
+            aoRetomar = { epcLocalizando?.let { rfidManager.iniciarLocalizacao(this, it) } },
+            antesDePausar = { rfidManager.pararLocalizacao() },
+            aoPausar = { vigiaSinal.parar() }
+        )
 
-        btnBuscar.setOnClickListener {
-            val patrimonio = edtPatrimonio.text.toString().trim()
+        aviso = AvisoLeitura(this)
 
-            if (patrimonio.isEmpty()) {
-                toast("Digite o patrimônio")
-                return@setOnClickListener
+        btnBuscar.setOnClickListener { buscarDoCampo() }
+
+        // "Buscar" do teclado virtual e Enter do leitor de código de barras (DataWedge) fazem o mesmo que o botão
+        edtPatrimonio.setOnEditorActionListener { _, actionId, evento ->
+            when (RegrasLocalizar.acaoTecla(actionId, evento?.keyCode, evento?.action)) {
+                RegrasLocalizar.AcaoTecla.BUSCAR -> { buscarDoCampo(); true }
+                RegrasLocalizar.AcaoTecla.CONSUMIR -> true
+                RegrasLocalizar.AcaoTecla.IGNORAR -> false
             }
-
-            txtStatus.text = "Buscando patrimônio..."
-            buscarEIniciar(patrimonio)
         }
 
-        // Aberta pelo inventário (item que falta no local): já busca o patrimônio. Só na primeira criação,
-        // para não buscar de novo ao girar a tela
-        intent.getStringExtra(EXTRA_PATRIMONIO)?.takeIf { savedInstanceState == null && it.isNotBlank() }?.let { patrimonio ->
-            Log.i(TAG, "Localização do patrimônio $patrimonio aberta pelo inventário")
-            edtPatrimonio.setText(patrimonio)
-            txtStatus.text = "Buscando patrimônio..."
-            buscarEIniciar(patrimonio)
+        // Aberta por outra tela (ex.: item que falta no inventário). Só na primeira criação, para não começar
+        // de novo ao girar a tela
+        if (savedInstanceState == null) iniciarPeloPedido(intent.getStringExtra(EXTRA_EPC), intent.getStringExtra(EXTRA_PATRIMONIO))
+    }
+
+    private fun buscarDoCampo() {
+        val patrimonio = edtPatrimonio.text.toString().trim()
+
+        if (patrimonio.isEmpty()) {
+            toast(getString(R.string.localizar_digite_patrimonio))
+            return
+        }
+
+        txtStatus.setText(R.string.localizar_buscando)
+        buscarEIniciar(patrimonio)
+    }
+
+    private fun iniciarPeloPedido(epc: String?, patrimonio: String?) {
+        when (val inicio = RegrasLocalizar.inicio(epc, patrimonio)) {
+            // O EPC já veio pronto: localiza sem perguntar ao servidor (funciona sem rede e com item sem patrimônio).
+            // O patrimônio, se houver, fica no campo só para o operador ver o que procura
+            is RegrasLocalizar.Inicio.PorEpc -> {
+                Log.i(TAG, "Localização da etiqueta ${inicio.epc} aberta por outra tela (patrimônio ${patrimonio ?: "não cadastrado"})")
+                if (!patrimonio.isNullOrBlank()) edtPatrimonio.setText(patrimonio)
+                else toast(getString(R.string.localizar_item_sem_patrimonio))
+                iniciarRFID(inicio.epc)
+            }
+
+            is RegrasLocalizar.Inicio.PorPatrimonio -> {
+                Log.i(TAG, "Localização do patrimônio ${inicio.patrimonio} aberta por outra tela")
+                edtPatrimonio.setText(inicio.patrimonio)
+                txtStatus.setText(R.string.localizar_buscando)
+                buscarEIniciar(inicio.patrimonio)
+            }
+
+            RegrasLocalizar.Inicio.Nada -> Unit
         }
     }
 
     // ================= BUSCA =================
 
     private fun buscarEIniciar(patrimonio: String) {
+        // Nova busca: a etiqueta anterior deixa de ser localizada (se esta falhar, a tela não pode continuar
+        // guiando até o item antigo) e qualquer resposta de uma busca anterior passa a ser descartada
+        val busca = ++ultimaBusca
+        epcLocalizando = null
+        rfidManager.pararLocalizacao()
+        vigiaSinal.parar()
+        progress.progress = 0
 
         tagService.buscarTagPorPatrimonio(patrimonio) { resposta ->
 
             runOnUiThread {
+                // A resposta pode chegar depois de a tela sair (o servidor demora até 15 s): aí não faz nada
+                if (isFinishing || isDestroyed) {
+                    Log.i(TAG, "Resposta da busca do patrimônio $patrimonio chegou depois de a tela fechar: ignorada")
+                    return@runOnUiThread
+                }
+                if (busca != ultimaBusca) {
+                    Log.i(TAG, "Resposta da busca do patrimônio $patrimonio chegou depois de uma busca mais nova: ignorada")
+                    return@runOnUiThread
+                }
+
                 when (resposta) {
                     is RespostaServidor.Sucesso -> {
                         Log.i(TAG, "Patrimônio $patrimonio → tag ${resposta.valor}")
-                        txtStatus.text = "Localizando..."
+                        txtStatus.setText(R.string.localizar_localizando)
                         iniciarRFID(resposta.valor)
                     }
 
                     RespostaServidor.NaoEncontrado -> {
                         Log.i(TAG, "Patrimônio $patrimonio não encontrado no servidor")
-                        txtStatus.text = "Patrimônio não encontrado"
+                        txtStatus.setText(R.string.localizar_nao_encontrado)
                     }
 
                     is RespostaServidor.Falha -> {
@@ -126,84 +194,50 @@ class LocalizarActivity : AppCompatActivity() {
     private fun iniciarRFID(epc: String) {
 
         epcLocalizando = epc
-        rfidManager.iniciarLocalizacao(epc)
+        // Só liga no leitor com a tela em primeiro plano (dona das leituras). Se ela estiver em pausa
+        // (ex.: outra tela por cima), o onResume liga com o epcLocalizando guardado acima
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) rfidManager.iniciarLocalizacao(this, epc)
 
         // A conexão do leitor é feita (e refeita, se cair) pelo RfidManager; a situação aparece na faixa do topo
-        txtStatus.text = if (rfidManager.conectado) MSG_APERTE_GATILHO else MSG_AGUARDANDO_LEITOR
+        txtStatus.setText(if (rfidManager.conectado) R.string.localizar_aperte_gatilho else R.string.localizar_aguardando_leitor)
     }
 
     // Leitor conectou depois de o patrimônio ser encontrado: troca o "aguardando" pela instrução
     private fun aoMudarEstadoLeitor(estado: EstadoLeitor) {
-        if (estado == EstadoLeitor.CONECTADO && txtStatus.text.toString() == MSG_AGUARDANDO_LEITOR) {
-            txtStatus.text = MSG_APERTE_GATILHO
+        if (estado == EstadoLeitor.CONECTADO && txtStatus.text.toString() == getString(R.string.localizar_aguardando_leitor)) {
+            txtStatus.setText(R.string.localizar_aperte_gatilho)
         }
     }
 
     // ================= FEEDBACK =================
+
+    // Leitura da etiqueta procurada (já na thread principal). Pode chegar logo depois do onPause (já estava
+    // na fila): aí não rearma o vigia, que ficaria disparando com a tela parada
+    private fun aoReceberSinal(nivel: Int) {
+        if (epcLocalizando == null) return
+        atualizarFeedback(nivel)
+        vigiaSinal.leitura(localizando = lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
+    }
+
+    private fun aoPerderSinal() {
+        if (epcLocalizando == null) return
+        progress.progress = 0
+        txtStatus.setText(R.string.localizar_sem_sinal)
+    }
 
     private fun atualizarFeedback(nivel: Int) {
 
         progress.progress = nivel
         txtStatus.text = Proximidade.descricao(nivel)
 
-        emitirSomEVibracao(nivel)
-    }
-
-    @RequiresPermission(Manifest.permission.VIBRATE)
-    private fun emitirSomEVibracao(nivel: Int) {
-
-        val agora = System.currentTimeMillis()
-
-        if (agora - lastFeedback < Proximidade.intervaloFeedbackMs(nivel)) return
-        lastFeedback = agora
-
-        // 🔊 SOM
-        tone?.startTone(ToneGenerator.TONE_PROP_BEEP, 80)
-
-        // 📳 VIBRAÇÃO
-        val duracao = Proximidade.duracaoVibracaoMs(nivel)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator.vibrate(
-                VibrationEffect.createOneShot(
-                    duracao,
-                    VibrationEffect.DEFAULT_AMPLITUDE
-                )
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator.vibrate(duracao)
+        // Quanto mais perto, mais rápido o bip e mais forte a vibração
+        if (ritmoBip.liberar(Proximidade.intervaloFeedbackMs(nivel))) {
+            aviso.bip(DURACAO_BIP_MS, Proximidade.duracaoVibracaoMs(nivel))
         }
     }
-
-    // O ToneGenerator usa um recurso nativo limitado do aparelho: se não for liberado, depois de
-    // abrir a tela várias vezes o construtor passa a lançar RuntimeException
-    private fun criarGeradorDeSom(): ToneGenerator? =
-        try {
-            ToneGenerator(AudioManager.STREAM_MUSIC, 80)
-        } catch (e: RuntimeException) {
-            Log.e(TAG, "Não foi possível criar o gerador de som: a localização vai funcionar só com vibração", e)
-            null
-        }
 
     private fun toast(msg: String) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
-    }
-
-    // Enquanto esta tela está visível, as leituras vêm para cá (e não para a tela principal)
-    override fun onResume() {
-        super.onResume()
-        exigirSessao() ?: return
-        rfidManager.definirOuvinte(this, ouvinte)
-        epcLocalizando?.let { rfidManager.iniciarLocalizacao(it) }
-        avisoSessao.iniciar()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        rfidManager.pararLocalizacao()
-        rfidManager.removerOuvinte(this)
-        avisoSessao.parar()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -214,18 +248,22 @@ class LocalizarActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
 
-        tone?.release()
-        tone = null
+        vigiaSinal.parar()
+        // O ToneGenerator usa um recurso nativo limitado do aparelho: se não for liberado, depois de
+        // abrir a tela várias vezes o som para de funcionar
+        aviso.liberar()
         Log.d(TAG, "Tela de localização encerrada: gerador de som liberado")
     }
 
     companion object {
         private const val TAG = "LOCALIZAR"
 
-        /** Patrimônio a localizar assim que a tela abre (usado pelo inventário). */
+        /** Patrimônio a localizar assim que a tela abre. Com [EXTRA_EPC] junto, serve só para mostrar no campo. */
         const val EXTRA_PATRIMONIO = "patrimonio"
-        private const val MSG_APERTE_GATILHO = "Aperte o gatilho para localizar"
-        private const val MSG_AGUARDANDO_LEITOR = "Aguardando o leitor RFID conectar para localizar"
+
+        /** EPC já conhecido (usado pelo inventário): localiza direto, sem consultar o servidor. */
+        const val EXTRA_EPC = "epc"
         private const val ESTADO_EPC = "epc_localizando"
+        private const val DURACAO_BIP_MS = 80
     }
 }

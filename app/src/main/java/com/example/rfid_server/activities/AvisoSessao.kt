@@ -1,5 +1,6 @@
 package com.example.rfid_server.activities
 
+import com.example.rfid_server.erros.MascaraSensivel
 import android.os.Handler
 import android.os.Looper
 import android.text.InputType
@@ -10,6 +11,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.example.rfid_server.AppConfig
 import com.example.rfid_server.PoliticaAvisoSessao
+import com.example.rfid_server.R
 import com.example.rfid_server.SessaoAtual
 import com.example.rfid_server.SessaoOperador
 import com.example.rfid_server.service.RespostaServidor
@@ -58,38 +60,36 @@ class AvisoSessao(
         val minutos = PoliticaAvisoSessao.avisoDevido(sessao.token, sessao.expiraEm, agora) ?: return
 
         val fim = horario(sessao.expiraEm)
-        Log.i(TAG, "Sessão de ${sessao.email} termina em ${PoliticaAvisoSessao.restanteLegivel(sessao.expiraEm - agora)} (às $fim): operador avisado")
+        Log.i(TAG, "Sessão de ${MascaraSensivel.email(sessao.email)} termina em ${PoliticaAvisoSessao.restanteLegivel(sessao.expiraEm - agora)} (às $fim): operador avisado")
 
         dialogo?.dismiss()
         dialogo = AlertDialog.Builder(activity)
-            .setTitle(if (minutos <= 5) "Sua sessão está acabando" else "Sessão termina em breve")
-            .setMessage("Sua sessão termina às $fim (em ${PoliticaAvisoSessao.restanteLegivel(sessao.expiraEm - agora)}). " +
-                "Depois disso o app volta para a tela de login.\n\nRenove agora com a sua senha: o que está na tela e o que " +
-                "ainda não foi enviado continuam.")
-            .setPositiveButton("Renovar") { _, _ -> pedirSenha(sessao) }
-            .setNegativeButton("Depois") { _, _ -> Log.i(TAG, "Operador ${sessao.email} adiou a renovação da sessão") }
+            .setTitle(if (minutos <= 5) R.string.sessao_acabando else R.string.sessao_termina_em_breve)
+            .setMessage(activity.getString(R.string.sessao_aviso_mensagem, fim, PoliticaAvisoSessao.restanteLegivel(sessao.expiraEm - agora)))
+            .setPositiveButton(R.string.sessao_renovar) { _, _ -> pedirSenha(sessao) }
+            .setNegativeButton(R.string.comum_depois) { _, _ -> Log.i(TAG, "Operador ${MascaraSensivel.email(sessao.email)} adiou a renovação da sessão") }
             .show()
     }
 
     private fun pedirSenha(sessao: SessaoOperador, erro: String? = null) {
         val campoSenha = EditText(activity).apply {
-            hint = "Senha"
+            setHint(R.string.comum_senha)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
 
         AlertDialog.Builder(activity)
-            .setTitle("Renovar sessão")
-            .setMessage((erro?.let { "$it\n\n" } ?: "") + "Senha de ${sessao.email}:")
+            .setTitle(R.string.sessao_renovar_titulo)
+            .setMessage((erro?.let { "$it\n\n" } ?: "") + activity.getString(R.string.sessao_senha_de, sessao.email))
             .setView(campoSenha)
-            .setPositiveButton("Renovar") { _, _ -> renovar(sessao, campoSenha.text.toString()) }
-            .setNegativeButton("Cancelar") { _, _ -> Log.i(TAG, "Operador ${sessao.email} cancelou a renovação da sessão") }
+            .setPositiveButton(R.string.sessao_renovar) { _, _ -> renovar(sessao, campoSenha.text.toString()) }
+            .setNegativeButton(R.string.comum_cancelar) { _, _ -> Log.i(TAG, "Operador ${MascaraSensivel.email(sessao.email)} cancelou a renovação da sessão") }
             .show()
     }
 
     private fun renovar(sessao: SessaoOperador, senha: String) {
-        if (senha.isEmpty()) return pedirSenha(sessao, "Informe a senha")
+        if (senha.isEmpty()) return pedirSenha(sessao, activity.getString(R.string.sessao_informe_senha))
 
-        Log.i(TAG, "Renovando a sessão de ${sessao.email}")
+        Log.i(TAG, "Renovando a sessão de ${MascaraSensivel.email(sessao.email)}")
         TagService(activity).entrar(sessao.email, senha) { resposta ->
             activity.runOnUiThread {
                 if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
@@ -97,16 +97,16 @@ class AvisoSessao(
                     is RespostaServidor.Sucesso -> {
                         val nova = resposta.valor
                         AppConfig.saveSessao(activity, nova)
-                        Log.i(TAG, "Sessão de ${nova.email} renovada: vale até ${horario(nova.expiraEm)}")
-                        Toast.makeText(activity, "Sessão renovada até ${horario(nova.expiraEm)}", Toast.LENGTH_LONG).show()
+                        Log.i(TAG, "Sessão de ${MascaraSensivel.email(nova.email)} renovada: vale até ${horario(nova.expiraEm)}")
+                        Toast.makeText(activity, activity.getString(R.string.sessao_renovada, horario(nova.expiraEm)), Toast.LENGTH_LONG).show()
                         aoMudarSessao(nova)
                     }
                     is RespostaServidor.Falha -> {
-                        Log.w(TAG, "Renovação da sessão de ${sessao.email} recusada: ${resposta.mensagem}")
+                        Log.w(TAG, "Renovação da sessão de ${MascaraSensivel.email(sessao.email)} recusada: ${resposta.mensagem}")
                         // Sessão ainda válida: deixa tentar de novo
                         if (SessaoAtual.get(activity) != null) pedirSenha(sessao, resposta.mensagem)
                     }
-                    RespostaServidor.NaoEncontrado -> pedirSenha(sessao, "Servidor não reconheceu o login")
+                    RespostaServidor.NaoEncontrado -> pedirSenha(sessao, activity.getString(R.string.comum_servidor_nao_reconheceu_login))
                 }
             }
         }
@@ -116,6 +116,6 @@ class AvisoSessao(
         private const val TAG = "SESSAO"
         private const val INTERVALO_MS = 30_000L
 
-        fun horario(epochMs: Long): String = SimpleDateFormat("HH:mm", Locale("pt", "BR")).format(Date(epochMs))
+        fun horario(epochMs: Long): String = SimpleDateFormat("HH:mm", Locale.forLanguageTag("pt-BR")).format(Date(epochMs))
     }
 }
