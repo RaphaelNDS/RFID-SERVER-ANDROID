@@ -58,9 +58,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var aviso: AvisoLeitura
 
     // A leitura vai direto para o banco local; o Sincronizador cuida do servidor. Tag nova: bip/vibração
-    // Avisa antes de a sessão acabar e deixa renovar sem sair da tela
-    private val avisoSessao = AvisoSessao(this) { mostrarOperador(it) }
-
     private val ouvinte = RfidManager.OuvinteLeitura { epc, _ -> repositorio.registrar(epc) { aviso.tagNova() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -91,6 +88,18 @@ class MainActivity : AppCompatActivity() {
         aviso = AvisoLeitura(this)
         mostrarEstadoLeitor(rfidManager)
 
+        // Visível: leituras vêm para cá, envia o pendente a cada minuto e avisa antes de a sessão acabar
+        // (deixa renovar sem sair da tela). Ao pausar, solta o leitor e para o envio periódico
+        TelaDeLeitura(
+            this, rfidManager, ouvinte,
+            aoMudarSessao = { mostrarOperador(it) },
+            aoRetomar = {
+                sincronizador.solicitar()
+                handler.postDelayed(sincronizacaoPeriodica, INTERVALO_SINCRONIZACAO_MS)
+            },
+            aoPausar = { handler.removeCallbacks(sincronizacaoPeriodica) }
+        )
+
         // App aberto do zero: tela limpa, como antes. (Ao recriar por rotação, mantém a sessão.)
         // O que não foi enviado continua na fila.
         if (savedInstanceState == null) {
@@ -108,24 +117,6 @@ class MainActivity : AppCompatActivity() {
         viewModel.pendentes.observe(this) { atualizarAvisoSincronizacao() }
         viewModel.estadoSincronizacao.observe(this) { atualizarAvisoSincronizacao() }
         viewModel.contagem.observe(this) { txtContadores.text = it.resumo() }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        exigirSessao() ?: return
-
-        rfidManager.definirOuvinte(this, ouvinte)   // conecta o leitor, se preciso, e reconecta sozinho se cair
-
-        sincronizador.solicitar()
-        handler.postDelayed(sincronizacaoPeriodica, INTERVALO_SINCRONIZACAO_MS)
-        avisoSessao.iniciar()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        rfidManager.removerOuvinte(this)
-        handler.removeCallbacks(sincronizacaoPeriodica)
-        avisoSessao.parar()
     }
 
     private fun mostrarOperador(sessao: com.example.rfid_server.SessaoOperador) {

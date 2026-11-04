@@ -1,8 +1,5 @@
 package com.example.rfid_server.activities
 
-import android.Manifest
-import android.media.AudioManager
-import android.media.ToneGenerator
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
@@ -11,17 +8,19 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
+import com.example.rfid_server.AvisoLeitura
 import com.example.rfid_server.EstadoLeitor
 import com.example.rfid_server.Proximidade
 import com.example.rfid_server.R
 import com.example.rfid_server.RegrasLocalizar
 import com.example.rfid_server.RfidManager
+import com.example.rfid_server.RitmoAviso
 import com.example.rfid_server.VigiaSinal
 import com.example.rfid_server.service.RespostaServidor
 import com.example.rfid_server.service.TagService
-import android.os.*
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
-import androidx.annotation.RequiresPermission
 
 
 class LocalizarActivity : AppCompatActivity() {
@@ -49,12 +48,11 @@ class LocalizarActivity : AppCompatActivity() {
     private lateinit var btnBuscar: Button
 
     private lateinit var tagService: TagService
-    private val avisoSessao = AvisoSessao(this)
 
-    private var lastFeedback = 0L
-    // Nulo se o aparelho não liberar o gerador de som: a localização segue só com vibração
-    private var tone: ToneGenerator? = null
-    private lateinit var vibrator: Vibrator
+    // Bip e vibração da localização (sempre tocam: não dependem do ajuste "aviso a cada etiqueta nova").
+    // Quanto mais perto, mais rápido o bip ([Proximidade.intervaloFeedbackMs])
+    private lateinit var aviso: AvisoLeitura
+    private val ritmoBip = RitmoAviso()
 
     // Sem leitura da etiqueta por um instante (saiu do alcance, gatilho solto): a barra não pode ficar parada no último valor
     private val handler = Handler(Looper.getMainLooper())
@@ -84,8 +82,17 @@ class LocalizarActivity : AppCompatActivity() {
         mostrarEstadoLeitor(rfidManager)
         rfidManager.estado.observe(this) { aoMudarEstadoLeitor(it) }
 
-        tone = criarGeradorDeSom()
-        vibrator = getSystemService(VIBRATOR_SERVICE) as Vibrator
+        // Enquanto esta tela está visível, as leituras vêm para cá (e não para a tela principal).
+        // Ao voltar, retoma a localização da etiqueta guardada; ao sair, encerra a localização ANTES de
+        // soltar o leitor (o RfidManager só aceita pedidos de localização da tela dona das leituras)
+        TelaDeLeitura(
+            this, rfidManager, ouvinte,
+            aoRetomar = { epcLocalizando?.let { rfidManager.iniciarLocalizacao(this, it) } },
+            antesDePausar = { rfidManager.pararLocalizacao() },
+            aoPausar = { vigiaSinal.parar() }
+        )
+
+        aviso = AvisoLeitura(this)
 
         btnBuscar.setOnClickListener { buscarDoCampo() }
 
@@ -223,67 +230,14 @@ class LocalizarActivity : AppCompatActivity() {
         progress.progress = nivel
         txtStatus.text = Proximidade.descricao(nivel)
 
-        emitirSomEVibracao(nivel)
-    }
-
-    @RequiresPermission(Manifest.permission.VIBRATE)
-    private fun emitirSomEVibracao(nivel: Int) {
-
-        val agora = System.currentTimeMillis()
-
-        if (agora - lastFeedback < Proximidade.intervaloFeedbackMs(nivel)) return
-        lastFeedback = agora
-
-        // 🔊 SOM
-        tone?.startTone(ToneGenerator.TONE_PROP_BEEP, 80)
-
-        // 📳 VIBRAÇÃO
-        val duracao = Proximidade.duracaoVibracaoMs(nivel)
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator.vibrate(
-                VibrationEffect.createOneShot(
-                    duracao,
-                    VibrationEffect.DEFAULT_AMPLITUDE
-                )
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator.vibrate(duracao)
+        // Quanto mais perto, mais rápido o bip e mais forte a vibração
+        if (ritmoBip.liberar(Proximidade.intervaloFeedbackMs(nivel))) {
+            aviso.bip(DURACAO_BIP_MS, Proximidade.duracaoVibracaoMs(nivel))
         }
     }
-
-    // O ToneGenerator usa um recurso nativo limitado do aparelho: se não for liberado, depois de
-    // abrir a tela várias vezes o construtor passa a lançar RuntimeException.
-    // Volume de alarme (e não de mídia): no coletor o volume de mídia costuma ficar no zero e o bip sumia.
-    // O de alarme toca mesmo com o aparelho no silencioso, que é o que se quer no chão de fábrica
-    private fun criarGeradorDeSom(): ToneGenerator? =
-        try {
-            ToneGenerator(AudioManager.STREAM_ALARM, 80)
-        } catch (e: RuntimeException) {
-            Log.e(TAG, "Não foi possível criar o gerador de som: a localização vai funcionar só com vibração", e)
-            null
-        }
 
     private fun toast(msg: String) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
-    }
-
-    // Enquanto esta tela está visível, as leituras vêm para cá (e não para a tela principal)
-    override fun onResume() {
-        super.onResume()
-        exigirSessao() ?: return
-        rfidManager.definirOuvinte(this, ouvinte)
-        epcLocalizando?.let { rfidManager.iniciarLocalizacao(this, it) }
-        avisoSessao.iniciar()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        rfidManager.pararLocalizacao()
-        rfidManager.removerOuvinte(this)
-        vigiaSinal.parar()
-        avisoSessao.parar()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -295,8 +249,9 @@ class LocalizarActivity : AppCompatActivity() {
         super.onDestroy()
 
         vigiaSinal.parar()
-        tone?.release()
-        tone = null
+        // O ToneGenerator usa um recurso nativo limitado do aparelho: se não for liberado, depois de
+        // abrir a tela várias vezes o som para de funcionar
+        aviso.liberar()
         Log.d(TAG, "Tela de localização encerrada: gerador de som liberado")
     }
 
@@ -312,5 +267,6 @@ class LocalizarActivity : AppCompatActivity() {
         private const val MSG_APERTE_GATILHO = "Aperte o gatilho para localizar"
         private const val MSG_AGUARDANDO_LEITOR = "Aguardando o leitor RFID conectar para localizar"
         private const val ESTADO_EPC = "epc_localizando"
+        private const val DURACAO_BIP_MS = 80
     }
 }
