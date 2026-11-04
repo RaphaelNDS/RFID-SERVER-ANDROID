@@ -1,5 +1,6 @@
 package com.example.rfid_server.activities
 
+import com.example.rfid_server.erros.MascaraSensivel
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
@@ -203,7 +204,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sair(token: String, email: String) {
-        Log.i(TAG, "Operador $email saiu do coletor")
+        Log.i(TAG, "Operador ${MascaraSensivel.email(email)} saiu do coletor")
         rfidManager.removerOuvinte(this)
         TagService(this).sair(token)   // sem rede, a sessão expira sozinha no servidor
         AppConfig.limparSessao(this)

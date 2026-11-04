@@ -1,5 +1,6 @@
 package com.example.rfid_server.activities
 
+import com.example.rfid_server.erros.MascaraSensivel
 import android.os.Handler
 import android.os.Looper
 import android.text.InputType
@@ -58,7 +59,7 @@ class AvisoSessao(
         val minutos = PoliticaAvisoSessao.avisoDevido(sessao.token, sessao.expiraEm, agora) ?: return
 
         val fim = horario(sessao.expiraEm)
-        Log.i(TAG, "Sessão de ${sessao.email} termina em ${PoliticaAvisoSessao.restanteLegivel(sessao.expiraEm - agora)} (às $fim): operador avisado")
+        Log.i(TAG, "Sessão de ${MascaraSensivel.email(sessao.email)} termina em ${PoliticaAvisoSessao.restanteLegivel(sessao.expiraEm - agora)} (às $fim): operador avisado")
 
         dialogo?.dismiss()
         dialogo = AlertDialog.Builder(activity)
@@ -67,7 +68,7 @@ class AvisoSessao(
                 "Depois disso o app volta para a tela de login.\n\nRenove agora com a sua senha: o que está na tela e o que " +
                 "ainda não foi enviado continuam.")
             .setPositiveButton("Renovar") { _, _ -> pedirSenha(sessao) }
-            .setNegativeButton("Depois") { _, _ -> Log.i(TAG, "Operador ${sessao.email} adiou a renovação da sessão") }
+            .setNegativeButton("Depois") { _, _ -> Log.i(TAG, "Operador ${MascaraSensivel.email(sessao.email)} adiou a renovação da sessão") }
             .show()
     }
 
@@ -82,14 +83,14 @@ class AvisoSessao(
             .setMessage((erro?.let { "$it\n\n" } ?: "") + "Senha de ${sessao.email}:")
             .setView(campoSenha)
             .setPositiveButton("Renovar") { _, _ -> renovar(sessao, campoSenha.text.toString()) }
-            .setNegativeButton("Cancelar") { _, _ -> Log.i(TAG, "Operador ${sessao.email} cancelou a renovação da sessão") }
+            .setNegativeButton("Cancelar") { _, _ -> Log.i(TAG, "Operador ${MascaraSensivel.email(sessao.email)} cancelou a renovação da sessão") }
             .show()
     }
 
     private fun renovar(sessao: SessaoOperador, senha: String) {
         if (senha.isEmpty()) return pedirSenha(sessao, "Informe a senha")
 
-        Log.i(TAG, "Renovando a sessão de ${sessao.email}")
+        Log.i(TAG, "Renovando a sessão de ${MascaraSensivel.email(sessao.email)}")
         TagService(activity).entrar(sessao.email, senha) { resposta ->
             activity.runOnUiThread {
                 if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
@@ -97,12 +98,12 @@ class AvisoSessao(
                     is RespostaServidor.Sucesso -> {
                         val nova = resposta.valor
                         AppConfig.saveSessao(activity, nova)
-                        Log.i(TAG, "Sessão de ${nova.email} renovada: vale até ${horario(nova.expiraEm)}")
+                        Log.i(TAG, "Sessão de ${MascaraSensivel.email(nova.email)} renovada: vale até ${horario(nova.expiraEm)}")
                         Toast.makeText(activity, "Sessão renovada até ${horario(nova.expiraEm)}", Toast.LENGTH_LONG).show()
                         aoMudarSessao(nova)
                     }
                     is RespostaServidor.Falha -> {
-                        Log.w(TAG, "Renovação da sessão de ${sessao.email} recusada: ${resposta.mensagem}")
+                        Log.w(TAG, "Renovação da sessão de ${MascaraSensivel.email(sessao.email)} recusada: ${resposta.mensagem}")
                         // Sessão ainda válida: deixa tentar de novo
                         if (SessaoAtual.get(activity) != null) pedirSenha(sessao, resposta.mensagem)
                     }

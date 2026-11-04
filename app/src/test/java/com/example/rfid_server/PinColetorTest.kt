@@ -43,9 +43,85 @@ class PinColetorTest {
         assertEquals("Os dois PINs não são iguais", PinColetor.problemaDoNovo("4821", "4812"))
     }
 
+    private val min = 60_000L
+    private val parede = 1_700_000_000_000L   // relógio de parede de exemplo
+    private val ligado = 3_600_000L            // elapsedRealtime de exemplo (1 h ligado)
+
+    /** Aplica [n] erros seguidos no mesmo instante. */
+    private fun errar(n: Int, estado: PinColetor.EstadoTentativas = PinColetor.EstadoTentativas()) =
+        (1..n).fold(estado) { e, _ -> PinColetor.aposErro(e, parede, ligado) }
+
     @Test
-    fun `bloqueia so a partir do quinto erro seguido`() {
-        assertNull(PinColetor.bloqueioAposErro(4, agora = 1_000))
-        assertEquals(1_000 + PinColetor.BLOQUEIO_MS, PinColetor.bloqueioAposErro(5, agora = 1_000))
+    fun `bloqueia so a partir do quinto erro`() {
+        val quatro = errar(4)
+        assertEquals(4, quatro.erros)
+        assertEquals(0, PinColetor.restanteBloqueio(quatro, parede, ligado))
+        assertEquals(1, PinColetor.restantesAteBloqueio(4))
+
+        val cinco = errar(5)
+        assertEquals(5, cinco.erros)   // não zera no bloqueio
+        assertEquals(5 * min, PinColetor.restanteBloqueio(cinco, parede, ligado))
+    }
+
+    @Test
+    fun `bloqueio cresce 5 min, 15 min, 1 h e fica em 1 h`() {
+        assertEquals(5 * min, errar(5).duracao)
+        assertEquals(15 * min, errar(10).duracao)
+        assertEquals(60 * min, errar(15).duracao)
+        assertEquals(60 * min, errar(20).duracao)
+        assertEquals(60 * min, errar(50).duracao)
+        // Entre bloqueios: cada erro só soma, sem bloquear de novo
+        assertEquals(5 * min, errar(7).duracao)
+        assertEquals(3, PinColetor.restantesAteBloqueio(7))
+    }
+
+    @Test
+    fun `sem bloqueio e livre`() {
+        assertEquals(0, PinColetor.restanteBloqueio(PinColetor.EstadoTentativas(), parede, ligado))
+    }
+
+    @Test
+    fun `bloqueio acaba quando as duas medidas passam do tempo`() {
+        val bloqueado = errar(5)
+        assertEquals(1 * min, PinColetor.restanteBloqueio(bloqueado, parede + 4 * min, ligado + 4 * min))
+        assertEquals(0, PinColetor.restanteBloqueio(bloqueado, parede + 5 * min, ligado + 5 * min))
+    }
+
+    @Test
+    fun `adiantar o relogio nao acaba com o bloqueio`() {
+        val bloqueado = errar(5)
+        // Relógio adiantado 1 dia, mas só 1 min de verdade passou desde o bloqueio
+        assertEquals(4 * min, PinColetor.restanteBloqueio(bloqueado, parede + 24 * 60 * min, ligado + 1 * min))
+    }
+
+    @Test
+    fun `atrasar o relogio nao prende o PIN mais que a duracao do bloqueio`() {
+        val bloqueado = errar(5)
+        // Relógio voltou 1 ano: no máximo a duração do bloqueio pela parede
+        assertEquals(5 * min, PinColetor.restanteBloqueio(bloqueado, parede - 365L * 24 * 60 * min, ligado))
+        assertEquals(0, PinColetor.restanteBloqueio(bloqueado, parede + 5 * min, ligado + 5 * min))
+    }
+
+    @Test
+    fun `reiniciar o aparelho nao encurta o bloqueio`() {
+        val bloqueado = errar(10)   // 15 min
+        // Reiniciou (elapsedRealtime voltou a zero) e adiantou o relógio: conta desde a ligação
+        assertEquals(13 * min, PinColetor.restanteBloqueio(bloqueado, parede + 24 * 60 * min, 2 * min))
+        assertEquals(0, PinColetor.restanteBloqueio(bloqueado, parede + 24 * 60 * min, 15 * min))
+        // Reiniciou sem mexer no relógio: vale a medida maior (a desde a ligação, por segurança)
+        assertEquals(14 * min, PinColetor.restanteBloqueio(bloqueado, parede + 5 * min, 1 * min))
+        assertEquals(0, PinColetor.restanteBloqueio(bloqueado, parede + 20 * min, 15 * min))
+    }
+
+    @Test
+    fun `estado gravado pela versao antiga continua valendo pelo relogio`() {
+        // 1.6.1: erros zerados no bloqueio e só o bloqueado_ate gravado
+        val antigo = PinColetor.EstadoTentativas(erros = 0, bloqueadoAte = parede + 3 * min)
+        assertEquals(3 * min, PinColetor.restanteBloqueio(antigo, parede, ligado))
+        assertEquals(0, PinColetor.restanteBloqueio(antigo, parede + 3 * min, ligado))
+        // Relógio atrasado: limitado aos 5 min do bloqueio antigo
+        assertEquals(PinColetor.BLOQUEIO_ANTIGO_MS, PinColetor.restanteBloqueio(antigo, parede - 60 * min, ligado))
+        // Próximo erro depois do bloqueio antigo começa a contar do zero
+        assertEquals(1, PinColetor.aposErro(antigo, parede + 3 * min, ligado).erros)
     }
 }

@@ -1,5 +1,6 @@
 package com.example.rfid_server.activities
 
+import com.example.rfid_server.erros.MascaraSensivel
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
@@ -112,7 +113,7 @@ class LoginActivity : AppCompatActivity() {
 
         btnEntrar.isEnabled = false
         txtStatus.visibility = View.GONE
-        Log.i(TAG, "Tentando entrar como $email")
+        Log.i(TAG, "Tentando entrar como ${MascaraSensivel.email(email)}")
 
         TagService(this).entrar(email, senha) { resposta ->
             runOnUiThread {
@@ -122,7 +123,7 @@ class LoginActivity : AppCompatActivity() {
                     is RespostaServidor.Sucesso -> {
                         val sessao = resposta.valor
                         AppConfig.saveSessao(this, sessao)
-                        Log.i(TAG, "Operador ${sessao.email} entrou no coletor (pode cadastrar: ${if (sessao.podeCadastrar) "sim" else "não"})")
+                        Log.i(TAG, "Operador ${MascaraSensivel.email(sessao.email)} entrou no coletor (pode cadastrar: ${if (sessao.podeCadastrar) "sim" else "não"})")
 
                         if (sessao.senhaFraca) {
                             Toast.makeText(this, "Sua senha não atende mais às regras de segurança: troque-a no Sistema RFID (web).", Toast.LENGTH_LONG).show()
@@ -170,7 +171,7 @@ class LoginActivity : AppCompatActivity() {
         }
 
         txtStatus.visibility = View.GONE
-        Log.i(TAG, "Pedindo nova senha para $email")
+        Log.i(TAG, "Pedindo nova senha para ${MascaraSensivel.email(email)}")
 
         TagService(this).esqueciSenha(email) { resposta ->
             runOnUiThread {
@@ -183,7 +184,7 @@ class LoginActivity : AppCompatActivity() {
                         .show()
 
                     is RespostaServidor.Falha -> {
-                        Log.w(TAG, "Pedido de nova senha para $email não foi enviado: ${resposta.mensagem}")
+                        Log.w(TAG, "Pedido de nova senha para ${MascaraSensivel.email(email)} não foi enviado: ${resposta.mensagem}")
                         mostrarErro("Não foi possível pedir a senha nova: ${resposta.mensagem}")
                     }
 
