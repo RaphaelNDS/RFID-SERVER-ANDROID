@@ -1,6 +1,7 @@
 package com.example.rfid_server.sincronizacao
 
 import android.content.Context
+import androidx.core.content.edit
 import java.security.MessageDigest
 
 /**
@@ -46,19 +47,19 @@ class RecusasDeSessaoGuardadas(context: Context) : RecusasDeSessao {
     }
 
     override fun registrar(sessao: String, momento: Long) {
-        prefs.edit().putLong(chave(sessao), momento).apply()
+        prefs.edit { putLong(chave(sessao), momento) }
     }
 
     override fun esquecer(sessao: String) {
         val chave = chave(sessao)
-        if (prefs.contains(chave)) prefs.edit().remove(chave).apply()
+        if (prefs.contains(chave)) prefs.edit { remove(chave) }
     }
 
     override fun manterSomente(sessoes: Set<String>) {
         val manter = sessoes.map { chave(it) }.toSet()
         val sobrando = prefs.all.keys - manter
         if (sobrando.isEmpty()) return
-        prefs.edit().apply { sobrando.forEach { remove(it) } }.apply()
+        prefs.edit { sobrando.forEach { remove(it) } }
     }
 
     private fun chave(sessao: String): String =

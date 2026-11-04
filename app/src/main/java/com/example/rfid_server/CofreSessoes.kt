@@ -1,8 +1,8 @@
 package com.example.rfid_server
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
+import androidx.core.content.edit
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
@@ -81,16 +81,15 @@ class CofreSessoes internal constructor(
         @Volatile
         private var instancia: CofreSessoes? = null
 
-        @SuppressLint("ApplySharedPref")
         fun get(context: Context): CofreSessoes =
             instancia ?: synchronized(this) {
                 instancia ?: context.applicationContext.getSharedPreferences(ARQUIVO, Context.MODE_PRIVATE).let { prefs ->
                     CofreSessoes(
                         ler = { prefs.getString(it, null) },
                         // commit(): a linha do banco vai apontar para esta referência logo em seguida
-                        gravar = { valores -> prefs.edit().apply { valores.forEach { (k, v) -> putString(k, v) } }.commit() },
+                        gravar = { valores -> prefs.edit(commit = true) { valores.forEach { (k, v) -> putString(k, v) } } },
                         todas = { prefs.all.mapNotNull { (k, v) -> (v as? String)?.let { k to it } }.toMap() },
-                        apagar = { chaves -> prefs.edit().apply { chaves.forEach { remove(it) } }.apply() },
+                        apagar = { chaves -> prefs.edit { chaves.forEach { remove(it) } } },
                         cifra = { AppConfig.cifra }
                     ).also { it.limparAntigas() }
                 }.also { instancia = it }
