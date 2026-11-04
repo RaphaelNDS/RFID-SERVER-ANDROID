@@ -308,9 +308,20 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
 
     // ================= MODO LOCALIZAÇÃO =================
 
-    fun iniciarLocalizacao(epc: String) {
+    /**
+     * Liga o modo localização para [epc], só se [quem] for a tela que está recebendo as leituras. Uma resposta
+     * do servidor que chega depois de a tela de localização sair não pode prender o leitor numa etiqueta
+     * enquanto a tela principal ou o inventário estão abertos (eles parariam de registrar leituras).
+     * Devolve false se ignorou o pedido.
+     */
+    fun iniciarLocalizacao(quem: Any, epc: String): Boolean {
+        if (dono !== quem) {
+            Log.w(TAG, "Pedido de localização de $epc ignorado: ${quem.javaClass.simpleName} não está recebendo as leituras")
+            return false
+        }
         locatingEpc = epc
         Log.i(TAG, "Modo localização iniciado: $epc")
+        return true
     }
 
     fun pararLocalizacao() {

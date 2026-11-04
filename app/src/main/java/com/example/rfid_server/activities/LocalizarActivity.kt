@@ -10,6 +10,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Lifecycle
 import com.example.rfid_server.EstadoLeitor
 import com.example.rfid_server.Proximidade
 import com.example.rfid_server.R
@@ -26,6 +27,8 @@ class LocalizarActivity : AppCompatActivity() {
     // Leitor compartilhado com a tela principal (uma conexão só). Esta tela não desconecta
     private lateinit var rfidManager: RfidManager
     private var epcLocalizando: String? = null
+    // Número da busca mais recente: a resposta de uma busca anterior (cliques seguidos em "Buscar") é descartada
+    private var ultimaBusca = 0
     // Sem etiqueta definida (busca ainda não voltou do servidor) o leitor entrega qualquer etiqueta:
     // ignora, senão a barra e o bip guiariam até o item errado
     private val ouvinte = object : RfidManager.OuvinteLeitura {
@@ -96,10 +99,26 @@ class LocalizarActivity : AppCompatActivity() {
     // ================= BUSCA =================
 
     private fun buscarEIniciar(patrimonio: String) {
+        // Nova busca: a etiqueta anterior deixa de ser localizada (se esta falhar, a tela não pode continuar
+        // guiando até o item antigo) e qualquer resposta de uma busca anterior passa a ser descartada
+        val busca = ++ultimaBusca
+        epcLocalizando = null
+        rfidManager.pararLocalizacao()
+        progress.progress = 0
 
         tagService.buscarTagPorPatrimonio(patrimonio) { resposta ->
 
             runOnUiThread {
+                // A resposta pode chegar depois de a tela sair (o servidor demora até 15 s): aí não faz nada
+                if (isFinishing || isDestroyed) {
+                    Log.i(TAG, "Resposta da busca do patrimônio $patrimonio chegou depois de a tela fechar: ignorada")
+                    return@runOnUiThread
+                }
+                if (busca != ultimaBusca) {
+                    Log.i(TAG, "Resposta da busca do patrimônio $patrimonio chegou depois de uma busca mais nova: ignorada")
+                    return@runOnUiThread
+                }
+
                 when (resposta) {
                     is RespostaServidor.Sucesso -> {
                         Log.i(TAG, "Patrimônio $patrimonio → tag ${resposta.valor}")
@@ -126,7 +145,9 @@ class LocalizarActivity : AppCompatActivity() {
     private fun iniciarRFID(epc: String) {
 
         epcLocalizando = epc
-        rfidManager.iniciarLocalizacao(epc)
+        // Só liga no leitor com a tela em primeiro plano (dona das leituras). Se ela estiver em pausa
+        // (ex.: outra tela por cima), o onResume liga com o epcLocalizando guardado acima
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) rfidManager.iniciarLocalizacao(this, epc)
 
         // A conexão do leitor é feita (e refeita, se cair) pelo RfidManager; a situação aparece na faixa do topo
         txtStatus.text = if (rfidManager.conectado) MSG_APERTE_GATILHO else MSG_AGUARDANDO_LEITOR
@@ -195,7 +216,7 @@ class LocalizarActivity : AppCompatActivity() {
         super.onResume()
         exigirSessao() ?: return
         rfidManager.definirOuvinte(this, ouvinte)
-        epcLocalizando?.let { rfidManager.iniciarLocalizacao(it) }
+        epcLocalizando?.let { rfidManager.iniciarLocalizacao(this, it) }
         avisoSessao.iniciar()
     }
 

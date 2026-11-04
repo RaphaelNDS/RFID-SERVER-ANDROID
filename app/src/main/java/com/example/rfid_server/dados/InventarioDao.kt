@@ -47,8 +47,29 @@ interface InventarioDao {
     )
     fun comPendencias(): List<InventarioEntity>
 
-    @Query("SELECT * FROM inventario_itens WHERE inventarioId = :inventarioId AND enviado = 0 ORDER BY id LIMIT :limite")
-    fun itensNaoEnviados(inventarioId: String, limite: Int): List<InventarioItemEntity>
+    /** Etiquetas ainda não enviadas com id maior que [aposId] (paginação: as recusadas na passada ficam para trás). */
+    @Query("SELECT * FROM inventario_itens WHERE inventarioId = :inventarioId AND enviado = 0 AND id > :aposId ORDER BY id LIMIT :limite")
+    fun itensNaoEnviados(inventarioId: String, aposId: Long, limite: Int): List<InventarioItemEntity>
+
+    @Query("SELECT * FROM inventarios WHERE id = :id")
+    fun inventarioAgora(id: String): InventarioEntity?
+
+    /** O servidor recusou estas etiquetas: conta mais uma e guarda quando foi a primeira recusa de cada uma. */
+    @Query(
+        """UPDATE inventario_itens SET ultimoErro = :erro, recusas = recusas + 1,
+           primeiraRecusaEm = COALESCE(primeiraRecusaEm, :agora) WHERE id IN (:ids)"""
+    )
+    fun registrarRecusaItens(ids: List<Long>, erro: String, agora: Long)
+
+    /**
+     * Desiste das etiquetas recusadas pelo menos [limite] vezes, a primeira antes de [antesDe]: saem da fila
+     * (enviado = 1), com o motivo guardado em ultimoErro. Devolve quantas.
+     */
+    @Query(
+        """UPDATE inventario_itens SET enviado = 1 WHERE id IN (:ids) AND recusas >= :limite
+           AND primeiraRecusaEm IS NOT NULL AND primeiraRecusaEm <= :antesDe"""
+    )
+    fun desistirItens(ids: List<Long>, limite: Int, antesDe: Long): Int
 
     @Query("UPDATE inventarios SET aberturaEnviada = :enviada, ultimoErro = NULL WHERE id = :id")
     fun definirAberturaEnviada(id: String, enviada: Boolean)

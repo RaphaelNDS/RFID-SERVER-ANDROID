@@ -65,8 +65,30 @@ class FakeInventarioDao : InventarioDao {
                 itens.any { it.inventarioId == inv.id && !it.enviado })
         }.sortedBy { it.iniciadoEm }
 
-    override fun itensNaoEnviados(inventarioId: String, limite: Int): List<InventarioItemEntity> =
-        itens.filter { it.inventarioId == inventarioId && !it.enviado }.sortedBy { it.id }.take(limite)
+    override fun itensNaoEnviados(inventarioId: String, aposId: Long, limite: Int): List<InventarioItemEntity> =
+        itens.filter { it.inventarioId == inventarioId && !it.enviado && it.id > aposId }.sortedBy { it.id }.take(limite)
+
+    override fun inventarioAgora(id: String): InventarioEntity? = inventarios.singleOrNull { it.id == id }
+
+    override fun registrarRecusaItens(ids: List<Long>, erro: String, agora: Long) {
+        itens.replaceAll {
+            if (it.id in ids) it.copy(ultimoErro = erro, recusas = it.recusas + 1, primeiraRecusaEm = it.primeiraRecusaEm ?: agora) else it
+        }
+        publicar()
+    }
+
+    override fun desistirItens(ids: List<Long>, limite: Int, antesDe: Long): Int {
+        var desistidas = 0
+        itens.replaceAll {
+            val primeira = it.primeiraRecusaEm
+            if (it.id in ids && it.recusas >= limite && primeira != null && primeira <= antesDe) {
+                desistidas++
+                it.copy(enviado = true)
+            } else it
+        }
+        publicar()
+        return desistidas
+    }
 
     override fun definirAberturaEnviada(id: String, enviada: Boolean) =
         alterar(id) { it.copy(aberturaEnviada = enviada, ultimoErro = null) }

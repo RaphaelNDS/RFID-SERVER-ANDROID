@@ -67,8 +67,11 @@ class SincronizadorInventarios(
         val agora = relogio()
         dao.registrarRecusa(inventario.id, motivo, agora)
 
-        val recusas = inventario.recusas + 1
-        val desde = inventario.primeiraRecusaEm ?: agora
+        // Relê do banco: a cópia do início da passada pode estar velha (ex.: uma etapa aceita nesta mesma
+        // passada zerou as recusas), e contar a partir dela faria o coletor desistir antes da hora
+        val atual = dao.inventarioAgora(inventario.id) ?: return
+        val recusas = atual.recusas
+        val desde = atual.primeiraRecusaEm ?: agora
 
         if (recusas < LIMITE_RECUSAS || agora - desde < PRAZO_DESISTIR_MS) {
             Log.e(TAG, "Servidor recusou o inventário ${inventario.id} (${inventario.local}): $motivo. " +
@@ -100,14 +103,24 @@ class SincronizadorInventarios(
         }
 
         var enviados = 0
+        var recusadas = 0
+        // Paginação pelo id: as etiquetas recusadas nesta passada continuam não enviadas e ficam para trás
+        var aposId = 0L
         while (true) {
-            val lote = dao.itensNaoEnviados(id, TAMANHO_LOTE)
+            val lote = dao.itensNaoEnviados(id, aposId, TAMANHO_LOTE)
             if (lote.isEmpty()) break
+            aposId = lote.last().id
 
             // Um operador pode continuar o inventário de outro: cada grupo vai com a sessão de quem leu
             for ((sessao, grupo) in lote.groupBy { it.sessaoOperador }) {
                 when (val r = tagService.enviarItensInventarioAgora(id, grupo.map { it.epc to it.lidoEm }, sessao)) {
-                    is RespostaServidor.Falha -> return r
+                    is RespostaServidor.Falha -> {
+                        // Recusa só deste grupo (ex.: o operador que leu foi desativado): as etiquetas dos outros
+                        // operadores e a finalização seguem. Falha de comunicação para tudo, como antes
+                        if (r.motivo != MotivoFalha.REQUISICAO_RECUSADA && r.motivo != MotivoFalha.SESSAO_INVALIDA) return r
+                        itensRecusados(inventario, grupo.map { it.id }, r.mensagem)
+                        recusadas += grupo.size
+                    }
                     RespostaServidor.NaoEncontrado -> return reabrir(inventario)
                     is RespostaServidor.Sucesso -> {
                         dao.marcarItensEnviados(grupo.map { it.id })
@@ -118,6 +131,7 @@ class SincronizadorInventarios(
             }
         }
         if (enviados > 0) Log.i(TAG, "Inventário $id: $enviados etiqueta(s) enviada(s) ao servidor")
+        if (recusadas > 0) Log.w(TAG, "Inventário $id: $recusadas etiqueta(s) recusada(s) pelo servidor ficam guardadas para nova tentativa")
 
         val finalizadoEm = inventario.finalizadoEm
         if (finalizadoEm != null && !inventario.finalizacaoEnviada) {
@@ -133,6 +147,29 @@ class SincronizadorInventarios(
         }
 
         return null
+    }
+
+    /**
+     * O servidor recusou um grupo de etiquetas (mesma sessão). Elas continuam na fila e são tentadas de novo nas
+     * próximas passadas: um problema passageiro (ex.: banco do servidor restaurado sem as sessões) não faz perder
+     * nada. O coletor só desiste delas com a mesma regra do inventário: [LIMITE_RECUSAS] recusas espalhadas por
+     * pelo menos [PRAZO_DESISTIR_MS]. Não mexe no contador do inventário, que é das etapas dele (abertura e finalização).
+     */
+    private fun itensRecusados(inventario: InventarioEntity, ids: List<Long>, motivo: String) {
+        val agora = relogio()
+        dao.registrarRecusaItens(ids, motivo, agora)
+
+        val desistidas = dao.desistirItens(ids, LIMITE_RECUSAS, agora - PRAZO_DESISTIR_MS)
+        if (desistidas == 0) {
+            Log.e(TAG, "Servidor recusou ${ids.size} etiqueta(s) do inventário ${inventario.id} (${inventario.local}): $motivo. " +
+                "Ficam guardadas no coletor e serão tentadas de novo")
+            return
+        }
+
+        val mensagem = "$desistidas etiqueta(s) do inventário de ${inventario.local} recusada(s) pelo servidor " +
+            "$LIMITE_RECUSAS vezes ou mais em mais de um dia: $motivo. O coletor parou de enviá-las"
+        Log.e(TAG, "$mensagem (inventário ${inventario.id})")
+        registrarErro(TipoErro.ENVIO_RECUSADO, mensagem)
     }
 
     /** Alguma etapa foi aceita: as recusas anteriores não eram definitivas. */

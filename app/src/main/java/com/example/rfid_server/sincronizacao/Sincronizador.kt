@@ -50,7 +50,9 @@ class Sincronizador internal constructor(
     private val registrarErro: (String, String) -> Unit = { _, _ -> },
     /** Envia ao servidor os erros do app guardados (no fim de cada passada com o servidor respondendo). */
     private val enviarErros: () -> Unit = {},
-    private val relogio: () -> Long = System::currentTimeMillis
+    private val relogio: () -> Long = System::currentTimeMillis,
+    /** Desde quando cada sessão está sendo recusada pelo servidor (as leituras dela esperam um prazo antes de virar recusadas). */
+    private val recusasDeSessao: RecusasDeSessao = RecusasDeSessaoEmMemoria()
 ) {
 
     private val _estado = MutableLiveData<EstadoSincronizacao>()
@@ -64,6 +66,11 @@ class Sincronizador internal constructor(
 
     // Recusas da passada (id, motivo): viram aviso para o servidor só no fim, quando se sabe se o disjuntor disparou
     private val avisosDeRecusa = mutableListOf<Pair<Long, String>>()
+
+    // Sessões recusadas pelo servidor ainda dentro do prazo: as leituras delas ficam na fila (só a thread do executor mexe)
+    private val sessoesRetidas = mutableSetOf<String>()
+    private var leiturasRetidas = 0
+    private var motivoRetencao: String? = null
 
     /** Pede uma sincronização em segundo plano (pode chamar de qualquer thread, quantas vezes quiser). */
     fun solicitar() {
@@ -81,7 +88,8 @@ class Sincronizador internal constructor(
     fun processarPendentes(): EstadoSincronizacao {
         // Ordem: cadastros (a leitura de uma etiqueta recém-cadastrada já chega como cadastrada) →
         // leituras avulsas → inventários. Uma falha de comunicação para tudo.
-        val falha = cadastros?.processar() ?: processarLeituras() ?: inventarios?.processar()
+        // Leituras retidas por sessão recusada não impedem os inventários, mas a passada não está "sincronizada"
+        val falha = cadastros?.processar() ?: processarLeituras() ?: inventarios?.processar() ?: falhaDaRetencao()
 
         // Erro do servidor (5xx, resposta inválida): vai para a tela de erros do coletor no servidor.
         // Sem conexão, chave, endereço ou certificado não: são do ambiente e já aparecem na tela do coletor
@@ -109,6 +117,9 @@ class Sincronizador internal constructor(
     private fun processarLeituras(): RespostaServidor.Falha? {
         disjuntor = DisjuntorRecusas()
         avisosDeRecusa.clear()
+        sessoesRetidas.clear()
+        leiturasRetidas = 0
+        motivoRetencao = null
 
         val falha = enviarLeituras()
 
@@ -123,6 +134,7 @@ class Sincronizador internal constructor(
 
     private fun enviarLeituras(): RespostaServidor.Falha? {
         val pendentes = dao.pendentes()
+        recusasDeSessao.manterSomente(pendentes.mapNotNull { it.sessaoOperador }.toSet())
         if (pendentes.isEmpty()) return null
 
         Log.i(TAG, "Sincronização iniciada: ${pendentes.size} leitura(s) pendente(s)")
@@ -145,6 +157,7 @@ class Sincronizador internal constructor(
 
             when (val resposta = tagService.enviarLoteAgora(lote.map { it.epc to it.lidoEm }, sessao)) {
                 is RespostaServidor.Sucesso -> {
+                    recusasDeSessao.esquecer(sessao)
                     errosNoServidor += aplicarResultados(lote, resposta.valor)
                     lotesEnviados++
                     if (disjuntor.disparou) return dispararDisjuntor()
@@ -175,6 +188,12 @@ class Sincronizador internal constructor(
         umaPorVez.sortBy { it.id }
         var enviadasUmaPorVez = 0
         for (leitura in umaPorVez) {
+            // Sessão recusada nesta passada e ainda no prazo: as outras leituras dela nem são tentadas agora
+            if (leitura.sessaoOperador in sessoesRetidas) {
+                leiturasRetidas++
+                continue
+            }
+
             val falha = processar(leitura)
 
             if (falha != null) {
@@ -284,14 +303,28 @@ class Sincronizador internal constructor(
             dao.marcarEnviada(leitura.id)
         }
 
+        leitura.sessaoOperador?.let { recusasDeSessao.esquecer(it) }
         disjuntor.aceita()
         return null
     }
 
     private fun tratarFalha(leitura: LeituraEntity, falha: RespostaServidor.Falha): RespostaServidor.Falha? {
 
+        // Sessão recusada há menos de [PRAZO_SESSAO_RECUSADA_MS]: pode ser problema do servidor (banco restaurado,
+        // servidor novo), então a leitura fica na fila. As outras leituras da sessão esperam a próxima passada
+        val sessao = leitura.sessaoOperador
+        if (falha.motivo == MotivoFalha.SESSAO_INVALIDA && sessao != null && dentroDoPrazo(sessao)) {
+            dao.registrarErro(leitura.id, falha.mensagem)
+            sessoesRetidas += sessao
+            leiturasRetidas++
+            motivoRetencao = falha.mensagem
+            Log.w(TAG, "Servidor recusou a sessão do operador da tag ${leitura.epc} (${falha.mensagem}): " +
+                "as leituras dessa sessão ficam na fila e serão tentadas de novo")
+            return null
+        }
+
         // Recusa definitiva desta tag (ex.: 400): tentar de novo não adianta e travaria a fila inteira
-        // Sessão inválida PARA ESTA leitura (ex.: usuário excluído) também é definitiva: não trava a fila
+        // Sessão inválida PARA ESTA leitura, recusada há mais que o prazo (ex.: usuário excluído), também é definitiva
         if (falha.motivo == MotivoFalha.REQUISICAO_RECUSADA || falha.motivo == MotivoFalha.SESSAO_INVALIDA) {
             // Sessão inválida não conta no disjuntor: as leituras de um usuário desativado nunca vão passar,
             // e devolvê-las à fila travaria as dos outros operadores
@@ -316,6 +349,22 @@ class Sincronizador internal constructor(
         val recente = relogio() - leitura.lidoEm < JANELA_DISJUNTOR_MS
         avisosDeRecusa += leitura.id to motivo
         return contaNoDisjuntor && recente && disjuntor.recusada(leitura.id, motivo)
+    }
+
+    /** A [sessao] foi recusada pela primeira vez há menos de [PRAZO_SESSAO_RECUSADA_MS] (registra agora se for a primeira). */
+    private fun dentroDoPrazo(sessao: String): Boolean {
+        val agora = relogio()
+        val primeira = recusasDeSessao.primeiraRecusa(sessao) ?: agora.also { recusasDeSessao.registrar(sessao, it) }
+        return agora - primeira < PRAZO_SESSAO_RECUSADA_MS
+    }
+
+    /** Leituras retidas por sessão recusada: a passada termina como falha (estado na tela e nova tentativa agendada). */
+    private fun falhaDaRetencao(): RespostaServidor.Falha? {
+        if (leiturasRetidas == 0) return null
+        return RespostaServidor.Falha(
+            MotivoFalha.SESSAO_INVALIDA,
+            "$leiturasRetidas leitura(s) aguardando: o servidor recusou a sessão do operador ($motivoRetencao)"
+        )
     }
 
     /** As recusadas em sequência voltam para a fila e a sincronização para (o erro é registrado em processarPendentes). */
@@ -353,6 +402,12 @@ class Sincronizador internal constructor(
         /** Até quanto tempo depois de lida uma leitura recusada ainda conta no disjuntor. */
         internal const val JANELA_DISJUNTOR_MS = 24L * 60 * 60 * 1000
 
+        /**
+         * Por quanto tempo, desde a primeira recusa, as leituras de uma sessão recusada pelo servidor ficam na fila
+         * antes de virar recusadas. Dá tempo de corrigir o servidor (ex.: banco restaurado errado na migração).
+         */
+        internal const val PRAZO_SESSAO_RECUSADA_MS = 24L * 60 * 60 * 1000
+
         @Volatile
         private var instancia: Sincronizador? = null
 
@@ -370,7 +425,8 @@ class Sincronizador internal constructor(
                             registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) }),
                         cadastros = SincronizadorCadastros(banco.cadastroDao(), banco.leituraDao(), tagService),
                         registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) },
-                        enviarErros = { RegistroErros.enviarPendentes(app) }
+                        enviarErros = { RegistroErros.enviarPendentes(app) },
+                        recusasDeSessao = RecusasDeSessaoGuardadas(app)
                     )
                 }.also { instancia = it }
             }
