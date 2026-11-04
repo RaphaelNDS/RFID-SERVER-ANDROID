@@ -12,9 +12,12 @@ import android.util.Log
  * Bip curto e vibração a cada etiqueta NOVA (repetidas não avisam), para o operador não precisar
  * olhar a tela a cada leitura. Pode ser desligado nas Configurações do coletor.
  *
+ * Também serve para outros avisos sonoros: [bip] toca sempre (não depende do ajuste nem do limite de
+ * ritmo), com as durações escolhidas por quem chama — o Localizar usa para guiar até a etiqueta.
+ *
  * Crie no onCreate da tela e chame [liberar] no onDestroy: o ToneGenerator usa um recurso nativo
  * limitado do aparelho (se não for liberado, depois de algumas telas o som para de funcionar).
- * [tagNova] pode ser chamado de qualquer thread.
+ * [tagNova] e [bip] podem ser chamados de qualquer thread.
  */
 class AvisoLeitura(context: Context) {
 
@@ -32,12 +35,17 @@ class AvisoLeitura(context: Context) {
         if (!AppConfig.isAvisoLeitura(appContext)) return
         if (!limitador.liberar()) return
 
+        bip(DURACAO_BIP_MS, DURACAO_VIBRACAO_MS)
+    }
+
+    /** Toca o bip por [duracaoTomMs] e vibra por [duracaoVibracaoMs], sem olhar o ajuste "aviso a cada etiqueta nova". */
+    fun bip(duracaoTomMs: Int, duracaoVibracaoMs: Long) {
         try {
-            som?.startTone(ToneGenerator.TONE_PROP_BEEP, DURACAO_BIP_MS)
-            vibrar()
+            som?.startTone(ToneGenerator.TONE_PROP_BEEP, duracaoTomMs)
+            vibrar(duracaoVibracaoMs)
         } catch (e: RuntimeException) {
             // Tela fechando ao mesmo tempo (gerador já liberado): perder um bip não tem problema
-            Log.d(TAG, "Aviso de tag nova não emitido: ${e.message}")
+            Log.d(TAG, "Bip não emitido: ${e.message}")
         }
     }
 
@@ -46,13 +54,13 @@ class AvisoLeitura(context: Context) {
         som = null
     }
 
-    private fun vibrar() {
+    private fun vibrar(duracaoMs: Long) {
         val v = vibrador ?: return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            v.vibrate(VibrationEffect.createOneShot(DURACAO_VIBRACAO_MS, VibrationEffect.DEFAULT_AMPLITUDE))
+            v.vibrate(VibrationEffect.createOneShot(duracaoMs, VibrationEffect.DEFAULT_AMPLITUDE))
         } else {
             @Suppress("DEPRECATION")
-            v.vibrate(DURACAO_VIBRACAO_MS)
+            v.vibrate(duracaoMs)
         }
     }
 
@@ -62,7 +70,7 @@ class AvisoLeitura(context: Context) {
         try {
             ToneGenerator(AudioManager.STREAM_ALARM, VOLUME)
         } catch (e: RuntimeException) {
-            Log.e(TAG, "Não foi possível criar o gerador de som: o aviso de tag nova vai ser só vibração", e)
+            Log.e(TAG, "Não foi possível criar o gerador de som: os avisos vão ser só vibração", e)
             null
         }
 

@@ -73,9 +73,6 @@ class InventarioActivity : AppCompatActivity() {
 
     private lateinit var aviso: AvisoLeitura
 
-    // Inventário costuma ser longo: avisa antes de a sessão acabar e deixa renovar sem sair da tela
-    private val avisoSessao = AvisoSessao(this)
-
     // Etiqueta nova no inventário: bip/vibração
     private val ouvinte = RfidManager.OuvinteLeitura { epc, _ -> repositorio.registrar(epc) { aviso.tagNova() } }
 
@@ -90,6 +87,12 @@ class InventarioActivity : AppCompatActivity() {
         rfidManager = RfidManager.get(this)
         tagService = TagService(this)
         aviso = AvisoLeitura(this)
+
+        // O leitor só manda leituras para cá enquanto há inventário aberto e a tela está visível.
+        // Inventário costuma ser longo: avisa antes de a sessão acabar e deixa renovar sem sair da tela.
+        // Criada só depois do exigirSessao() acima: se a tela fechou por sessão vencida, nada é registrado
+        // (antes o onPause precisava conferir se o rfidManager já existia)
+        TelaDeLeitura(this, rfidManager, ouvinte, lerAoRetomar = { inventarioAtual != null })
 
         painelInicio = findViewById(R.id.painelInicio)
         painelAndamento = findViewById(R.id.painelAndamento)
@@ -126,21 +129,7 @@ class InventarioActivity : AppCompatActivity() {
         repositorio.inventarioAberto.observe(this) { mostrar(it) }
     }
 
-    // O leitor só manda leituras para cá enquanto há inventário aberto e a tela está visível
-    override fun onResume() {
-        super.onResume()
-        exigirSessao() ?: return
-        if (inventarioAtual != null) ativarLeitor()
-        avisoSessao.iniciar()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        // Sessão vencida no onCreate: a tela fechou antes de o leitor ser obtido
-        if (::rfidManager.isInitialized) rfidManager.removerOuvinte(this)
-        avisoSessao.parar()
-    }
-
+    // Um inventário passou a aparecer na tela (ver mostrar). No onResume quem liga é a TelaDeLeitura.
     // Conecta o leitor, se preciso, e reconecta sozinho se cair; a situação aparece na faixa do topo
     private fun ativarLeitor() {
         rfidManager.definirOuvinte(this, ouvinte)
