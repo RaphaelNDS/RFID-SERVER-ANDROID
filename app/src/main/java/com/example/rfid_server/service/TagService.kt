@@ -39,7 +39,11 @@ import java.util.concurrent.TimeUnit
 sealed class RespostaServidor<out T> {
     data class Sucesso<T>(val valor: T) : RespostaServidor<T>()
     object NaoEncontrado : RespostaServidor<Nothing>()
-    data class Falha(val motivo: MotivoFalha, val mensagem: String) : RespostaServidor<Nothing>()
+    /**
+     * [motivoSessao]: só na recusa de sessão (SESSAO_INVALIDA), o "motivo" que o servidor manda (DESCONHECIDA,
+     * DESATIVADO, EXPIRADA...). null em servidor de antes desse campo.
+     */
+    data class Falha(val motivo: MotivoFalha, val mensagem: String, val motivoSessao: String? = null) : RespostaServidor<Nothing>()
 }
 
 enum class MotivoFalha {
@@ -77,8 +81,18 @@ enum class StatusLote {
     ERRO
 }
 
-/** [indice] = posição da leitura no lote enviado; [tag] vem preenchida quando é CADASTRADA. */
-data class ResultadoLote(val indice: Int, val status: StatusLote, val tag: TagView?, val mensagem: String?)
+/**
+ * [indice] = posição da leitura no lote enviado; [tag] vem preenchida quando é CADASTRADA.
+ * [motivoSessao]: em RECUSADA por causa da sessão do operador, o "motivo" do servidor (null nas outras recusas
+ * e em servidor de antes desse campo).
+ */
+data class ResultadoLote(
+    val indice: Int,
+    val status: StatusLote,
+    val tag: TagView?,
+    val mensagem: String?,
+    val motivoSessao: String? = null
+)
 
 enum class StatusConexao(val descricao: String) {
     CONECTADO("conectado"),
@@ -267,7 +281,7 @@ class TagService internal constructor(
 
         // Dados da tag que não são um objeto: a leitura é aceita sem eles (a tela os busca depois)
         val dados = item.optJSONObject("dados")?.let { tagDoJson(item.optStringOrNull("tag").orEmpty(), it) }
-        return ResultadoLote(indice, status, dados, item.optStringOrNull("mensagem"))
+        return ResultadoLote(indice, status, dados, item.optStringOrNull("mensagem"), item.optStringOrNull("motivo"))
     }
 
     /**
@@ -803,8 +817,10 @@ class TagService internal constructor(
             // O servidor diferencia: 401 da chave do coletor (sem "codigo") e 401 da sessão do operador
             401 -> if (erro?.optString("codigo") == "SESSAO_OPERADOR") {
                 val mensagem = erro.optString("mensagem").ifBlank { "Sessão do operador inválida" }
-                Log.w(TAG, "Sessão do operador recusada ao $descricao: $mensagem")
-                RespostaServidor.Falha(MotivoFalha.SESSAO_INVALIDA, mensagem)
+                // Servidor mais novo diz o porquê (DESCONHECIDA, DESATIVADO, EXPIRADA...); o antigo não manda
+                val motivoSessao = erro.optStringOrNull("motivo")
+                Log.w(TAG, "Sessão do operador recusada ao $descricao: $mensagem" + (motivoSessao?.let { " (motivo $it)" } ?: ""))
+                RespostaServidor.Falha(MotivoFalha.SESSAO_INVALIDA, mensagem, motivoSessao)
             } else {
                 Log.e(TAG, "Servidor recusou a chave do coletor ao $descricao (HTTP 401)")
                 RespostaServidor.Falha(MotivoFalha.CHAVE_INVALIDA, "Chave do coletor inválida: verifique as Configurações")

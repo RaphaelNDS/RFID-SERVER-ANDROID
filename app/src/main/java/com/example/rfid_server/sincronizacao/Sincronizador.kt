@@ -272,8 +272,19 @@ class Sincronizador internal constructor(
                     }
 
                     StatusLote.RECUSADA -> {
-                        recusar(leitura, resultado.mensagem ?: "Recusada pelo servidor", contaNoDisjuntor = true)
-                        recusadas++
+                        val mensagem = resultado.mensagem ?: "Recusada pelo servidor"
+                        val sessao = leitura.sessaoOperador
+                        // Recusa pela sessão que o servidor diz poder voltar (ex.: DESCONHECIDA): espera como no 401.
+                        // Só com o "motivo" preenchido: no servidor antigo a recusa de item no lote é sempre definitiva
+                        if (resultado.motivoSessao != null && sessao != null &&
+                            MotivoSessao.podeVoltar(resultado.motivoSessao) && dentroDoPrazo(sessao)
+                        ) {
+                            reter(leitura, sessao, mensagem)
+                        } else {
+                            // Recusa pela sessão não é problema do servidor: não conta no disjuntor (como no 401)
+                            recusar(leitura, mensagem, contaNoDisjuntor = resultado.motivoSessao == null)
+                            recusadas++
+                        }
                     }
 
                     StatusLote.ERRO, null -> {
@@ -338,15 +349,14 @@ class Sincronizador internal constructor(
     private fun tratarFalha(leitura: LeituraEntity, falha: RespostaServidor.Falha): RespostaServidor.Falha? {
 
         // Sessão recusada há menos de [PRAZO_SESSAO_RECUSADA_MS]: pode ser problema do servidor (banco restaurado,
-        // servidor novo), então a leitura fica na fila. As outras leituras da sessão esperam a próxima passada
+        // servidor novo), então a leitura fica na fila. As outras leituras da sessão esperam a próxima passada.
+        // Se o servidor disser que a recusa é definitiva (ex.: DESATIVADO, EXPIRADA), não espera
         val sessao = leitura.sessaoOperador
-        if (falha.motivo == MotivoFalha.SESSAO_INVALIDA && sessao != null && dentroDoPrazo(sessao)) {
-            dao.registrarErro(leitura.id, falha.mensagem)
+        if (falha.motivo == MotivoFalha.SESSAO_INVALIDA && sessao != null &&
+            MotivoSessao.podeVoltar(falha.motivoSessao) && dentroDoPrazo(sessao)
+        ) {
+            reter(leitura, sessao, falha.mensagem)
             sessoesRetidas += sessao
-            leiturasRetidas++
-            motivoRetencao = falha.mensagem
-            Log.w(TAG, "Servidor recusou a sessão do operador da tag ${leitura.epc} (${falha.mensagem}): " +
-                "as leituras dessa sessão ficam na fila e serão tentadas de novo")
             return null
         }
 
@@ -379,6 +389,15 @@ class Sincronizador internal constructor(
     }
 
     /** A [sessao] foi recusada pela primeira vez há menos de [PRAZO_SESSAO_RECUSADA_MS] (registra agora se for a primeira). */
+    /** A leitura fica na fila (sem virar recusada) porque a sessão dela foi recusada e ainda pode voltar a valer. */
+    private fun reter(leitura: LeituraEntity, sessao: String, mensagem: String) {
+        dao.registrarErro(leitura.id, mensagem)
+        leiturasRetidas++
+        motivoRetencao = mensagem
+        Log.w(TAG, "Servidor recusou a sessão do operador da tag ${leitura.epc} ($mensagem): " +
+            "a leitura fica na fila e será tentada de novo (prazo de ${PRAZO_SESSAO_RECUSADA_MS / 3_600_000} h desde a primeira recusa da sessão)")
+    }
+
     private fun dentroDoPrazo(sessao: String): Boolean {
         val agora = relogio()
         val primeira = recusasDeSessao.primeiraRecusa(sessao) ?: agora.also { recusasDeSessao.registrar(sessao, it) }

@@ -118,7 +118,7 @@ class SincronizadorInventarios(
                         // Recusa só deste grupo (ex.: o operador que leu foi desativado): as etiquetas dos outros
                         // operadores e a finalização seguem. Falha de comunicação para tudo, como antes
                         if (r.motivo != MotivoFalha.REQUISICAO_RECUSADA && r.motivo != MotivoFalha.SESSAO_INVALIDA) return r
-                        itensRecusados(inventario, grupo.map { it.id }, r.mensagem)
+                        itensRecusados(inventario, grupo.map { it.id }, r.mensagem, r.motivoSessao)
                         recusadas += grupo.size
                     }
                     RespostaServidor.NaoEncontrado -> return reabrir(inventario)
@@ -154,20 +154,25 @@ class SincronizadorInventarios(
      * próximas passadas: um problema passageiro (ex.: banco do servidor restaurado sem as sessões) não faz perder
      * nada. O coletor só desiste delas com a mesma regra do inventário: [LIMITE_RECUSAS] recusas espalhadas por
      * pelo menos [PRAZO_DESISTIR_MS]. Não mexe no contador do inventário, que é das etapas dele (abertura e finalização).
+     * Exceção: se o servidor disser que a sessão de quem leu nunca mais vai valer ([motivoSessao] definitivo, ex.:
+     * DESATIVADO), desiste na hora, porque esperar não muda nada.
      */
-    private fun itensRecusados(inventario: InventarioEntity, ids: List<Long>, motivo: String) {
+    private fun itensRecusados(inventario: InventarioEntity, ids: List<Long>, motivo: String, motivoSessao: String?) {
         val agora = relogio()
         dao.registrarRecusaItens(ids, motivo, agora)
 
-        val desistidas = dao.desistirItens(ids, LIMITE_RECUSAS, agora - PRAZO_DESISTIR_MS)
+        val definitivo = MotivoSessao.definitivo(motivoSessao)
+        val desistidas = if (definitivo) dao.desistirItens(ids, 1, agora)
+            else dao.desistirItens(ids, LIMITE_RECUSAS, agora - PRAZO_DESISTIR_MS)
         if (desistidas == 0) {
             Log.e(TAG, "Servidor recusou ${ids.size} etiqueta(s) do inventário ${inventario.id} (${inventario.local}): $motivo. " +
                 "Ficam guardadas no coletor e serão tentadas de novo")
             return
         }
 
-        val mensagem = "$desistidas etiqueta(s) do inventário de ${inventario.local} recusada(s) pelo servidor " +
-            "$LIMITE_RECUSAS vezes ou mais em mais de um dia: $motivo. O coletor parou de enviá-las"
+        val mensagem = "$desistidas etiqueta(s) do inventário de ${inventario.local} recusada(s) pelo servidor" +
+            (if (definitivo) " (sessão do operador: $motivoSessao)" else " $LIMITE_RECUSAS vezes ou mais em mais de um dia") +
+            ": $motivo. O coletor parou de enviá-las"
         Log.e(TAG, "$mensagem (inventário ${inventario.id})")
         registrarErro(TipoErro.ENVIO_RECUSADO, mensagem)
     }
