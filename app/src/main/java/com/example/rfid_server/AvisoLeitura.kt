@@ -3,7 +3,6 @@ package com.example.rfid_server
 import android.content.Context
 import android.media.AudioManager
 import android.media.ToneGenerator
-import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.util.Log
@@ -56,12 +55,8 @@ class AvisoLeitura(context: Context) {
 
     private fun vibrar(duracaoMs: Long) {
         val v = vibrador ?: return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            v.vibrate(VibrationEffect.createOneShot(duracaoMs, VibrationEffect.DEFAULT_AMPLITUDE))
-        } else {
-            @Suppress("DEPRECATION")
-            v.vibrate(duracaoMs)
-        }
+        // O app exige Android 8 (minSdk 26), que já tem VibrationEffect
+        v.vibrate(VibrationEffect.createOneShot(duracaoMs, VibrationEffect.DEFAULT_AMPLITUDE))
     }
 
     // Volume de alarme (e não de mídia): no coletor o volume de mídia costuma ficar no zero e o bip sumia.

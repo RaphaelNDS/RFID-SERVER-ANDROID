@@ -117,6 +117,6 @@ class AvisoSessao(
         private const val TAG = "SESSAO"
         private const val INTERVALO_MS = 30_000L
 
-        fun horario(epochMs: Long): String = SimpleDateFormat("HH:mm", Locale("pt", "BR")).format(Date(epochMs))
+        fun horario(epochMs: Long): String = SimpleDateFormat("HH:mm", Locale.forLanguageTag("pt-BR")).format(Date(epochMs))
     }
 }

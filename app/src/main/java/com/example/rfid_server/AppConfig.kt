@@ -1,5 +1,6 @@
 package com.example.rfid_server
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
 import com.example.rfid_server.dados.EsperadoGuardado
@@ -277,6 +278,7 @@ object AppConfig {
     }
 
     /** commit() e não apply(): o erro precisa estar gravado mesmo se o app for fechado logo em seguida. */
+    @SuppressLint("ApplySharedPref")
     fun saveTentativasPin(context: Context, estado: PinColetor.EstadoTentativas) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         prefs.edit()

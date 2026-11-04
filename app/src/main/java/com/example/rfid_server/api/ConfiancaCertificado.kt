@@ -1,5 +1,6 @@
 package com.example.rfid_server.api
 
+import android.annotation.SuppressLint
 import android.util.Log
 import java.security.MessageDigest
 import java.security.cert.CertificateException
@@ -21,7 +22,11 @@ class CertificadoDiferenteException(val impressaoDigital: String, val esperada: 
  *
  * O nome/IP do certificado não é conferido (o IP do servidor pode mudar): quem garante que é o servidor
  * certo é a impressão digital, que é única daquele certificado.
+ *
+ * O lint desaconselha X509TrustManager próprio porque costuma desligar a conferência; aqui é o contrário:
+ * a conferência é mais estrita que a padrão (um certificado só) e está coberta por HttpsCertificadoTest.
  */
+@SuppressLint("CustomX509TrustManager")
 class ConfiancaCertificado(private val impressaoConfirmada: () -> String?) : X509TrustManager {
 
     override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {
