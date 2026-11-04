@@ -16,7 +16,7 @@
 
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/layoutPin"
-        android:hint="PIN"
+        android:hint="@string/pin_hint"
         app:endIconMode="password_toggle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
@@ -31,7 +31,7 @@
 
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/layoutPinConfirmar"
-        android:hint="Repita o PIN"
+        android:hint="@string/pin_repita"
         app:endIconMode="password_toggle"
         android:visibility="gone"
         android:layout_width="match_parent"

@@ -4,7 +4,7 @@
     android:layout_height="match_parent">
 
     <TextView
-        android:text="Etiquetas não cadastradas · toque para cadastrar"
+        android:text="@string/nao_cadastradas_titulo"
         android:textAppearance="@style/Texto.RFID.Secao"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"

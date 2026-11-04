@@ -32,21 +32,21 @@
                     android:layout_height="wrap_content">
 
                     <TextView
-                        android:text="Servidor"
+                        android:text="@string/config_servidor"
                         android:textAppearance="@style/Texto.RFID.Secao"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"/>
 
                     <TextView
                         android:id="@+id/txtStatusServidor"
-                        android:text="Servidor: verificando..."
+                        android:text="@string/config_servidor_verificando"
                         android:textStyle="bold"
                         android:layout_marginTop="8dp"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"/>
 
                     <com.google.android.material.textfield.TextInputLayout
-                        android:hint="IP do servidor"
+                        android:hint="@string/config_ip_hint"
                         app:helperText="Ex.: 192.168.0.10 ou 192.168.0.10:8443"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content">
@@ -60,7 +60,7 @@
 
                     <com.google.android.material.textfield.TextInputLayout
                         android:id="@+id/layoutChave"
-                        android:hint="Chave do coletor"
+                        android:hint="@string/config_chave_hint"
                         app:helperText="Fornecida pelo administrador do servidor"
                         app:endIconMode="password_toggle"
                         android:layout_width="match_parent"
@@ -75,7 +75,7 @@
 
                     <Button
                         android:id="@+id/btnSalvar"
-                        android:text="Salvar"
+                        android:text="@string/config_salvar"
                         android:layout_marginTop="16dp"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"/>
@@ -83,7 +83,7 @@
                     <Button
                         android:id="@+id/btnTestarServidor"
                         style="@style/Widget.RFID.Botao.Contorno"
-                        android:text="Testar conexão"
+                        android:text="@string/config_testar_conexao"
                         android:layout_marginTop="8dp"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"/>
@@ -103,7 +103,7 @@
                     android:layout_height="wrap_content">
 
                     <TextView
-                        android:text="Leitura"
+                        android:text="@string/config_leitura"
                         android:textAppearance="@style/Texto.RFID.Secao"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"/>
@@ -111,14 +111,14 @@
                     <!-- Vale na hora (sem precisar do botão Salvar), para quem está no campo -->
                     <CheckBox
                         android:id="@+id/chkAvisoLeitura"
-                        android:text="Bip e vibração a cada etiqueta nova"
+                        android:text="@string/config_aviso_leitura"
                         android:layout_marginTop="4dp"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"/>
 
                     <!-- Também vale na hora: o leitor recebe a potência nova sem reconectar -->
                     <TextView
-                        android:text="Potência do leitor"
+                        android:text="@string/config_potencia"
                         android:layout_marginTop="12dp"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"/>
@@ -130,7 +130,7 @@
                         android:layout_height="wrap_content"/>
 
                     <TextView
-                        android:text="Menos potência lê só as etiquetas mais próximas (útil para não pegar as da sala ao lado) e gasta menos bateria."
+                        android:text="@string/config_potencia_explicacao"
                         android:textAppearance="@style/Texto.RFID.Secundario"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"/>
@@ -150,7 +150,7 @@
                     android:layout_height="wrap_content">
 
                     <TextView
-                        android:text="Certificado do servidor"
+                        android:text="@string/config_certificado"
                         android:textAppearance="@style/Texto.RFID.Secao"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"/>
@@ -180,7 +180,7 @@
                     android:layout_height="wrap_content">
 
                     <TextView
-                        android:text="Aplicativo"
+                        android:text="@string/config_aplicativo"
                         android:textAppearance="@style/Texto.RFID.Secao"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"/>
@@ -196,7 +196,7 @@
                     <Button
                         android:id="@+id/btnAtualizacao"
                         style="@style/Widget.RFID.Botao.Contorno"
-                        android:text="Procurar atualização do app"
+                        android:text="@string/config_procurar_atualizacao"
                         android:layout_marginTop="8dp"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"/>

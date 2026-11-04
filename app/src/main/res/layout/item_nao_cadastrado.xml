@@ -38,7 +38,7 @@
 
         <!-- Indica que o item abre outra tela -->
         <TextView
-            android:text="›"
+            android:text="@string/nao_cadastradas_seta"
             android:textColor="@color/texto_terciario"
             android:textSize="24sp"
             android:layout_marginStart="8dp"

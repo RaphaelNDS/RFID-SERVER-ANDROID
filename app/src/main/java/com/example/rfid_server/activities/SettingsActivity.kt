@@ -57,7 +57,7 @@ class SettingsActivity : AppCompatActivity() {
         // A chave salva nunca volta para a tela: quem pega o coletor não consegue copiá-la
         mostrarSituacaoChave()
         mostrarCertificadoConfirmado()
-        findViewById<TextView>(R.id.txtVersao).text = "${getString(R.string.app_name)} · ${VersaoApp.descricao()}"
+        findViewById<TextView>(R.id.txtVersao).text = getString(R.string.comum_versao_app, getString(R.string.app_name), VersaoApp.descricao())
         findViewById<Button>(R.id.btnAtualizacao).setOnClickListener {
             Log.i(TAG, "Operador pediu para procurar atualização do app")
             AtualizadorApp(this).verificar(manual = true)
@@ -83,8 +83,9 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun mostrarSituacaoChave() {
-        layoutChave.helperText = if (AppConfig.chaveConfigurada(this)) "Já salva neste coletor (não é mostrada). Digite só para trocar"
-        else "Fornecida pelo administrador do servidor"
+        layoutChave.helperText = getString(
+            if (AppConfig.chaveConfigurada(this)) R.string.config_chave_ja_salva else R.string.config_chave_fornecida
+        )
     }
 
     private fun salvar() {
@@ -92,12 +93,12 @@ class SettingsActivity : AppCompatActivity() {
         val chaveDigitada = edtChave.text.toString().trim()
 
         if (ip.isEmpty()) {
-            Toast.makeText(this, "Informe o IP do servidor", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.config_informe_ip, Toast.LENGTH_SHORT).show()
             return
         }
         if (!AppConfig.enderecoValido(ip)) {
             Log.w(TAG, "Configurações não salvas: endereço do servidor inválido '$ip'")
-            Toast.makeText(this, "Endereço inválido. Use o IP (ex.: 192.168.0.10) ou IP:porta (ex.: 192.168.0.10:8443)", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, R.string.config_endereco_invalido, Toast.LENGTH_LONG).show()
             return
         }
 
@@ -106,14 +107,14 @@ class SettingsActivity : AppCompatActivity() {
         val chave = chaveDigitada.ifEmpty { AppConfig.getChaveDispositivo(this) }
 
         if (ip == anterior && chave == AppConfig.getChaveDispositivo(this) && AppConfig.temPin(this)) {
-            Toast.makeText(this, "Nada mudou nas Configurações", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.config_nada_mudou, Toast.LENGTH_SHORT).show()
             edtChave.text = null
             Sincronizador.get(this).solicitar()
             testarServidor()
             return
         }
 
-        guardaPin.exigir("salvar o servidor e a chave") { gravar(ip, chave, anterior) }
+        guardaPin.exigir(getString(R.string.config_acao_salvar)) { gravar(ip, chave, anterior) }
     }
 
     private fun gravar(ip: String, chave: String, anterior: String) {
@@ -130,9 +131,9 @@ class SettingsActivity : AppCompatActivity() {
         }
         if (chave.isEmpty()) {
             Log.w(TAG, "Configurações salvas sem a chave do coletor: o servidor vai recusar as chamadas")
-            Toast.makeText(this, "Salvo, mas sem a chave do coletor o servidor recusa as chamadas", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, R.string.config_salvo_sem_chave, Toast.LENGTH_LONG).show()
         } else {
-            Toast.makeText(this, "Configurações salvas!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.config_salvas, Toast.LENGTH_SHORT).show()
         }
 
         // Leituras guardadas por falta de conexão ou chave errada podem ir agora
@@ -148,7 +149,7 @@ class SettingsActivity : AppCompatActivity() {
         // Valor fora da lista (não acontece pela tela): mostra o mais próximo
         val selecionado = POTENCIAS.indices.minByOrNull { kotlin.math.abs(POTENCIAS[it].second - atual) } ?: 0
 
-        spinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, POTENCIAS.map { it.first })
+        spinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, POTENCIAS.map { getString(it.first) })
         spinner.setSelection(selecionado, false)
         spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
@@ -156,7 +157,7 @@ class SettingsActivity : AppCompatActivity() {
                 if (percentual == AppConfig.getPotenciaLeitor(this@SettingsActivity)) return
                 AppConfig.setPotenciaLeitor(this@SettingsActivity, percentual)
                 RfidManager.get(this@SettingsActivity).aplicarPotencia()
-                Log.i(TAG, "Potência do leitor mudada pelo operador para ${POTENCIAS[position].first}")
+                Log.i(TAG, "Potência do leitor mudada pelo operador para ${getString(POTENCIAS[position].first)}")
             }
 
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
@@ -167,12 +168,12 @@ class SettingsActivity : AppCompatActivity() {
         // Coletor novo: não há servidor para testar (antes testava o IP de desenvolvimento que ficava no código)
         if (!AppConfig.servidorConfigurado(this)) {
             Log.i(TAG, "Coletor sem servidor configurado: aguardando o IP e a chave")
-            txtStatus.text = "Servidor: não configurado. Informe o IP do servidor e a chave do coletor e toque em Salvar"
+            txtStatus.setText(R.string.config_status_nao_configurado)
             txtStatus.setTextColor(ContextCompat.getColor(this, R.color.atencao))
             return
         }
 
-        txtStatus.text = "Servidor: testando..."
+        txtStatus.setText(R.string.config_status_testando)
         txtStatus.setTextColor(ContextCompat.getColor(this, R.color.texto_secundario))
 
         tagService.testarConexao { resultado ->
@@ -186,12 +187,12 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun mostrarResultado(resultado: ResultadoConexao) {
         if (resultado.status == StatusConexao.CONECTADO) {
-            txtStatus.text = "Servidor: conectado com segurança (HTTPS) ✅"
+            txtStatus.setText(R.string.config_status_conectado)
             txtStatus.setTextColor(ContextCompat.getColor(this, R.color.sucesso))
             return
         }
 
-        txtStatus.text = "Servidor: ${resultado.status.descricao} ❌"
+        txtStatus.text = getString(R.string.config_status_falha, resultado.status.descricao)
         txtStatus.setTextColor(ContextCompat.getColor(this, R.color.erro))
 
         val impressao = resultado.impressaoDigital ?: return
@@ -209,27 +210,27 @@ class SettingsActivity : AppCompatActivity() {
     private fun perguntarConfianca(impressao: String, anterior: String?) {
         val mensagem = buildString {
             if (anterior == null) {
-                append("O servidor apresentou este certificado:\n\n")
+                append(getString(R.string.config_cert_apresentado)).append("\n\n")
             } else {
-                append("ATENÇÃO: o certificado do servidor é DIFERENTE do confirmado antes.\n\n")
-                append("Isso acontece se o certificado foi trocado de propósito — ou se alguém está se passando pelo servidor na rede.\n\n")
-                append("Novo:\n")
+                append(getString(R.string.config_cert_diferente)).append("\n\n")
+                append(getString(R.string.config_cert_motivo)).append("\n\n")
+                append(getString(R.string.config_cert_novo)).append("\n")
             }
             append(formatar(impressao))
-            if (anterior != null) append("\n\nAnterior:\n").append(formatar(anterior))
-            append("\n\nCompare com a impressão digital da tela Status do Sistema RFID (web). Confirme só se for IGUAL.")
+            if (anterior != null) append("\n\n").append(getString(R.string.config_cert_anterior)).append("\n").append(formatar(anterior))
+            append("\n\n").append(getString(R.string.config_cert_compare))
         }
 
         val dialogo = AlertDialog.Builder(this)
-            .setTitle(if (anterior == null) "Confirmar o servidor" else "Certificado do servidor mudou")
+            .setTitle(if (anterior == null) R.string.config_cert_confirmar_titulo else R.string.config_cert_mudou_titulo)
             .setMessage(mensagem)
-            .setPositiveButton("É igual, confiar") { _, _ ->
+            .setPositiveButton(R.string.config_cert_confiar) { _, _ ->
                 // Certificado trocado exige o PIN (é exatamente o que um impostor na rede pediria para aceitar);
                 // o primeiro, na configuração inicial, só se o PIN já existir
-                if (anterior == null) guardaPin.exigirSeTiver("confiar no certificado do servidor") { confiar(impressao, anterior) }
-                else guardaPin.exigir("confiar no novo certificado do servidor") { confiar(impressao, anterior) }
+                if (anterior == null) guardaPin.exigirSeTiver(getString(R.string.config_acao_confiar)) { confiar(impressao, anterior) }
+                else guardaPin.exigir(getString(R.string.config_acao_confiar_novo)) { confiar(impressao, anterior) }
             }
-            .setNegativeButton("Não confiar") { _, _ ->
+            .setNegativeButton(R.string.config_cert_nao_confiar) { _, _ ->
                 Log.w(TAG, "Certificado do servidor NÃO confirmado pelo responsável: $impressao")
             }
             .show()
@@ -247,8 +248,8 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun mostrarCertificadoConfirmado() {
         val impressao = AppConfig.getImpressaoDigital(this)
-        txtCertificado.text = if (impressao == null) "Certificado do servidor: ainda não confirmado"
-        else "Certificado confirmado (SHA-256):\n${formatar(impressao)}"
+        txtCertificado.text = if (impressao == null) getString(R.string.config_cert_nao_confirmado)
+        else getString(R.string.config_cert_confirmado, formatar(impressao))
     }
 
     /** Quebra a impressão digital (32 bytes) em 4 linhas de 8, mais fácil de comparar a olho. */
@@ -258,12 +259,12 @@ class SettingsActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "SETTINGS"
 
-        /** Opções da potência do leitor: texto na tela e % da máxima. */
+        /** Opções da potência do leitor: texto na tela (recurso) e % da máxima. */
         private val POTENCIAS = listOf(
-            "Máxima (100%)" to 100,
-            "Alta (75%)" to 75,
-            "Média (50%)" to 50,
-            "Baixa (25%)" to 25
+            R.string.config_potencia_maxima to 100,
+            R.string.config_potencia_alta to 75,
+            R.string.config_potencia_media to 50,
+            R.string.config_potencia_baixa to 25
         )
     }
 }

@@ -28,13 +28,13 @@
             android:layout_height="wrap_content">
 
             <TextView
-                android:text="Patrimônio procurado"
+                android:text="@string/localizar_titulo"
                 android:textAppearance="@style/Texto.RFID.Secao"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"/>
 
             <com.google.android.material.textfield.TextInputLayout
-                android:hint="Número do patrimônio"
+                android:hint="@string/localizar_hint"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
 
@@ -49,7 +49,7 @@
 
             <Button
                 android:id="@+id/btnBuscar"
-                android:text="Buscar"
+                android:text="@string/localizar_buscar"
                 android:layout_marginTop="16dp"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"/>
@@ -69,14 +69,14 @@
             android:layout_height="wrap_content">
 
             <TextView
-                android:text="Proximidade"
+                android:text="@string/localizar_proximidade"
                 android:textAppearance="@style/Texto.RFID.Secao"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"/>
 
             <TextView
                 android:id="@+id/txtStatus"
-                android:text="Aguardando..."
+                android:text="@string/localizar_aguardando"
                 android:textColor="@color/texto"
                 android:textSize="16sp"
                 android:layout_marginTop="8dp"

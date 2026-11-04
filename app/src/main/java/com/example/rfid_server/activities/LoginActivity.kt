@@ -77,7 +77,7 @@ class LoginActivity : AppCompatActivity() {
                 Log.w(TAG, "Coletor sem configuração completa: $falta")
                 mostrarErro(falta)
             }
-            txtStatus.text.toString() in AVISOS_CONFIGURACAO -> txtStatus.visibility = View.GONE
+            txtStatus.text.toString() in avisosConfiguracao() -> txtStatus.visibility = View.GONE
         }
 
         if (falta == null) {
@@ -91,10 +91,13 @@ class LoginActivity : AppCompatActivity() {
 
     /** O que falta configurar para o coletor conseguir falar com o servidor, ou null se está tudo certo. */
     private fun faltaConfiguracao(): String? = when {
-        !AppConfig.servidorConfigurado(this) -> AVISO_SEM_SERVIDOR
-        !AppConfig.chaveConfigurada(this) -> AVISO_SEM_CHAVE
+        !AppConfig.servidorConfigurado(this) -> getString(R.string.login_aviso_sem_servidor)
+        !AppConfig.chaveConfigurada(this) -> getString(R.string.login_aviso_sem_chave)
         else -> null
     }
+
+    /** Avisos de configuração: somem da tela assim que o coletor fica configurado (ver onResume). */
+    private fun avisosConfiguracao() = setOf(getString(R.string.login_aviso_sem_servidor), getString(R.string.login_aviso_sem_chave))
 
     private fun entrar() {
         faltaConfiguracao()?.let {
@@ -107,7 +110,7 @@ class LoginActivity : AppCompatActivity() {
         val senha = edtSenha.text.toString()
 
         if (email.isEmpty() || senha.isEmpty()) {
-            mostrarErro("Informe email e senha")
+            mostrarErro(getString(R.string.login_informe_email_senha))
             return
         }
 
@@ -126,7 +129,7 @@ class LoginActivity : AppCompatActivity() {
                         Log.i(TAG, "Operador ${MascaraSensivel.email(sessao.email)} entrou no coletor (pode cadastrar: ${if (sessao.podeCadastrar) "sim" else "não"})")
 
                         if (sessao.senhaFraca) {
-                            Toast.makeText(this, "Sua senha não atende mais às regras de segurança: troque-a no Sistema RFID (web).", Toast.LENGTH_LONG).show()
+                            Toast.makeText(this, R.string.login_senha_fraca, Toast.LENGTH_LONG).show()
                         }
                         abrirPrincipal()
                     }
@@ -136,7 +139,7 @@ class LoginActivity : AppCompatActivity() {
                         mostrarErro(resposta.mensagem)
                     }
 
-                    RespostaServidor.NaoEncontrado -> mostrarErro("Servidor não reconheceu o login")
+                    RespostaServidor.NaoEncontrado -> mostrarErro(getString(R.string.comum_servidor_nao_reconheceu_login))
                 }
             }
         }
@@ -145,17 +148,17 @@ class LoginActivity : AppCompatActivity() {
     /** "Esqueceu a senha?": confirma o email e manda o pedido ao administrador, que gera uma senha temporária. */
     private fun esqueciSenha() {
         val campoEmail = EditText(this).apply {
-            hint = "Email"
+            setHint(R.string.comum_email)
             inputType = android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS or android.text.InputType.TYPE_CLASS_TEXT
             setText(edtEmail.text.toString().trim())
         }
 
         AlertDialog.Builder(this)
-            .setTitle("Esqueceu a senha?")
-            .setMessage("O pedido vai para o administrador do Sistema RFID, que vai te passar uma senha temporária.")
+            .setTitle(R.string.login_esqueceu_senha)
+            .setMessage(R.string.login_esqueci_mensagem)
             .setView(campoEmail)
-            .setPositiveButton("Pedir nova senha") { _, _ -> pedirNovaSenha(campoEmail.text.toString().trim()) }
-            .setNegativeButton("Cancelar", null)
+            .setPositiveButton(R.string.login_pedir_nova_senha) { _, _ -> pedirNovaSenha(campoEmail.text.toString().trim()) }
+            .setNegativeButton(R.string.comum_cancelar, null)
             .show()
     }
 
@@ -166,7 +169,7 @@ class LoginActivity : AppCompatActivity() {
             return
         }
         if (email.isEmpty()) {
-            mostrarErro("Informe o email para pedir uma senha nova")
+            mostrarErro(getString(R.string.login_informe_email_nova_senha))
             return
         }
 
@@ -178,17 +181,17 @@ class LoginActivity : AppCompatActivity() {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 when (resposta) {
                     is RespostaServidor.Sucesso -> AlertDialog.Builder(this)
-                        .setTitle("Pedido enviado")
+                        .setTitle(R.string.login_pedido_enviado)
                         .setMessage(resposta.valor)
-                        .setPositiveButton("OK", null)
+                        .setPositiveButton(R.string.comum_ok, null)
                         .show()
 
                     is RespostaServidor.Falha -> {
                         Log.w(TAG, "Pedido de nova senha para ${MascaraSensivel.email(email)} não foi enviado: ${resposta.mensagem}")
-                        mostrarErro("Não foi possível pedir a senha nova: ${resposta.mensagem}")
+                        mostrarErro(getString(R.string.login_falha_nova_senha, resposta.mensagem))
                     }
 
-                    RespostaServidor.NaoEncontrado -> mostrarErro("Servidor não reconheceu o pedido de nova senha")
+                    RespostaServidor.NaoEncontrado -> mostrarErro(getString(R.string.login_pedido_nao_reconhecido))
                 }
             }
         }
@@ -207,11 +210,5 @@ class LoginActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "LOGIN"
         const val EXTRA_MOTIVO = "motivo"
-
-        private const val AVISO_SEM_SERVIDOR =
-            "Coletor ainda não configurado: toque em \"Configurações do coletor\" e informe o IP do servidor e a chave do coletor"
-        private const val AVISO_SEM_CHAVE =
-            "Falta a chave do coletor: toque em \"Configurações do coletor\" e informe a chave fornecida pelo administrador"
-        private val AVISOS_CONFIGURACAO = setOf(AVISO_SEM_SERVIDOR, AVISO_SEM_CHAVE)
     }
 }

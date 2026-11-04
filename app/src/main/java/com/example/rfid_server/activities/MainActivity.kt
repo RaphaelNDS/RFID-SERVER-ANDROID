@@ -78,7 +78,7 @@ class MainActivity : AppCompatActivity() {
         pager.adapter = MainPagerAdapter(this)
 
         TabLayoutMediator(tabs, pager) { tab, pos ->
-            tab.text = if (pos == 0) "Leitura" else "Não cadastradas"
+            tab.setText(if (pos == 0) R.string.main_aba_leitura else R.string.main_aba_nao_cadastradas)
         }.attach()
 
         repositorio = RepositorioLeituras.get(this)
@@ -120,7 +120,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun mostrarOperador(sessao: com.example.rfid_server.SessaoOperador) {
-        findViewById<TextView>(R.id.txtSessao).text = "Operador: ${sessao.nome} · sessão até ${AvisoSessao.horario(sessao.expiraEm)}"
+        findViewById<TextView>(R.id.txtSessao).text = getString(R.string.main_operador, sessao.nome, AvisoSessao.horario(sessao.expiraEm))
     }
 
     private fun atualizarAvisoSincronizacao() {
@@ -132,9 +132,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         val estado = viewModel.estadoSincronizacao.value
-        val motivo = if (estado == null || estado == EstadoSincronizacao.SINCRONIZADO) "Enviando" else estado.descricao
+        val motivo = if (estado == null || estado == EstadoSincronizacao.SINCRONIZADO) getString(R.string.main_enviando) else estado.descricao
 
-        txtSincronizacao.text = "$motivo — $pendentes leitura(s) guardada(s) no coletor, aguardando envio"
+        txtSincronizacao.text = getString(R.string.main_aviso_sincronizacao, motivo, pendentes)
         txtSincronizacao.visibility = View.VISIBLE
     }
 
@@ -180,17 +180,17 @@ class MainActivity : AppCompatActivity() {
         val pendentes = viewModel.pendentes.value ?: 0
 
         val mensagem = buildString {
-            append("Sair como ${sessao.nome}? O próximo operador entra com o próprio usuário.")
+            append(getString(R.string.main_sair_mensagem, sessao.nome))
             if (pendentes > 0) {
-                append("\n\n$pendentes registro(s) ainda não chegaram ao servidor: continuam guardados no coletor e serão enviados com o seu nome.")
+                append("\n\n").append(getString(R.string.main_sair_pendentes, pendentes))
             }
         }
 
         AlertDialog.Builder(this)
-            .setTitle("Sair do coletor")
+            .setTitle(R.string.main_sair_titulo)
             .setMessage(mensagem)
-            .setPositiveButton("Sair") { _, _ -> sair(sessao.token, sessao.email) }
-            .setNegativeButton("Cancelar", null)
+            .setPositiveButton(R.string.main_sair) { _, _ -> sair(sessao.token, sessao.email) }
+            .setNegativeButton(R.string.comum_cancelar, null)
             .show()
     }
 
@@ -211,26 +211,26 @@ class MainActivity : AppCompatActivity() {
         val contagem = viewModel.contagem.value ?: ContagemSessao()
 
         if (contagem.lidas == 0) {
-            Toast.makeText(this, "A tela já está vazia", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.main_tela_vazia, Toast.LENGTH_SHORT).show()
             return
         }
 
         val pendentes = viewModel.pendentes.value ?: 0
         val mensagem = buildString {
-            append("As ${contagem.lidas} tag(s) lidas vão sair da tela, e a mesma tag poderá ser lida de novo.")
+            append(getString(R.string.main_nova_leitura_mensagem, contagem.lidas))
             if (pendentes > 0) {
-                append("\n\n$pendentes leitura(s) ainda não chegaram ao servidor: elas continuam guardadas no coletor e serão enviadas assim que possível.")
+                append("\n\n").append(getString(R.string.main_nova_leitura_pendentes, pendentes))
             }
         }
 
         AlertDialog.Builder(this)
-            .setTitle("Começar nova leitura?")
+            .setTitle(R.string.main_nova_leitura_titulo)
             .setMessage(mensagem)
-            .setPositiveButton("Nova leitura") { _, _ ->
+            .setPositiveButton(R.string.main_nova_leitura) { _, _ ->
                 Log.i(TAG, "Operador iniciou nova leitura (${contagem.lidas} tag(s) na tela, $pendentes aguardando envio)")
                 viewModel.novaLeitura()
             }
-            .setNegativeButton("Cancelar") { _, _ ->
+            .setNegativeButton(R.string.comum_cancelar) { _, _ ->
                 Log.d(TAG, "Nova leitura cancelada pelo operador")
             }
             .show()

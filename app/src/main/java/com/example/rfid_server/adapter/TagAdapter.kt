@@ -28,13 +28,15 @@ class TagAdapter : ListAdapter<TagView, TagAdapter.VH>(Diferenca { it.epc }) {
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val t = getItem(position)
+        val ctx = holder.itemView.context
+        val semValor = ctx.getString(R.string.tag_sem_valor)
 
-        holder.txtCodigoInterno.text = "Código: ${t.codigoInterno}"
-        holder.txtTipo.text = "Tipo: ${t.tipo ?: "—"}"
-        holder.txtMarca.text = "Marca: ${t.marca ?: "—"}"
-        holder.txtModelo.text = "Modelo: ${t.modelo ?: "—"}"
-        holder.txtPatrimonio.text = "Patrimônio: ${t.patrimonio}"
-        holder.txtSerie.text = "Série: ${t.numeroSerie}"
+        holder.txtCodigoInterno.text = ctx.getString(R.string.tag_codigo, t.codigoInterno)
+        holder.txtTipo.text = ctx.getString(R.string.tag_tipo, t.tipo ?: semValor)
+        holder.txtMarca.text = ctx.getString(R.string.tag_marca, t.marca ?: semValor)
+        holder.txtModelo.text = ctx.getString(R.string.tag_modelo, t.modelo ?: semValor)
+        holder.txtPatrimonio.text = ctx.getString(R.string.tag_patrimonio, t.patrimonio)
+        holder.txtSerie.text = ctx.getString(R.string.tag_serie, t.numeroSerie)
     }
 
     fun atualizar(novaLista: List<TagView>) = submitList(novaLista)

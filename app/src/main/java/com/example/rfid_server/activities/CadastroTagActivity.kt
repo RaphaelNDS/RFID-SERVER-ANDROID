@@ -133,9 +133,9 @@ class CadastroTagActivity : AppCompatActivity() {
         val operadorPode = SessaoAtual.get(this)?.podeCadastrar == true
 
         when {
-            !operadorPode -> aviso("Seu usuário não tem permissão para cadastrar etiquetas. Peça ao administrador a permissão de cadastro.")
-            novo == null -> aviso("Catálogo ainda não baixado. Conecte o coletor ao servidor uma vez para poder cadastrar.")
-            !novo.podeCadastrar -> aviso("Este coletor não tem permissão para cadastrar etiquetas. Peça ao administrador para liberá-lo no servidor.")
+            !operadorPode -> aviso(getString(R.string.cadastro_operador_sem_permissao))
+            novo == null -> aviso(getString(R.string.cadastro_catalogo_nao_baixado))
+            !novo.podeCadastrar -> aviso(getString(R.string.cadastro_coletor_sem_permissao))
             else -> if (txtAviso.tag != AVISO_RECUSA) aviso(null)
         }
         btnSalvar.isEnabled = operadorPode && novo?.podeCadastrar == true
@@ -158,7 +158,7 @@ class CadastroTagActivity : AppCompatActivity() {
     }
 
     private fun preencher(spinner: Spinner, opcoes: List<Opcao>, selecionarId: Long?) {
-        val lista = listOf(Opcao(null, "— não informado —")) + opcoes
+        val lista = listOf(Opcao(null, getString(R.string.cadastro_nao_informado))) + opcoes
         spinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, lista)
         spinner.isEnabled = opcoes.isNotEmpty()
         spinner.setSelection(lista.indexOfFirst { it.id == selecionarId }.coerceAtLeast(0))
@@ -188,7 +188,7 @@ class CadastroTagActivity : AppCompatActivity() {
                 preencher(spnTipo, catalogo?.tipos.orEmpty().map { Opcao(it.id, it.nome) }, guardado.tipoId)
 
                 if (guardado.situacao == SituacaoCadastro.RECUSADO) {
-                    aviso("O servidor recusou este cadastro: ${guardado.erro}. Corrija e salve de novo.")
+                    aviso(getString(R.string.cadastro_recusado, guardado.erro))
                     txtAviso.tag = AVISO_RECUSA
                 }
             }
@@ -198,7 +198,7 @@ class CadastroTagActivity : AppCompatActivity() {
     private fun salvar() {
         val codigoInterno = edtCodigoInterno.text.toString().trim()
         if (codigoInterno.isEmpty()) {
-            edtCodigoInterno.error = "Informe o código interno"
+            edtCodigoInterno.error = getString(R.string.cadastro_informe_codigo_interno)
             return
         }
 
@@ -219,12 +219,12 @@ class CadastroTagActivity : AppCompatActivity() {
 
         // O servidor aceita cadastro parcial (como a web), mas só registra LEITURAS de etiqueta completa
         val faltando = listOfNotNull(
-            "patrimônio".takeIf { cadastro.patrimonio.isEmpty() },
-            "nº de série".takeIf { cadastro.numeroSerie.isEmpty() },
-            "tipo".takeIf { cadastro.tipoId == null },
-            "marca".takeIf { cadastro.marcaId == null },
-            "modelo".takeIf { cadastro.modeloId == null }
-        )
+            R.string.cadastro_falta_patrimonio.takeIf { cadastro.patrimonio.isEmpty() },
+            R.string.cadastro_falta_numero_serie.takeIf { cadastro.numeroSerie.isEmpty() },
+            R.string.cadastro_falta_tipo.takeIf { cadastro.tipoId == null },
+            R.string.cadastro_falta_marca.takeIf { cadastro.marcaId == null },
+            R.string.cadastro_falta_modelo.takeIf { cadastro.modeloId == null }
+        ).map { getString(it) }
 
         if (faltando.isEmpty()) {
             confirmar(cadastro)
@@ -232,13 +232,13 @@ class CadastroTagActivity : AppCompatActivity() {
         }
 
         AlertDialog.Builder(this)
-            .setTitle("Cadastro incompleto")
-            .setMessage("Falta: ${faltando.joinToString()}.\n\nSem esses dados a etiqueta é cadastrada, mas não aparece nas leituras nem nos relatórios até ser completada na web.")
-            .setPositiveButton("Salvar assim") { _, _ ->
+            .setTitle(R.string.cadastro_incompleto_titulo)
+            .setMessage(getString(R.string.cadastro_incompleto_mensagem, faltando.joinToString()))
+            .setPositiveButton(R.string.cadastro_salvar_assim) { _, _ ->
                 Log.i(TAG, "Operador salvou cadastro incompleto da etiqueta $epc (falta: ${faltando.joinToString()})")
                 confirmar(cadastro)
             }
-            .setNegativeButton("Completar", null)
+            .setNegativeButton(R.string.cadastro_completar, null)
             .show()
     }
 
@@ -247,7 +247,7 @@ class CadastroTagActivity : AppCompatActivity() {
         repositorio.salvar(cadastro) { guardado ->
             runOnUiThread {
                 if (guardado) {
-                    btnSalvar.text = "Enviando ao servidor…"
+                    btnSalvar.setText(R.string.cadastro_enviando)
                     aguardarEnvio(cadastro.epc.trim(), SystemClock.elapsedRealtime())
                 } else {
                     exigirSessao() // a sessão acabou enquanto o formulário estava aberto
@@ -268,27 +268,27 @@ class CadastroTagActivity : AppCompatActivity() {
 
                 when (val resultado = RepositorioCadastros.resultadoEnvio(atual)) {
                     RepositorioCadastros.ResultadoEnvio.Enviado -> {
-                        Toast.makeText(this, "Etiqueta cadastrada", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this, R.string.cadastro_enviado, Toast.LENGTH_LONG).show()
                         finish()
                     }
 
                     // Fica no formulário com o motivo, para corrigir e salvar de novo
                     is RepositorioCadastros.ResultadoEnvio.Recusado -> {
-                        btnSalvar.text = TEXTO_SALVAR
+                        btnSalvar.setText(R.string.cadastro_salvar) // o mesmo do layout
                         btnSalvar.isEnabled = true
-                        aviso("O servidor recusou este cadastro: ${resultado.motivo}. Corrija e salve de novo.")
+                        aviso(getString(R.string.cadastro_recusado, resultado.motivo))
                         txtAviso.tag = AVISO_RECUSA
                     }
 
                     is RepositorioCadastros.ResultadoEnvio.NaoEnviado -> {
-                        Toast.makeText(this, "Sem conexão com o servidor: o cadastro ficou guardado no coletor e será enviado quando a conexão voltar", Toast.LENGTH_LONG).show()
+                        Toast.makeText(this, R.string.cadastro_sem_conexao, Toast.LENGTH_LONG).show()
                         finish()
                     }
 
                     RepositorioCadastros.ResultadoEnvio.Aguardando ->
                         if (SystemClock.elapsedRealtime() - inicio >= ESPERA_ENVIO_MS) {
                             Log.i(TAG, "Envio do cadastro de $epcGuardado não terminou em ${ESPERA_ENVIO_MS / 1000} s: segue em segundo plano")
-                            Toast.makeText(this, "Cadastro guardado: será enviado ao servidor", Toast.LENGTH_LONG).show()
+                            Toast.makeText(this, R.string.cadastro_guardado, Toast.LENGTH_LONG).show()
                             finish()
                         } else {
                             espera.postDelayed({ aguardarEnvio(epcGuardado, inicio) }, INTERVALO_CONSULTA_MS)
@@ -317,7 +317,6 @@ class CadastroTagActivity : AppCompatActivity() {
         const val EXTRA_EPC = "epc"
         private const val TAG = "CADASTRO"
         private const val AVISO_RECUSA = "recusa"
-        private const val TEXTO_SALVAR = "Salvar cadastro" // o mesmo do layout
         private const val ESPERA_ENVIO_MS = 5_000L
         private const val INTERVALO_CONSULTA_MS = 300L
     }

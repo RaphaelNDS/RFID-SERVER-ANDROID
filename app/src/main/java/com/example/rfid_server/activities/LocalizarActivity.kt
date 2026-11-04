@@ -75,7 +75,7 @@ class LocalizarActivity : AppCompatActivity() {
         progress = findViewById(R.id.progressDistancia)
         edtPatrimonio = findViewById(R.id.edtPatrimonio)
         btnBuscar = findViewById(R.id.btnBuscar)
-        if (epcLocalizando != null) txtStatus.text = MSG_APERTE_GATILHO
+        if (epcLocalizando != null) txtStatus.setText(R.string.localizar_aperte_gatilho)
 
         tagService = TagService(this)
         rfidManager = RfidManager.get(this)
@@ -114,11 +114,11 @@ class LocalizarActivity : AppCompatActivity() {
         val patrimonio = edtPatrimonio.text.toString().trim()
 
         if (patrimonio.isEmpty()) {
-            toast("Digite o patrimônio")
+            toast(getString(R.string.localizar_digite_patrimonio))
             return
         }
 
-        txtStatus.text = "Buscando patrimônio..."
+        txtStatus.setText(R.string.localizar_buscando)
         buscarEIniciar(patrimonio)
     }
 
@@ -129,14 +129,14 @@ class LocalizarActivity : AppCompatActivity() {
             is RegrasLocalizar.Inicio.PorEpc -> {
                 Log.i(TAG, "Localização da etiqueta ${inicio.epc} aberta por outra tela (patrimônio ${patrimonio ?: "não cadastrado"})")
                 if (!patrimonio.isNullOrBlank()) edtPatrimonio.setText(patrimonio)
-                else toast("Item sem patrimônio: localizando pela etiqueta")
+                else toast(getString(R.string.localizar_item_sem_patrimonio))
                 iniciarRFID(inicio.epc)
             }
 
             is RegrasLocalizar.Inicio.PorPatrimonio -> {
                 Log.i(TAG, "Localização do patrimônio ${inicio.patrimonio} aberta por outra tela")
                 edtPatrimonio.setText(inicio.patrimonio)
-                txtStatus.text = "Buscando patrimônio..."
+                txtStatus.setText(R.string.localizar_buscando)
                 buscarEIniciar(inicio.patrimonio)
             }
 
@@ -171,13 +171,13 @@ class LocalizarActivity : AppCompatActivity() {
                 when (resposta) {
                     is RespostaServidor.Sucesso -> {
                         Log.i(TAG, "Patrimônio $patrimonio → tag ${resposta.valor}")
-                        txtStatus.text = "Localizando..."
+                        txtStatus.setText(R.string.localizar_localizando)
                         iniciarRFID(resposta.valor)
                     }
 
                     RespostaServidor.NaoEncontrado -> {
                         Log.i(TAG, "Patrimônio $patrimonio não encontrado no servidor")
-                        txtStatus.text = "Patrimônio não encontrado"
+                        txtStatus.setText(R.string.localizar_nao_encontrado)
                     }
 
                     is RespostaServidor.Falha -> {
@@ -199,13 +199,13 @@ class LocalizarActivity : AppCompatActivity() {
         if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) rfidManager.iniciarLocalizacao(this, epc)
 
         // A conexão do leitor é feita (e refeita, se cair) pelo RfidManager; a situação aparece na faixa do topo
-        txtStatus.text = if (rfidManager.conectado) MSG_APERTE_GATILHO else MSG_AGUARDANDO_LEITOR
+        txtStatus.setText(if (rfidManager.conectado) R.string.localizar_aperte_gatilho else R.string.localizar_aguardando_leitor)
     }
 
     // Leitor conectou depois de o patrimônio ser encontrado: troca o "aguardando" pela instrução
     private fun aoMudarEstadoLeitor(estado: EstadoLeitor) {
-        if (estado == EstadoLeitor.CONECTADO && txtStatus.text.toString() == MSG_AGUARDANDO_LEITOR) {
-            txtStatus.text = MSG_APERTE_GATILHO
+        if (estado == EstadoLeitor.CONECTADO && txtStatus.text.toString() == getString(R.string.localizar_aguardando_leitor)) {
+            txtStatus.setText(R.string.localizar_aperte_gatilho)
         }
     }
 
@@ -222,7 +222,7 @@ class LocalizarActivity : AppCompatActivity() {
     private fun aoPerderSinal() {
         if (epcLocalizando == null) return
         progress.progress = 0
-        txtStatus.text = MSG_SEM_SINAL
+        txtStatus.setText(R.string.localizar_sem_sinal)
     }
 
     private fun atualizarFeedback(nivel: Int) {
@@ -263,9 +263,6 @@ class LocalizarActivity : AppCompatActivity() {
 
         /** EPC já conhecido (usado pelo inventário): localiza direto, sem consultar o servidor. */
         const val EXTRA_EPC = "epc"
-        private const val MSG_SEM_SINAL = "Sem sinal da etiqueta"
-        private const val MSG_APERTE_GATILHO = "Aperte o gatilho para localizar"
-        private const val MSG_AGUARDANDO_LEITOR = "Aguardando o leitor RFID conectar para localizar"
         private const val ESTADO_EPC = "epc_localizando"
         private const val DURACAO_BIP_MS = 80
     }
