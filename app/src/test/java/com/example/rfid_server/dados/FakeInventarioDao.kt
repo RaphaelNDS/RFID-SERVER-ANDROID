@@ -94,17 +94,19 @@ class FakeInventarioDao : InventarioDao {
         alterar(id) { it.copy(aberturaEnviada = enviada, ultimoErro = null) }
 
     override fun marcarItensEnviados(ids: List<Long>) {
-        itens.replaceAll { if (it.id in ids) it.copy(enviado = true) else it }
+        itens.replaceAll {
+            if (it.id in ids) it.copy(enviado = true, recusas = 0, primeiraRecusaEm = null, ultimoErro = null) else it
+        }
         publicar()
     }
 
     override fun reabrirEtapas(id: String) =
         alterar(id) { it.copy(aberturaEnviada = false, finalizacaoEnviada = false, ultimoErro = null) }
 
-    override fun reenviarItens(inventarioId: String, limiteRecusas: Int): Int {
+    override fun reenviarItens(inventarioId: String): Int {
         var n = 0
         itens.replaceAll {
-            val desistida = it.recusas >= limiteRecusas && it.primeiraRecusaEm != null
+            val desistida = it.primeiraRecusaEm != null
             if (it.inventarioId == inventarioId && it.enviado && !desistida) {
                 n++
                 it.copy(enviado = false)

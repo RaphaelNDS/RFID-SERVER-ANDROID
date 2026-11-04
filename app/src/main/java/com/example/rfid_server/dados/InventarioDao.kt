@@ -74,29 +74,38 @@ interface InventarioDao {
     @Query("UPDATE inventarios SET aberturaEnviada = :enviada, ultimoErro = NULL WHERE id = :id")
     fun definirAberturaEnviada(id: String, enviada: Boolean)
 
-    @Query("UPDATE inventario_itens SET enviado = 1 WHERE id IN (:ids)")
+    /**
+     * Aceitas pelo servidor: saem da fila e as recusas anteriores são apagadas. Assim "enviada com recusa
+     * guardada" passa a significar só "o coletor desistiu dela" (ver [reenviarItens]).
+     */
+    @Query("UPDATE inventario_itens SET enviado = 1, recusas = 0, primeiraRecusaEm = NULL, ultimoErro = NULL WHERE id IN (:ids)")
     fun marcarItensEnviados(ids: List<Long>)
 
     /**
      * O servidor não conhece o inventário (ex.: banco dele restaurado de um backup): abertura, etiquetas e
      * finalização vão de novo, senão o inventário ficaria incompleto lá. Reenviar é seguro (o id do inventário
      * é um UUID e o servidor ignora etiqueta repetida). As etiquetas de que o coletor já desistiu por recusa
-     * ([limiteRecusas] ou mais, com primeiraRecusaEm) continuam fora da fila. Devolve quantas etiquetas voltaram.
+     * continuam fora da fila. Devolve quantas etiquetas voltaram.
      */
     @Transaction
-    fun prepararReabertura(id: String, limiteRecusas: Int): Int {
+    fun prepararReabertura(id: String): Int {
         reabrirEtapas(id)
-        return reenviarItens(id, limiteRecusas)
+        return reenviarItens(id)
     }
 
     @Query("UPDATE inventarios SET aberturaEnviada = 0, finalizacaoEnviada = 0, ultimoErro = NULL WHERE id = :id")
     fun reabrirEtapas(id: String)
 
+    /**
+     * Volta para a fila as etiquetas já enviadas, menos as desistidas: enviada com primeiraRecusaEm guardada só
+     * acontece quando o coletor desistiu (as aceitas têm as recusas apagadas em [marcarItensEnviados]). Vale
+     * também para a desistência na primeira recusa (sessão do operador recusada de vez).
+     */
     @Query(
         """UPDATE inventario_itens SET enviado = 0 WHERE inventarioId = :inventarioId AND enviado = 1
-           AND NOT (recusas >= :limiteRecusas AND primeiraRecusaEm IS NOT NULL)"""
+           AND primeiraRecusaEm IS NULL"""
     )
-    fun reenviarItens(inventarioId: String, limiteRecusas: Int): Int
+    fun reenviarItens(inventarioId: String): Int
 
     @Query("UPDATE inventarios SET finalizacaoEnviada = 1, ultimoErro = NULL WHERE id = :id")
     fun marcarFinalizacaoEnviada(id: String)

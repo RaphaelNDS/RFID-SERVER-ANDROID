@@ -188,7 +188,7 @@ class SincronizadorInventarios(
      * com o inventário) e a finalização. Só as etiquetas de que o coletor já desistiu por recusa ficam de fora.
      */
     private fun reabrir(inventario: InventarioEntity): RespostaServidor.Falha {
-        val reenviadas = dao.prepararReabertura(inventario.id, LIMITE_RECUSAS)
+        val reenviadas = dao.prepararReabertura(inventario.id)
         Log.w(TAG, "Servidor não conhece o inventário ${inventario.id} (${inventario.local}): será registrado de novo " +
             "na próxima sincronização, com todas as etiquetas ($reenviadas já enviada(s) antes vão de novo)")
         return RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Inventário desconhecido no servidor; reenviando")

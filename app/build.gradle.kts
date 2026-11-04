@@ -20,6 +20,10 @@ val codigoVersaoMinimo = 7
 // explicação. No debug e nos testes os avisos continuam só avisos.
 val pedidoRelease = gradle.startParameter.taskNames.any { it.contains("Release") || it.contains("release") }
 
+// "build" e "assemble" também empacotam o APK de produção, sem "Release" no nome pedido: estes problemas são
+// conferidos de novo quando o Gradle já sabe quais tarefas vão rodar (ver taskGraph.whenReady no fim do arquivo)
+val problemasDoRelease = mutableListOf<String>()
+
 val codigoVersaoInformado = providers.gradleProperty("rfid.codigoVersao").orNull?.toIntOrNull()
 
 fun saidaDoGit(vararg argumentos: String): String? = try {
@@ -44,10 +48,10 @@ if (codigoVersaoInformado == null && commitsDoGit != null && commitsDoGit < codi
 if (codigoVersaoInformado == null && (commitsDoGit == null || cloneRaso)) {
     val motivo = if (commitsDoGit == null) "não foi possível contar os commits do git (git fora do PATH ou projeto sem .git)"
                  else "o projeto é um clone raso do git ($commitsDoGit commit(s) visíveis)"
-    if (pedidoRelease) {
-        throw GradleException("APK de produção recusado: $motivo, então o código de versão sairia errado e o Android " +
-            "poderia recusar a atualização. Gere com o git no PATH e o clone completo (git fetch --unshallow) ou informe -Prfid.codigoVersao=N")
-    }
+    val problema = "APK de produção recusado: $motivo, então o código de versão sairia errado e o Android " +
+        "poderia recusar a atualização. Gere com o git no PATH e o clone completo (git fetch --unshallow) ou informe -Prfid.codigoVersao=N"
+    if (pedidoRelease) throw GradleException(problema)
+    problemasDoRelease += problema
     logger.warn("AVISO: $motivo. Código de versão provisório $codigoVersao: no APK de produção informe -Prfid.codigoVersao=N")
 }
 
@@ -77,9 +81,11 @@ val semAssinaturaPermitido = providers.gradleProperty("rfid.semAssinatura").orNu
 if (!assinaturaConfigurada) {
     val motivo = "assinatura de produção não configurada (keystore.properties ausente ou incompleto, " +
         "ou arquivo da chave não encontrado: ${arquivoChave ?: "não informado"})"
-    if (pedidoRelease && !semAssinaturaPermitido) {
-        throw GradleException("APK de produção recusado: $motivo. Sem assinatura o Android não instala o APK. " +
-            "Configure a chave (veja \"APK de produção\" no README) ou, só para testar o build, use -Prfid.semAssinatura=true")
+    if (!semAssinaturaPermitido) {
+        val problema = "APK de produção recusado: $motivo. Sem assinatura o Android não instala o APK. " +
+            "Configure a chave (veja \"APK de produção\" no README) ou, só para testar o build, use -Prfid.semAssinatura=true"
+        if (pedidoRelease) throw GradleException(problema)
+        problemasDoRelease += problema
     }
     logger.warn("AVISO: $motivo. O APK de produção sairá SEM assinatura e o Android não instala. " +
         "Veja \"APK de produção\" no README.")
@@ -151,6 +157,12 @@ kotlin {
     }
 }
 
+// "build"/"assemble" vão empacotar o APK (ou bundle) de produção: mesmas travas de quando se pede assembleRelease
+gradle.taskGraph.whenReady {
+    val empacotaRelease = allTasks.any { it.project == project && it.name.startsWith("package") && it.name.contains("Release") }
+    if (empacotaRelease && problemasDoRelease.isNotEmpty()) throw GradleException(problemasDoRelease.joinToString("\n"))
+}
+
 // Nome do APK com a versão (ex.: RFID-Android-1.4.0-release.apk), em vez de app-release.apk
 android.applicationVariants.all {
     val variante = this
@@ -172,6 +184,8 @@ dependencies {
     testImplementation(libs.okhttp.tls)                    // certificados de teste: MockWebServer em HTTPS
     testImplementation(libs.org.json)                      // org.json real: o do android.jar é só um esqueleto nos testes
     testImplementation(libs.androidx.arch.core.testing)    // LiveData síncrono nos testes do ViewModel
+    testImplementation(libs.robolectric)                   // Android simulado no computador: banco local (Room) num SQLite de verdade
+    testImplementation(libs.androidx.test.core)            // contexto do app nos testes com Robolectric
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     implementation(libs.lifecycle.viewmodel.ktx)
