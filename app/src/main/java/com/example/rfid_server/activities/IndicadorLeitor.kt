@@ -28,12 +28,13 @@ fun AppCompatActivity.mostrarEstadoLeitor(rfidManager: RfidManager) {
 
     rfidManager.estado.observe(this) { estado ->
         texto.text = estado.descricao
-        botao.visibility = if (estado == EstadoLeitor.DESCONECTADO) View.VISIBLE else View.GONE
+        val desconectado = estado == EstadoLeitor.DESCONECTADO || estado == EstadoLeitor.PARADO
+        botao.visibility = if (desconectado) View.VISIBLE else View.GONE
 
         val (fundo, cor) = when (estado) {
             EstadoLeitor.CONECTADO -> R.color.sucesso_fundo to R.color.sucesso
             EstadoLeitor.CONECTANDO -> R.color.atencao_fundo to R.color.atencao
-            EstadoLeitor.DESCONECTADO -> R.color.erro_fundo to R.color.erro
+            EstadoLeitor.DESCONECTADO, EstadoLeitor.PARADO -> R.color.erro_fundo to R.color.erro
         }
         painel.setBackgroundColor(ContextCompat.getColor(this, fundo))
         texto.setTextColor(ContextCompat.getColor(this, cor))
