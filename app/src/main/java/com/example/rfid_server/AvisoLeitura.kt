@@ -56,9 +56,11 @@ class AvisoLeitura(context: Context) {
         }
     }
 
+    // Volume de notificação (e não de mídia): no coletor o volume de mídia costuma ficar no zero e o bip sumia;
+    // com o aparelho no silencioso, segue só a vibração
     private fun criarGeradorDeSom(): ToneGenerator? =
         try {
-            ToneGenerator(AudioManager.STREAM_MUSIC, VOLUME)
+            ToneGenerator(AudioManager.STREAM_NOTIFICATION, VOLUME)
         } catch (e: RuntimeException) {
             Log.e(TAG, "Não foi possível criar o gerador de som: o aviso de tag nova vai ser só vibração", e)
             null

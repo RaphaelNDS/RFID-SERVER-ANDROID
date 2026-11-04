@@ -38,7 +38,7 @@ import com.google.android.material.tabs.TabLayout
  *
  * Se o local já teve inventário finalizado, a tela mostra ao vivo o que falta, comparando com o que foi
  * encontrado da última vez (GET /api/android/inventarios/esperado). Tocar num item que falta abre o
- * Localizar já com o patrimônio dele. A lista fica guardada no coletor e vale sem rede.
+ * Localizar já com o EPC dele (sem depender do servidor). A lista fica guardada no coletor e vale sem rede.
  */
 class InventarioActivity : AppCompatActivity() {
 
@@ -81,6 +81,9 @@ class InventarioActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Sessão vencida: vai para o login já aqui. Esperar o onResume não basta: no onStart o inventário
+        // aberto já ligaria o leitor e consultaria o servidor sem sessão
+        exigirSessao() ?: return
         setContentView(R.layout.activity_inventario)
 
         repositorio = RepositorioInventario.get(this)
@@ -133,7 +136,8 @@ class InventarioActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        rfidManager.removerOuvinte(this)
+        // Sessão vencida no onCreate: a tela fechou antes de o leitor ser obtido
+        if (::rfidManager.isInitialized) rfidManager.removerOuvinte(this)
         avisoSessao.parar()
     }
 
@@ -144,7 +148,7 @@ class InventarioActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        aviso.liberar()
+        if (::aviso.isInitialized) aviso.liberar()
     }
 
     // ================= TELA =================
@@ -321,16 +325,17 @@ class InventarioActivity : AppCompatActivity() {
         atualizarComparacao()
     }
 
-    /** Item que falta: abre o Localizar já buscando o patrimônio. */
+    /**
+     * Item que falta: abre o Localizar já com o EPC, que a lista do esperado já traz. Assim localiza sem
+     * consultar o servidor (funciona sem rede) e também item sem patrimônio. O patrimônio vai só para exibir.
+     */
     private fun localizar(item: ItemEsperado) {
-        val patrimonio = item.patrimonio ?: run {
-            Log.w(TAG, "Item esperado ${item.epc} sem patrimônio no cadastro: não dá para localizar pelo patrimônio")
-            Toast.makeText(this, "Esta etiqueta não tem patrimônio cadastrado: não dá para localizar", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        Log.i(TAG, "Operador foi localizar o patrimônio $patrimonio, que falta em ${inventarioAtual?.local}")
-        startActivity(Intent(this, LocalizarActivity::class.java).putExtra(LocalizarActivity.EXTRA_PATRIMONIO, patrimonio))
+        Log.i(TAG, "Operador foi localizar a etiqueta ${item.epc} (patrimônio ${item.patrimonio ?: "não cadastrado"}), que falta em ${inventarioAtual?.local}")
+        startActivity(
+            Intent(this, LocalizarActivity::class.java)
+                .putExtra(LocalizarActivity.EXTRA_EPC, item.epc)
+                .putExtra(LocalizarActivity.EXTRA_PATRIMONIO, item.patrimonio)
+        )
     }
 
     // ================= AÇÕES =================
