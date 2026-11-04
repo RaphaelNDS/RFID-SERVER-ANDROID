@@ -1,3 +1,256 @@
-<resources>
+<!--
+    Textos mostrados ao operador, agrupados por tela. São os mesmos de antes de saírem do código e dos
+    layouts, letra por letra: por isso ficam os "..." (e não o caractere de reticências) e os "(s)" de
+    "etiqueta(s)" (e não plurals, que mudariam o texto na tela).
+-->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="PluralsCandidate,TypographyEllipsis">
     <string name="app_name">RFID-Android</string>
+
+    <!-- Comum (vários diálogos e telas) -->
+    <string name="comum_ok">OK</string>
+    <string name="comum_cancelar">Cancelar</string>
+    <string name="comum_depois">Depois</string>
+    <string name="comum_email">Email</string>
+    <string name="comum_senha">Senha</string>
+    <string name="comum_patrimonio">Patrimônio</string>
+    <string name="comum_servidor_nao_reconheceu_login">Servidor não reconheceu o login</string>
+    <string name="comum_sessao_terminou">Sua sessão terminou. Entre de novo para continuar.</string>
+    <string name="comum_versao_app" translatable="false">%1$s · %2$s</string>
+
+    <!-- Login -->
+    <string name="login_subtitulo">Sistema RFID · Controle de patrimônio</string>
+    <string name="login_acesso_operador">Acesso do operador</string>
+    <string name="login_instrucao">Entre com seu usuário do Sistema RFID</string>
+    <string name="login_entrar">Entrar</string>
+    <string name="login_esqueceu_senha">Esqueceu a senha?</string>
+    <string name="login_configuracoes_coletor">Configurações do coletor</string>
+    <string name="login_aviso_sem_servidor">Coletor ainda não configurado: toque em \"Configurações do coletor\" e informe o IP do servidor e a chave do coletor</string>
+    <string name="login_aviso_sem_chave">Falta a chave do coletor: toque em \"Configurações do coletor\" e informe a chave fornecida pelo administrador</string>
+    <string name="login_informe_email_senha">Informe email e senha</string>
+    <string name="login_senha_fraca">Sua senha não atende mais às regras de segurança: troque-a no Sistema RFID (web).</string>
+    <string name="login_esqueci_mensagem">O pedido vai para o administrador do Sistema RFID, que vai te passar uma senha temporária.</string>
+    <string name="login_pedir_nova_senha">Pedir nova senha</string>
+    <string name="login_informe_email_nova_senha">Informe o email para pedir uma senha nova</string>
+    <string name="login_pedido_enviado">Pedido enviado</string>
+    <string name="login_falha_nova_senha">Não foi possível pedir a senha nova: %1$s</string>
+    <string name="login_pedido_nao_reconhecido">Servidor não reconheceu o pedido de nova senha</string>
+
+    <!-- Aviso de fim de sessão -->
+    <string name="sessao_acabando">Sua sessão está acabando</string>
+    <string name="sessao_termina_em_breve">Sessão termina em breve</string>
+    <string name="sessao_aviso_mensagem">Sua sessão termina às %1$s (em %2$s). Depois disso o app volta para a tela de login.\n\nRenove agora com a sua senha: o que está na tela e o que ainda não foi enviado continuam.</string>
+    <string name="sessao_renovar">Renovar</string>
+    <string name="sessao_renovar_titulo">Renovar sessão</string>
+    <string name="sessao_senha_de">Senha de %1$s:</string>
+    <string name="sessao_informe_senha">Informe a senha</string>
+    <string name="sessao_renovada">Sessão renovada até %1$s</string>
+
+    <!-- Tela principal (leitura) -->
+    <string name="main_operador">Operador: %1$s · sessão até %2$s</string>
+    <string name="main_aba_leitura">Leitura</string>
+    <string name="main_aba_nao_cadastradas">Não cadastradas</string>
+    <string name="main_enviando">Enviando</string>
+    <string name="main_aviso_sincronizacao">%1$s — %2$d leitura(s) guardada(s) no coletor, aguardando envio</string>
+    <string name="main_nova_leitura">Nova leitura</string>
+    <string name="main_configuracoes">Configurações</string>
+    <string name="main_localizar">Localizar patrimônio</string>
+    <string name="main_inventario">Inventário por local</string>
+    <string name="main_sair_menu">Sair (trocar operador)</string>
+    <string name="main_sair_titulo">Sair do coletor</string>
+    <string name="main_sair_mensagem">Sair como %1$s? O próximo operador entra com o próprio usuário.</string>
+    <string name="main_sair_pendentes">%1$d registro(s) ainda não chegaram ao servidor: continuam guardados no coletor e serão enviados com o seu nome.</string>
+    <string name="main_sair">Sair</string>
+    <string name="main_tela_vazia">A tela já está vazia</string>
+    <string name="main_nova_leitura_titulo">Começar nova leitura?</string>
+    <string name="main_nova_leitura_mensagem">As %1$d tag(s) lidas vão sair da tela, e a mesma tag poderá ser lida de novo.</string>
+    <string name="main_nova_leitura_pendentes">%1$d leitura(s) ainda não chegaram ao servidor: elas continuam guardadas no coletor e serão enviadas assim que possível.</string>
+    <string name="leitura_titulo">Etiquetas cadastradas lidas</string>
+    <string name="nao_cadastradas_titulo">Etiquetas não cadastradas · toque para cadastrar</string>
+    <string name="nao_cadastradas_seta" translatable="false">›</string>
+
+    <!-- Item da lista de etiquetas cadastradas -->
+    <string name="tag_codigo">Código: %1$s</string>
+    <string name="tag_tipo">Tipo: %1$s</string>
+    <string name="tag_marca">Marca: %1$s</string>
+    <string name="tag_modelo">Modelo: %1$s</string>
+    <string name="tag_patrimonio">Patrimônio: %1$s</string>
+    <string name="tag_serie">Série: %1$s</string>
+    <string name="tag_sem_valor" translatable="false">—</string>
+
+    <!-- Faixa do estado do leitor -->
+    <string name="estado_leitor_reconectar">Reconectar</string>
+
+    <!-- Cadastro de etiqueta -->
+    <string name="cadastro_etiqueta">Etiqueta</string>
+    <string name="cadastro_identificacao">Identificação</string>
+    <string name="cadastro_codigo_interno">Código interno *</string>
+    <string name="cadastro_numero_serie">Nº de série</string>
+    <string name="cadastro_equipamento">Equipamento</string>
+    <string name="cadastro_tipo_equipamento">Tipo de equipamento</string>
+    <string name="cadastro_marca">Marca</string>
+    <string name="cadastro_modelo">Modelo</string>
+    <string name="cadastro_salvar">Salvar cadastro</string>
+    <string name="cadastro_operador_sem_permissao">Seu usuário não tem permissão para cadastrar etiquetas. Peça ao administrador a permissão de cadastro.</string>
+    <string name="cadastro_catalogo_nao_baixado">Catálogo ainda não baixado. Conecte o coletor ao servidor uma vez para poder cadastrar.</string>
+    <string name="cadastro_coletor_sem_permissao">Este coletor não tem permissão para cadastrar etiquetas. Peça ao administrador para liberá-lo no servidor.</string>
+    <string name="cadastro_nao_informado">— não informado —</string>
+    <string name="cadastro_recusado">O servidor recusou este cadastro: %1$s. Corrija e salve de novo.</string>
+    <string name="cadastro_informe_codigo_interno">Informe o código interno</string>
+    <string name="cadastro_falta_patrimonio">patrimônio</string>
+    <string name="cadastro_falta_numero_serie">nº de série</string>
+    <string name="cadastro_falta_tipo">tipo</string>
+    <string name="cadastro_falta_marca">marca</string>
+    <string name="cadastro_falta_modelo">modelo</string>
+    <string name="cadastro_incompleto_titulo">Cadastro incompleto</string>
+    <string name="cadastro_incompleto_mensagem">Falta: %1$s.\n\nSem esses dados a etiqueta é cadastrada, mas não aparece nas leituras nem nos relatórios até ser completada na web.</string>
+    <string name="cadastro_salvar_assim">Salvar assim</string>
+    <string name="cadastro_completar">Completar</string>
+    <string name="cadastro_enviando">Enviando ao servidor…</string>
+    <string name="cadastro_enviado">Etiqueta cadastrada</string>
+    <string name="cadastro_sem_conexao">Sem conexão com o servidor: o cadastro ficou guardado no coletor e será enviado quando a conexão voltar</string>
+    <string name="cadastro_guardado">Cadastro guardado: será enviado ao servidor</string>
+
+    <!-- Inventário -->
+    <string name="inventario_local_titulo">Local do inventário</string>
+    <string name="inventario_local_hint">Local</string>
+    <string name="inventario_iniciar">Iniciar inventário</string>
+    <string name="inventario_instrucao">Aperte o gatilho para ler as etiquetas do local</string>
+    <string name="inventario_finalizar">Finalizar inventário</string>
+    <string name="inventario_aba_faltando">Faltando</string>
+    <string name="inventario_aba_lidas">Lidas</string>
+    <string name="inventario_aba_faltando_qtd">Faltando (%1$d)</string>
+    <string name="inventario_aba_lidas_qtd">Lidas (%1$d)</string>
+    <string name="inventario_local">Local: %1$s</string>
+    <string name="inventario_lida_com_patrimonio">"Patrimônio %1$s  (%2$s)"</string>
+    <string name="inventario_todas_encontradas">Todas as %1$d etiquetas esperadas foram encontradas</string>
+    <string name="inventario_resumo_lidas">%1$d etiqueta(s) lida(s)</string>
+    <string name="inventario_resumo_esperadas">%1$d de %2$d esperada(s)</string>
+    <string name="inventario_resumo_faltam">faltam %1$d</string>
+    <string name="inventario_resumo_fora_da_lista">%1$d fora da lista</string>
+    <string name="inventario_resumo_aguardando">%1$d aguardando envio ao servidor</string>
+    <string name="inventario_recusado">O servidor recusou este inventário: ele não será mais enviado. Fale com o administrador.</string>
+    <string name="inventario_recusado_motivo">O servidor recusou este inventário (%1$s): ele não será mais enviado. Fale com o administrador.</string>
+    <string name="inventario_buscando_esperado">Buscando no servidor o que é esperado neste local...</string>
+    <string name="inventario_servidor_desatualizado">Servidor desatualizado: sem a lista do que é esperado</string>
+    <string name="inventario_comparando_guardada">Comparando com o %1$s (lista guardada no coletor)</string>
+    <string name="inventario_sem_conexao_esperado">Sem conexão: não deu para buscar o que é esperado neste local</string>
+    <string name="inventario_comparando">Comparando com o %1$s: %2$d etiqueta(s) esperada(s)</string>
+    <string name="inventario_primeiro">Primeiro inventário deste local: não há lista do que é esperado</string>
+    <string name="inventario_informe_local">Informe o local do inventário</string>
+    <string name="inventario_em_andamento">Já existe um inventário em andamento</string>
+    <string name="inventario_finalizar_titulo">Finalizar inventário?</string>
+    <string name="inventario_finalizar_mensagem">%1$d etiqueta(s) lida(s) em %2$s. Depois de finalizar, não é possível ler mais neste inventário.</string>
+    <string name="inventario_finalizar_faltam">Atenção: faltam %1$d das %2$d etiqueta(s) encontradas no último inventário deste local.</string>
+    <string name="inventario_finalizar_nao_enviadas">%1$d ainda não chegaram ao servidor: continuam guardadas no coletor e serão enviadas assim que possível.</string>
+    <string name="inventario_finalizar_confirmar">Finalizar</string>
+    <string name="inventario_continuar_lendo">Continuar lendo</string>
+    <string name="inventario_finalizado">Inventário de %1$s finalizado: %2$d etiqueta(s)</string>
+
+    <!-- Item esperado no inventário (o que falta) -->
+    <string name="esperado_patrimonio">Patrimônio %1$s</string>
+    <string name="esperado_sem_patrimonio">Sem patrimônio (EPC %1$s)</string>
+    <string name="esperado_codigo">Código %1$s</string>
+
+    <!-- Localizar -->
+    <string name="localizar_titulo">Patrimônio procurado</string>
+    <string name="localizar_hint">Número do patrimônio</string>
+    <string name="localizar_buscar">Buscar</string>
+    <string name="localizar_proximidade">Proximidade</string>
+    <string name="localizar_aguardando">Aguardando...</string>
+    <string name="localizar_digite_patrimonio">Digite o patrimônio</string>
+    <string name="localizar_buscando">Buscando patrimônio...</string>
+    <string name="localizar_item_sem_patrimonio">Item sem patrimônio: localizando pela etiqueta</string>
+    <string name="localizar_localizando">Localizando...</string>
+    <string name="localizar_nao_encontrado">Patrimônio não encontrado</string>
+    <string name="localizar_sem_sinal">Sem sinal da etiqueta</string>
+    <string name="localizar_aperte_gatilho">Aperte o gatilho para localizar</string>
+    <string name="localizar_aguardando_leitor">Aguardando o leitor RFID conectar para localizar</string>
+
+    <!-- Configurações -->
+    <string name="config_servidor">Servidor</string>
+    <string name="config_servidor_verificando">Servidor: verificando...</string>
+    <string name="config_ip_hint">IP do servidor</string>
+    <string name="config_chave_hint">Chave do coletor</string>
+    <string name="config_salvar">Salvar</string>
+    <string name="config_testar_conexao">Testar conexão</string>
+    <string name="config_leitura">Leitura</string>
+    <string name="config_aviso_leitura">Bip e vibração a cada etiqueta nova</string>
+    <string name="config_potencia">Potência do leitor</string>
+    <string name="config_potencia_explicacao">Menos potência lê só as etiquetas mais próximas (útil para não pegar as da sala ao lado) e gasta menos bateria.</string>
+    <string name="config_potencia_maxima" formatted="false">Máxima (100%)</string>
+    <string name="config_potencia_alta" formatted="false">Alta (75%)</string>
+    <string name="config_potencia_media" formatted="false">Média (50%)</string>
+    <string name="config_potencia_baixa" formatted="false">Baixa (25%)</string>
+    <string name="config_certificado">Certificado do servidor</string>
+    <string name="config_aplicativo">Aplicativo</string>
+    <string name="config_procurar_atualizacao">Procurar atualização do app</string>
+    <string name="config_chave_ja_salva">Já salva neste coletor (não é mostrada). Digite só para trocar</string>
+    <string name="config_chave_fornecida">Fornecida pelo administrador do servidor</string>
+    <string name="config_informe_ip">Informe o IP do servidor</string>
+    <string name="config_endereco_invalido">Endereço inválido. Use o IP (ex.: 192.168.0.10) ou IP:porta (ex.: 192.168.0.10:8443)</string>
+    <string name="config_nada_mudou">Nada mudou nas Configurações</string>
+    <string name="config_acao_salvar">salvar o servidor e a chave</string>
+    <string name="config_salvo_sem_chave">Salvo, mas sem a chave do coletor o servidor recusa as chamadas</string>
+    <string name="config_salvas">Configurações salvas!</string>
+    <string name="config_status_nao_configurado">Servidor: não configurado. Informe o IP do servidor e a chave do coletor e toque em Salvar</string>
+    <string name="config_status_testando">Servidor: testando...</string>
+    <string name="config_status_conectado">Servidor: conectado com segurança (HTTPS) ✅</string>
+    <string name="config_status_falha">Servidor: %1$s ❌</string>
+    <string name="config_cert_apresentado">O servidor apresentou este certificado:</string>
+    <string name="config_cert_diferente">ATENÇÃO: o certificado do servidor é DIFERENTE do confirmado antes.</string>
+    <string name="config_cert_motivo">Isso acontece se o certificado foi trocado de propósito — ou se alguém está se passando pelo servidor na rede.</string>
+    <string name="config_cert_novo">Novo:</string>
+    <string name="config_cert_anterior">Anterior:</string>
+    <string name="config_cert_compare">Compare com a impressão digital da tela Status do Sistema RFID (web). Confirme só se for IGUAL.</string>
+    <string name="config_cert_confirmar_titulo">Confirmar o servidor</string>
+    <string name="config_cert_mudou_titulo">Certificado do servidor mudou</string>
+    <string name="config_cert_confiar">É igual, confiar</string>
+    <string name="config_cert_nao_confiar">Não confiar</string>
+    <string name="config_acao_confiar">confiar no certificado do servidor</string>
+    <string name="config_acao_confiar_novo">confiar no novo certificado do servidor</string>
+    <string name="config_cert_nao_confirmado">Certificado do servidor: ainda não confirmado</string>
+    <string name="config_cert_confirmado">Certificado confirmado (SHA-256):\n%1$s</string>
+
+    <!-- PIN das Configurações -->
+    <string name="pin_hint">PIN</string>
+    <string name="pin_repita">Repita o PIN</string>
+    <string name="pin_novo">PIN novo</string>
+    <string name="pin_bloqueado_titulo">PIN bloqueado</string>
+    <string name="pin_bloqueado_mensagem">Muitas tentativas erradas. Aguarde %1$d minuto(s) ou peça a um administrador para liberar o PIN.</string>
+    <string name="pin_esqueci">Esqueci o PIN</string>
+    <string name="pin_digite">Digite o PIN das Configurações para %1$s.</string>
+    <string name="pin_titulo">PIN do coletor</string>
+    <string name="pin_confirmar">Confirmar</string>
+    <string name="pin_errado_bloqueado">PIN errado %1$d vezes: bloqueado por %2$d minutos</string>
+    <string name="pin_incorreto">PIN incorreto. Restam %1$d tentativa(s)</string>
+    <string name="pin_criar_explicacao">Crie um PIN de %1$d a %2$d números. Ele protege o servidor, a chave e o certificado deste coletor. Guarde-o com o responsável: sem ele, só um administrador libera.</string>
+    <string name="pin_criar_titulo">Criar o PIN do coletor</string>
+    <string name="pin_criar">Criar</string>
+    <string name="pin_criado">PIN criado</string>
+    <string name="pin_liberar_titulo">Liberar o PIN</string>
+    <string name="pin_liberar">Liberar</string>
+    <string name="pin_liberar_explicacao">Um administrador do sistema confirma com o email e a senha dele. O PIN é apagado e um novo é criado ao salvar as Configurações.</string>
+    <string name="pin_email_admin">Email do administrador</string>
+    <string name="pin_informe_admin">Informe o email e a senha do administrador</string>
+
+    <!-- Atualização do app -->
+    <string name="atualizacao_configure_servidor">Configure o servidor antes de procurar atualização</string>
+    <string name="atualizacao_ja_mais_nova">O app já está na versão mais nova (%1$s)</string>
+    <string name="atualizacao_nenhuma_publicada">Nenhuma versão do app publicada no servidor</string>
+    <string name="atualizacao_falha_consulta">Não foi possível procurar atualização: %1$s</string>
+    <string name="atualizacao_versao_mesmo_nome">Versão %1$s (código %2$d) disponível (agora: código %3$d).</string>
+    <string name="atualizacao_versao">Versão %1$s disponível (agora: %2$s).</string>
+    <string name="atualizacao_download">Download de %1$s.</string>
+    <string name="atualizacao_o_que_mudou">O que mudou: %1$s</string>
+    <string name="atualizacao_dados_continuam">O que está guardado no coletor (leituras aguardando envio, configurações) continua depois da atualização.</string>
+    <string name="atualizacao_titulo">Atualização do app</string>
+    <string name="atualizacao_atualizar_agora">Atualizar agora</string>
+    <string name="atualizacao_autorizar_titulo">Autorizar atualizações</string>
+    <string name="atualizacao_autorizar_mensagem">O Android pede que você autorize este app a instalar atualizações (uma vez só).\n\nNa próxima tela, ative \"Permitir desta fonte\" e volte para o app: a atualização é oferecida de novo.</string>
+    <string name="atualizacao_abrir_autorizacao">Abrir autorização</string>
+    <string name="atualizacao_baixando">Baixando a versão %1$s</string>
+    <string name="atualizacao_nao_baixada">Atualização não baixada</string>
+    <string name="atualizacao_recusada_titulo">Atualização recusada</string>
+    <string name="atualizacao_recusada_mensagem">O arquivo baixado do servidor não foi instalado: %1$s.\n\nAvise o responsável pelo sistema.</string>
+    <string name="atualizacao_sem_instalador">Não foi possível abrir o instalador do Android</string>
 </resources>

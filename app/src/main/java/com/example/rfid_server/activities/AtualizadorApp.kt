@@ -5,7 +5,6 @@ import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.content.pm.Signature
-import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
@@ -15,8 +14,10 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import androidx.core.content.pm.PackageInfoCompat
+import androidx.core.net.toUri
 import com.example.rfid_server.AppConfig
 import com.example.rfid_server.BuildConfig
+import com.example.rfid_server.R
 import com.example.rfid_server.dados.VersaoPublicada
 import com.example.rfid_server.erros.RegistroErros
 import com.example.rfid_server.erros.TipoErro
@@ -37,7 +38,7 @@ class AtualizadorApp(private val activity: AppCompatActivity) {
 
     fun verificar(manual: Boolean) {
         if (!AppConfig.servidorConfigurado(activity)) {
-            if (manual) toast("Configure o servidor antes de procurar atualização")
+            if (manual) toast(activity.getString(R.string.atualizacao_configure_servidor))
             return
         }
 
@@ -57,18 +58,18 @@ class AtualizadorApp(private val activity: AppCompatActivity) {
                             oferecer(publicada)
                         } else {
                             Log.d(TAG, "App já está atualizado: instalado código ${BuildConfig.VERSION_CODE}, publicado ${publicada.codigo}")
-                            if (manual) toast("O app já está na versão mais nova (${BuildConfig.VERSION_NAME})")
+                            if (manual) toast(activity.getString(R.string.atualizacao_ja_mais_nova, BuildConfig.VERSION_NAME))
                         }
                     }
 
                     RespostaServidor.NaoEncontrado -> {
                         Log.d(TAG, "Nenhuma versão do app publicada no servidor")
-                        if (manual) toast("Nenhuma versão do app publicada no servidor")
+                        if (manual) toast(activity.getString(R.string.atualizacao_nenhuma_publicada))
                     }
 
                     is RespostaServidor.Falha -> {
                         Log.w(TAG, "Não foi possível consultar a atualização do app: ${resposta.mensagem}")
-                        if (manual) toast("Não foi possível procurar atualização: ${resposta.mensagem}")
+                        if (manual) toast(activity.getString(R.string.atualizacao_falha_consulta, resposta.mensagem))
                     }
                 }
             }
@@ -82,20 +83,20 @@ class AtualizadorApp(private val activity: AppCompatActivity) {
         val mensagem = buildString {
             // Mesmo nome de versão (ex.: correção publicada sem mudar o nome): o código mostra qual é a mais nova
             if (versao.versaoNome == BuildConfig.VERSION_NAME) {
-                append("Versão ${versao.versaoNome} (código ${versao.codigo}) disponível (agora: código ${BuildConfig.VERSION_CODE}).")
+                append(activity.getString(R.string.atualizacao_versao_mesmo_nome, versao.versaoNome, versao.codigo, BuildConfig.VERSION_CODE))
             } else {
-                append("Versão ${versao.versaoNome} disponível (agora: ${BuildConfig.VERSION_NAME}).")
+                append(activity.getString(R.string.atualizacao_versao, versao.versaoNome, BuildConfig.VERSION_NAME))
             }
-            append(" Download de ${versao.tamanhoLegivel()}.")
-            versao.notas?.let { append("\n\nO que mudou: $it") }
-            append("\n\nO que está guardado no coletor (leituras aguardando envio, configurações) continua depois da atualização.")
+            append(" ").append(activity.getString(R.string.atualizacao_download, versao.tamanhoLegivel()))
+            versao.notas?.let { append("\n\n").append(activity.getString(R.string.atualizacao_o_que_mudou, it)) }
+            append("\n\n").append(activity.getString(R.string.atualizacao_dados_continuam))
         }
 
         AlertDialog.Builder(activity)
-            .setTitle("Atualização do app")
+            .setTitle(R.string.atualizacao_titulo)
             .setMessage(mensagem)
-            .setPositiveButton("Atualizar agora") { _, _ -> iniciar(versao) }
-            .setNegativeButton("Depois") { _, _ -> Log.i(TAG, "Operador adiou a atualização para a versão ${versao.versaoNome}") }
+            .setPositiveButton(R.string.atualizacao_atualizar_agora) { _, _ -> iniciar(versao) }
+            .setNegativeButton(R.string.comum_depois) { _, _ -> Log.i(TAG, "Operador adiou a atualização para a versão ${versao.versaoNome}") }
             .setOnCancelListener { Log.i(TAG, "Operador fechou o aviso da atualização para a versão ${versao.versaoNome} sem escolher (oferecida de novo mais tarde)") }
             .show()
     }
@@ -105,14 +106,13 @@ class AtualizadorApp(private val activity: AppCompatActivity) {
         if (!activity.packageManager.canRequestPackageInstalls()) {
             Log.i(TAG, "App sem autorização para instalar atualizações: pedindo ao operador")
             AlertDialog.Builder(activity)
-                .setTitle("Autorizar atualizações")
-                .setMessage("O Android pede que você autorize este app a instalar atualizações (uma vez só).\n\n" +
-                    "Na próxima tela, ative \"Permitir desta fonte\" e volte para o app: a atualização é oferecida de novo.")
-                .setPositiveButton("Abrir autorização") { _, _ ->
+                .setTitle(R.string.atualizacao_autorizar_titulo)
+                .setMessage(R.string.atualizacao_autorizar_mensagem)
+                .setPositiveButton(R.string.atualizacao_abrir_autorizacao) { _, _ ->
                     aguardandoPermissao = true
-                    activity.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${activity.packageName}")))
+                    activity.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, "package:${activity.packageName}".toUri()))
                 }
-                .setNegativeButton("Cancelar", null)
+                .setNegativeButton(R.string.comum_cancelar, null)
                 .show()
             return
         }
@@ -125,7 +125,7 @@ class AtualizadorApp(private val activity: AppCompatActivity) {
             setPadding(48, 24, 48, 0)
         }
         val dialogo = AlertDialog.Builder(activity)
-            .setTitle("Baixando a versão ${versao.versaoNome}")
+            .setTitle(activity.getString(R.string.atualizacao_baixando, versao.versaoNome))
             .setView(barra)
             .setCancelable(false)
             .show()
@@ -156,9 +156,9 @@ class AtualizadorApp(private val activity: AppCompatActivity) {
                         RegistroErros.registrar(activity, TipoErro.ATUALIZACAO,
                             "Atualização para a versão ${versao.versaoNome} (código ${versao.codigo}) não baixada: ${resposta.mensagem}")
                         AlertDialog.Builder(activity)
-                            .setTitle("Atualização não baixada")
+                            .setTitle(R.string.atualizacao_nao_baixada)
                             .setMessage(resposta.mensagem)
-                            .setPositiveButton("OK", null)
+                            .setPositiveButton(R.string.comum_ok, null)
                             .show()
                     }
                     RespostaServidor.NaoEncontrado -> Unit
@@ -211,9 +211,9 @@ class AtualizadorApp(private val activity: AppCompatActivity) {
         RegistroErros.registrar(activity, TipoErro.ATUALIZACAO,
             "Atualização para a versão ${versao.versaoNome} (código ${versao.codigo}) recusada: $motivo")
         AlertDialog.Builder(activity)
-            .setTitle("Atualização recusada")
-            .setMessage("O arquivo baixado do servidor não foi instalado: $motivo.\n\nAvise o responsável pelo sistema.")
-            .setPositiveButton("OK", null)
+            .setTitle(R.string.atualizacao_recusada_titulo)
+            .setMessage(activity.getString(R.string.atualizacao_recusada_mensagem, motivo))
+            .setPositiveButton(R.string.comum_ok, null)
             .show()
     }
 
@@ -228,7 +228,7 @@ class AtualizadorApp(private val activity: AppCompatActivity) {
             Log.i(TAG, "Instalador do Android aberto para a versão ${versao.versaoNome} (código ${versao.codigo})")
         } catch (e: ActivityNotFoundException) {
             Log.e(TAG, "Este aparelho não tem instalador de pacotes disponível", e)
-            toast("Não foi possível abrir o instalador do Android")
+            toast(activity.getString(R.string.atualizacao_sem_instalador))
         }
     }
 

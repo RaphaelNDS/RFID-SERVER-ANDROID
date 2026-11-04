@@ -4,7 +4,7 @@
     android:layout_height="match_parent">
 
     <TextView
-        android:text="Etiquetas cadastradas lidas"
+        android:text="@string/leitura_titulo"
         android:textAppearance="@style/Texto.RFID.Secao"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"

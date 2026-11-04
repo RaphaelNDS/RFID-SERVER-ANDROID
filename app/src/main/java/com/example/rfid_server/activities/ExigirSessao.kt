@@ -3,6 +3,7 @@ package com.example.rfid_server.activities
 import android.app.Activity
 import android.content.Intent
 import android.util.Log
+import com.example.rfid_server.R
 import com.example.rfid_server.SessaoAtual
 import com.example.rfid_server.SessaoOperador
 
@@ -16,7 +17,7 @@ fun Activity.exigirSessao(): SessaoOperador? {
     Log.i("SESSAO", "${javaClass.simpleName} sem operador logado: voltando para a tela de login")
     startActivity(
         Intent(this, LoginActivity::class.java)
-            .putExtra(LoginActivity.EXTRA_MOTIVO, "Sua sessão terminou. Entre de novo para continuar.")
+            .putExtra(LoginActivity.EXTRA_MOTIVO, getString(R.string.comum_sessao_terminou))
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
     )
     finish()

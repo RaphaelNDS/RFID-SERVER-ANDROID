@@ -8,14 +8,14 @@
     android:layout_height="wrap_content">
 
     <TextView
-        android:text="Um administrador do sistema confirma com o email e a senha dele. O PIN é apagado e um novo é criado ao salvar as Configurações."
+        android:text="@string/pin_liberar_explicacao"
         android:textColor="@color/texto_secundario"
         android:layout_marginBottom="8dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
     <com.google.android.material.textfield.TextInputLayout
-        android:hint="Email do administrador"
+        android:hint="@string/pin_email_admin"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
@@ -27,7 +27,7 @@
     </com.google.android.material.textfield.TextInputLayout>
 
     <com.google.android.material.textfield.TextInputLayout
-        android:hint="Senha"
+        android:hint="@string/comum_senha"
         app:endIconMode="password_toggle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
