@@ -1,5 +1,6 @@
 package com.example.rfid_server.activities
 
+import android.os.SystemClock
 import android.util.Log
 import android.view.View
 import android.widget.TextView
@@ -31,10 +32,13 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
     }
 
     private fun pedir(acao: String, liberado: () -> Unit) {
-        val bloqueadoAte = AppConfig.getPinBloqueadoAte(activity)
-        val agora = System.currentTimeMillis()
-        if (bloqueadoAte > agora) {
-            val minutos = (bloqueadoAte - agora) / 60_000 + 1
+        // Relógio de parede e tempo desde a ligação: adiantar o relógio do Android não acaba com o bloqueio
+        val restante = PinColetor.restanteBloqueio(
+            AppConfig.getTentativasPin(activity), System.currentTimeMillis(), SystemClock.elapsedRealtime()
+        )
+        if (restante > 0) {
+            val minutos = (restante - 1) / 60_000 + 1
+            Log.w(TAG, "PIN das Configurações bloqueado: faltam $minutos minuto(s)")
             AlertDialog.Builder(activity)
                 .setTitle("PIN bloqueado")
                 .setMessage("Muitas tentativas erradas. Aguarde $minutos minuto(s) ou peça a um administrador para liberar o PIN.")
@@ -63,24 +67,27 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
                 val (hash, sal) = AppConfig.getPin(activity) ?: return@setOnClickListener run { dialogo.dismiss(); liberado() }
 
                 if (PinColetor.confere(edtPin.text.toString(), sal, hash)) {
-                    AppConfig.saveTentativasPin(activity, 0, 0)
+                    AppConfig.limparTentativasPin(activity)
                     dialogo.dismiss()
                     liberado()
                     return@setOnClickListener
                 }
 
-                val erros = AppConfig.getErrosPin(activity) + 1
-                val bloqueio = PinColetor.bloqueioAposErro(erros, System.currentTimeMillis())
+                // O contador não zera no bloqueio: cada novo bloqueio dura mais (5 min, 15 min, 1 h...)
+                val antes = AppConfig.getTentativasPin(activity)
+                val depois = PinColetor.aposErro(antes, System.currentTimeMillis(), SystemClock.elapsedRealtime())
+                AppConfig.saveTentativasPin(activity, depois)
+                val erros = depois.erros
                 edtPin.text = null
-                if (bloqueio != null) {
-                    AppConfig.saveTentativasPin(activity, 0, bloqueio)
-                    Log.w(TAG, "PIN das Configurações errado $erros vezes seguidas: bloqueado por ${PinColetor.BLOQUEIO_MS / 60_000} min")
+                if (erros % PinColetor.MAX_ERROS == 0) {
+                    val minutos = depois.duracao / 60_000
+                    Log.w(TAG, "PIN das Configurações errado $erros vezes desde o último acerto: bloqueado por $minutos min")
                     dialogo.dismiss()
-                    Toast.makeText(activity, "PIN errado $erros vezes: bloqueado por ${PinColetor.BLOQUEIO_MS / 60_000} minutos", Toast.LENGTH_LONG).show()
+                    Toast.makeText(activity, "PIN errado $erros vezes: bloqueado por $minutos minutos", Toast.LENGTH_LONG).show()
                 } else {
-                    AppConfig.saveTentativasPin(activity, erros, 0)
-                    Log.w(TAG, "PIN das Configurações errado (tentativa $erros de ${PinColetor.MAX_ERROS})")
-                    layoutPin.error = "PIN incorreto. Restam ${PinColetor.MAX_ERROS - erros} tentativa(s)"
+                    val restam = PinColetor.restantesAteBloqueio(erros)
+                    Log.w(TAG, "PIN das Configurações errado ($erros erro(s) desde o último acerto; $restam até o próximo bloqueio)")
+                    layoutPin.error = "PIN incorreto. Restam $restam tentativa(s)"
                 }
             }
             dialogo.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {

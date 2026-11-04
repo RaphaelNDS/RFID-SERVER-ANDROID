@@ -208,6 +208,7 @@ object AppConfig {
             .putString(KEY_PIN_HASH, hash)
             .putString(KEY_PIN_SAL, sal)
             .remove(KEY_PIN_ERROS).remove(KEY_PIN_BLOQUEADO_ATE)
+            .remove(KEY_PIN_BLOQUEIO_INICIO_DECORRIDO).remove(KEY_PIN_BLOQUEIO_DURACAO)
             .apply()
     }
 
@@ -225,28 +226,41 @@ object AppConfig {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         prefs.edit()
             .remove(KEY_PIN_HASH).remove(KEY_PIN_SAL).remove(KEY_PIN_ERROS).remove(KEY_PIN_BLOQUEADO_ATE)
+            .remove(KEY_PIN_BLOQUEIO_INICIO_DECORRIDO).remove(KEY_PIN_BLOQUEIO_DURACAO)
             .apply()
     }
 
-    fun getErrosPin(context: Context): Int =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_PIN_ERROS, 0)
+    /** Erros e bloqueio do PIN. Gravado pela 1.6.1 ou antes: só erros e bloqueado_ate (os outros ficam desconhecidos). */
+    fun getTentativasPin(context: Context): PinColetor.EstadoTentativas {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        return PinColetor.EstadoTentativas(
+            erros = prefs.getInt(KEY_PIN_ERROS, 0),
+            bloqueadoAte = prefs.getLong(KEY_PIN_BLOQUEADO_ATE, 0),
+            inicioDecorrido = prefs.getLong(KEY_PIN_BLOQUEIO_INICIO_DECORRIDO, -1),
+            duracao = prefs.getLong(KEY_PIN_BLOQUEIO_DURACAO, 0)
+        )
+    }
 
-    /** Epoch ms até quando o PIN não aceita tentativas (0 = livre). */
-    fun getPinBloqueadoAte(context: Context): Long =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(KEY_PIN_BLOQUEADO_ATE, 0)
-
-    fun saveTentativasPin(context: Context, erros: Int, bloqueadoAte: Long) {
+    /** commit() e não apply(): o erro precisa estar gravado mesmo se o app for fechado logo em seguida. */
+    fun saveTentativasPin(context: Context, estado: PinColetor.EstadoTentativas) {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         prefs.edit()
-            .putInt(KEY_PIN_ERROS, erros)
-            .putLong(KEY_PIN_BLOQUEADO_ATE, bloqueadoAte)
-            .apply()
+            .putInt(KEY_PIN_ERROS, estado.erros)
+            .putLong(KEY_PIN_BLOQUEADO_ATE, estado.bloqueadoAte)
+            .putLong(KEY_PIN_BLOQUEIO_INICIO_DECORRIDO, estado.inicioDecorrido)
+            .putLong(KEY_PIN_BLOQUEIO_DURACAO, estado.duracao)
+            .commit()
     }
+
+    /** PIN certo: zera os erros e o bloqueio. */
+    fun limparTentativasPin(context: Context) = saveTentativasPin(context, PinColetor.EstadoTentativas())
 
     private const val KEY_PIN_HASH = "pin_hash"
     private const val KEY_PIN_SAL = "pin_sal"
     private const val KEY_PIN_ERROS = "pin_erros"
     private const val KEY_PIN_BLOQUEADO_ATE = "pin_bloqueado_ate"
+    private const val KEY_PIN_BLOQUEIO_INICIO_DECORRIDO = "pin_bloqueio_inicio_decorrido"
+    private const val KEY_PIN_BLOQUEIO_DURACAO = "pin_bloqueio_duracao"
     private const val KEY_IMPRESSAO_DIGITAL = "certificado_sha256"
     private const val KEY_SESSAO_TOKEN = "sessao_token"
     private const val KEY_SESSAO_EXPIRA = "sessao_expira_em"

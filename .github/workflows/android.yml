@@ -1,0 +1,42 @@
+# CI do app Android: testes, lint e build do APK de produção (sem assinatura) a cada push e pull request na master.
+# A chave de assinatura fica fora do git: aqui o APK sai sem assinar (-Prfid.semAssinatura=true) e serve só para
+# provar que o build e o R8 funcionam. O APK que vai para os coletores continua sendo gerado na máquina com a chave.
+name: Android
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Baixar o código (histórico completo, para o código de versão contar os commits)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Gradle (com cache)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Testes, lint e APK de produção sem assinatura
+        run: ./gradlew testDebugUnitTest lintDebug assembleRelease -Prfid.semAssinatura=true --console=plain
+
+      - name: Relatórios (se falhar)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorios
+          path: |
+            app/build/reports/
+            app/build/test-results/

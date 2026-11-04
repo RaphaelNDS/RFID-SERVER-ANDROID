@@ -2,7 +2,11 @@ package com.example.rfid_server.activities
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
+import android.content.pm.Signature
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import android.widget.ProgressBar
@@ -10,6 +14,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
+import androidx.core.content.pm.PackageInfoCompat
 import com.example.rfid_server.AppConfig
 import com.example.rfid_server.BuildConfig
 import com.example.rfid_server.dados.VersaoPublicada
@@ -136,13 +141,16 @@ class AtualizadorApp(private val activity: AppCompatActivity) {
             val resposta = TagService(activity).baixarAtualizacaoAgora(versao, destino) { bytes ->
                 activity.runOnUiThread { barra.progress = (bytes / 1024).toInt() }
             }
+            // Ler o APK leva um tempo: confere aqui, fora da thread da tela
+            val recusa = (resposta as? RespostaServidor.Sucesso)?.let { conferirApk(versao, it.valor) }
 
             activity.runOnUiThread {
                 if (dialogo.isShowing) dialogo.dismiss()
                 if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
 
                 when (resposta) {
-                    is RespostaServidor.Sucesso -> instalar(versao, resposta.valor)
+                    is RespostaServidor.Sucesso ->
+                        if (recusa == null) instalar(versao, resposta.valor) else recusar(versao, resposta.valor, recusa)
                     is RespostaServidor.Falha -> {
                         Log.e(TAG, "Atualização para a versão ${versao.versaoNome} não baixada: ${resposta.mensagem}")
                         RegistroErros.registrar(activity, TipoErro.ATUALIZACAO,
@@ -157,6 +165,56 @@ class AtualizadorApp(private val activity: AppCompatActivity) {
                 }
             }
         }.start()
+    }
+
+    /**
+     * Confere o APK baixado contra o app instalado antes de abrir o instalador: o SHA-256 vem do mesmo servidor
+     * que o APK, então só ele não protege contra um servidor trocado ou invadido. Retorna o motivo da recusa,
+     * ou null se o APK é deste app, assinado com a mesma chave e com o código de versão anunciado.
+     */
+    private fun conferirApk(versao: VersaoPublicada, apk: File): String? = try {
+        val pm = activity.packageManager
+        val doApk = lerPacote { flags -> pm.getPackageArchiveInfo(apk.absolutePath, flags) }
+        val instalado = lerPacote { flags -> pm.getPackageInfo(activity.packageName, flags) }
+        ConferenciaApk.problema(
+            pacoteInstalado = activity.packageName,
+            certificadosInstalado = instalado?.let(::certificados).orEmpty(),
+            codigoAnunciado = versao.codigo.toLong(),
+            pacoteApk = doApk?.packageName,
+            certificadosApk = doApk?.let(::certificados).orEmpty(),
+            codigoApk = doApk?.let { PackageInfoCompat.getLongVersionCode(it) }
+        )
+    } catch (e: Exception) {
+        Log.e(TAG, "Erro ao conferir o APK baixado da versão ${versao.versaoNome}", e)
+        "não foi possível ler o arquivo baixado (${e.javaClass.simpleName})"
+    }
+
+    @Suppress("DEPRECATION")
+    private fun lerPacote(ler: (Int) -> PackageInfo?): PackageInfo? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) ler(PackageManager.GET_SIGNING_CERTIFICATES)
+        else ler(PackageManager.GET_SIGNATURES)
+
+    /** SHA-256 (hex) dos certificados que assinam o pacote agora (com rotação de chave, o atual). */
+    @Suppress("DEPRECATION")
+    private fun certificados(info: PackageInfo): Set<String> {
+        val assinaturas: Array<Signature>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            info.signingInfo?.apkContentsSigners
+        } else {
+            info.signatures
+        }
+        return assinaturas.orEmpty().map { ConferenciaApk.sha256Hex(it.toByteArray()) }.toSet()
+    }
+
+    private fun recusar(versao: VersaoPublicada, apk: File, motivo: String) {
+        apk.delete()
+        Log.e(TAG, "Atualização para a versão ${versao.versaoNome} (código ${versao.codigo}) RECUSADA: $motivo. APK apagado")
+        RegistroErros.registrar(activity, TipoErro.ATUALIZACAO,
+            "Atualização para a versão ${versao.versaoNome} (código ${versao.codigo}) recusada: $motivo")
+        AlertDialog.Builder(activity)
+            .setTitle("Atualização recusada")
+            .setMessage("O arquivo baixado do servidor não foi instalado: $motivo.\n\nAvise o responsável pelo sistema.")
+            .setPositiveButton("OK", null)
+            .show()
     }
 
     private fun instalar(versao: VersaoPublicada, apk: File) {
@@ -189,4 +247,29 @@ class AtualizadorApp(private val activity: AppCompatActivity) {
         // Operador foi à tela de autorização: ao voltar, oferece de novo sem esperar o intervalo
         @Volatile private var aguardandoPermissao = false
     }
+}
+
+/** Decisão (sem Android) de aceitar ou não o APK baixado, comparando com o app instalado. */
+object ConferenciaApk {
+
+    /** Motivo da recusa em português, ou null se o APK pode ir para o instalador. */
+    fun problema(
+        pacoteInstalado: String,
+        certificadosInstalado: Set<String>,
+        codigoAnunciado: Long,
+        pacoteApk: String?,
+        certificadosApk: Set<String>,
+        codigoApk: Long?
+    ): String? = when {
+        pacoteApk == null || codigoApk == null -> "o arquivo baixado não é um APK válido"
+        pacoteApk != pacoteInstalado -> "o APK é de outro app ($pacoteApk, esperado $pacoteInstalado)"
+        certificadosInstalado.isEmpty() -> "não foi possível ler a assinatura do app instalado"
+        certificadosApk.isEmpty() -> "o APK não tem assinatura legível"
+        certificadosApk != certificadosInstalado -> "o APK foi assinado com outra chave, diferente da do app instalado"
+        codigoApk != codigoAnunciado -> "o código de versão do APK ($codigoApk) é diferente do anunciado pelo servidor ($codigoAnunciado)"
+        else -> null
+    }
+
+    fun sha256Hex(bytes: ByteArray): String =
+        java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 }

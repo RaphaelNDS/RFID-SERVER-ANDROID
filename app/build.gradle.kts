@@ -1,4 +1,5 @@
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
@@ -15,26 +16,39 @@ val versaoApp = "1.6.1"
 // Abaixo disto o Android recusa instalar por cima (a 1.3.0 instalada nos coletores tem versionCode 6)
 val codigoVersaoMinimo = 7
 
+// APK de produção pedido (assembleRelease, bundleRelease...): aí nada de valor provisório, o build falha com a
+// explicação. No debug e nos testes os avisos continuam só avisos.
+val pedidoRelease = gradle.startParameter.taskNames.any { it.contains("Release") || it.contains("release") }
+
 val codigoVersaoInformado = providers.gradleProperty("rfid.codigoVersao").orNull?.toIntOrNull()
-val commitsDoGit: Int? = try {
+
+fun saidaDoGit(vararg argumentos: String): String? = try {
     providers.exec {
-        commandLine("git", "rev-list", "--count", "HEAD")
+        commandLine("git", *argumentos)
         workingDir = rootDir
         isIgnoreExitValue = true
-    }.standardOutput.asText.get().trim().toIntOrNull()
+    }.standardOutput.asText.get().trim().ifEmpty { null }
 } catch (e: Exception) {
     null
 }
+
+val commitsDoGit: Int? = saidaDoGit("rev-list", "--count", "HEAD")?.toIntOrNull()
+// Clone raso (ex.: CI com fetch-depth 1): o git conta só parte dos commits e o código sairia baixo demais
+val cloneRaso = commitsDoGit != null && saidaDoGit("rev-parse", "--is-shallow-repository") == "true"
 val codigoVersao: Int = codigoVersaoInformado ?: commitsDoGit ?: codigoVersaoMinimo
 
 if (codigoVersaoInformado == null && commitsDoGit != null && commitsDoGit < codigoVersaoMinimo) {
-    // Ex.: clone raso (CI com fetch-depth 1) conta só o último commit
     throw GradleException("O git contou só $commitsDoGit commit(s), abaixo do código de versão mínimo $codigoVersaoMinimo " +
         "(clone raso?). Faça o clone completo ou informe -Prfid.codigoVersao=N")
 }
-if (codigoVersaoInformado == null && commitsDoGit == null) {
-    logger.warn("AVISO: não foi possível contar os commits do git (git fora do PATH ou projeto sem .git). " +
-        "Código de versão provisório $codigoVersao: no APK de produção informe -Prfid.codigoVersao=N")
+if (codigoVersaoInformado == null && (commitsDoGit == null || cloneRaso)) {
+    val motivo = if (commitsDoGit == null) "não foi possível contar os commits do git (git fora do PATH ou projeto sem .git)"
+                 else "o projeto é um clone raso do git ($commitsDoGit commit(s) visíveis)"
+    if (pedidoRelease) {
+        throw GradleException("APK de produção recusado: $motivo, então o código de versão sairia errado e o Android " +
+            "poderia recusar a atualização. Gere com o git no PATH e o clone completo (git fetch --unshallow) ou informe -Prfid.codigoVersao=N")
+    }
+    logger.warn("AVISO: $motivo. Código de versão provisório $codigoVersao: no APK de produção informe -Prfid.codigoVersao=N")
 }
 
 // ================= ASSINATURA DO APK DE PRODUÇÃO =================
@@ -56,10 +70,19 @@ val aliasChave = configAssinatura("keyAlias", "RFID_KEYSTORE_ALIAS")
 val senhaChave = configAssinatura("keyPassword", "RFID_KEYSTORE_SENHA_CHAVE") ?: senhaArquivoChave
 val assinaturaConfigurada = arquivoChave?.isFile == true && senhaArquivoChave != null && aliasChave != null
 
+// -Prfid.semAssinatura=true: gera o APK de produção sem assinar, de propósito (CI, que não tem a chave).
+// Esse APK serve só para conferir o build (R8 etc.): o Android não instala APK sem assinatura.
+val semAssinaturaPermitido = providers.gradleProperty("rfid.semAssinatura").orNull?.toBoolean() == true
+
 if (!assinaturaConfigurada) {
-    logger.warn("AVISO: assinatura de produção não configurada (keystore.properties ausente ou incompleto, " +
-        "ou arquivo da chave não encontrado: ${arquivoChave ?: "não informado"}). " +
-        "O APK de produção sairá SEM assinatura e o Android não instala. Veja \"APK de produção\" no README.")
+    val motivo = "assinatura de produção não configurada (keystore.properties ausente ou incompleto, " +
+        "ou arquivo da chave não encontrado: ${arquivoChave ?: "não informado"})"
+    if (pedidoRelease && !semAssinaturaPermitido) {
+        throw GradleException("APK de produção recusado: $motivo. Sem assinatura o Android não instala o APK. " +
+            "Configure a chave (veja \"APK de produção\" no README) ou, só para testar o build, use -Prfid.semAssinatura=true")
+    }
+    logger.warn("AVISO: $motivo. O APK de produção sairá SEM assinatura e o Android não instala. " +
+        "Veja \"APK de produção\" no README.")
 }
 
 android {
@@ -111,9 +134,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
-    }
     // Esquema do banco local (Room) de cada versão, versionado no git para conferir as migrações
     ksp {
         arg("room.schemaLocation", "$projectDir/schemas")
@@ -121,6 +141,13 @@ android {
     testOptions {
         // Nos testes no computador, android.util.Log e afins retornam valor padrão em vez de lançar exceção
         unitTests.isReturnDefaultValues = true
+    }
+}
+
+// Bytecode Kotlin no mesmo alvo do Java (compileOptions acima)
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_11)
     }
 }
 
