@@ -87,7 +87,7 @@ class FilaErros(
         return lote
     }
 
-    /** Tira da fila os erros que o servidor confirmou. */
+    /** Tira da fila estes ids, inteiros (para o resultado de um envio, use [confirmarEnvio]). */
     @Synchronized
     fun remover(ids: Collection<String>) {
         val itens = ler()
@@ -97,6 +97,43 @@ class FilaErros(
             if (item.optString("id") !in ids) restantes.put(item)
         }
         gravar(restantes)
+    }
+
+    /**
+     * Tira da fila o [lote] que saiu de [pendentes] (enviado ao servidor, ou descartado). Só o que foi no lote:
+     * se o mesmo erro se repetiu durante o envio, o registro guardado tem mais ocorrências do que as enviadas, e
+     * as novas ficam na fila (com outro id e o momento da última, para o servidor não tratar como o mesmo envio).
+     * Devolve quantos registros saíram da fila.
+     */
+    @Synchronized
+    fun confirmarEnvio(lote: JSONArray): Int {
+        val enviadas = (0 until lote.length()).map { lote.getJSONObject(it) }
+            .associate { it.optString("id") to it.optInt("ocorrencias", 1) }
+
+        val itens = ler()
+        val restantes = JSONArray()
+        var removidos = 0
+        for (i in 0 until itens.length()) {
+            val item = itens.getJSONObject(i)
+            val jaEnviadas = enviadas[item.optString("id")]
+            if (jaEnviadas == null) {
+                restantes.put(item)
+                continue
+            }
+
+            val novas = item.optInt("ocorrencias", 1) - jaEnviadas
+            if (novas <= 0) {
+                removidos++
+                continue
+            }
+            restantes.put(
+                item.put("id", gerarId())
+                    .put("ocorrencias", novas)
+                    .put("momento", iso(item.optLong("ultimoMs", relogio())))
+            )
+        }
+        gravar(restantes)
+        return removidos
     }
 
     @Synchronized

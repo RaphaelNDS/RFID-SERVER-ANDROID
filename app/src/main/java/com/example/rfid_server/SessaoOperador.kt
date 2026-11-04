@@ -2,6 +2,7 @@ package com.example.rfid_server
 
 import android.content.Context
 import android.util.Log
+import com.example.rfid_server.erros.MascaraSensivel
 import org.json.JSONObject
 import java.time.OffsetDateTime
 
@@ -49,7 +50,7 @@ object SessaoAtual {
         val sessao = AppConfig.getSessao(context) ?: return null
         if (sessao.validaEm(agora)) return sessao
 
-        Log.i(TAG, "Sessão de ${sessao.email} expirou: é preciso entrar de novo")
+        Log.i(TAG, "Sessão de ${MascaraSensivel.email(sessao.email)} expirou: é preciso entrar de novo")
         AppConfig.limparSessao(context)
         return null
     }

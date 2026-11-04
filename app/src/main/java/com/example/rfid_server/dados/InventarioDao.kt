@@ -77,6 +77,27 @@ interface InventarioDao {
     @Query("UPDATE inventario_itens SET enviado = 1 WHERE id IN (:ids)")
     fun marcarItensEnviados(ids: List<Long>)
 
+    /**
+     * O servidor não conhece o inventário (ex.: banco dele restaurado de um backup): abertura, etiquetas e
+     * finalização vão de novo, senão o inventário ficaria incompleto lá. Reenviar é seguro (o id do inventário
+     * é um UUID e o servidor ignora etiqueta repetida). As etiquetas de que o coletor já desistiu por recusa
+     * ([limiteRecusas] ou mais, com primeiraRecusaEm) continuam fora da fila. Devolve quantas etiquetas voltaram.
+     */
+    @Transaction
+    fun prepararReabertura(id: String, limiteRecusas: Int): Int {
+        reabrirEtapas(id)
+        return reenviarItens(id, limiteRecusas)
+    }
+
+    @Query("UPDATE inventarios SET aberturaEnviada = 0, finalizacaoEnviada = 0, ultimoErro = NULL WHERE id = :id")
+    fun reabrirEtapas(id: String)
+
+    @Query(
+        """UPDATE inventario_itens SET enviado = 0 WHERE inventarioId = :inventarioId AND enviado = 1
+           AND NOT (recusas >= :limiteRecusas AND primeiraRecusaEm IS NOT NULL)"""
+    )
+    fun reenviarItens(inventarioId: String, limiteRecusas: Int): Int
+
     @Query("UPDATE inventarios SET finalizacaoEnviada = 1, ultimoErro = NULL WHERE id = :id")
     fun marcarFinalizacaoEnviada(id: String)
 

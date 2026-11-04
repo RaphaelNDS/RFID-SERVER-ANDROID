@@ -179,11 +179,13 @@ class SincronizadorInventarios(
 
     /**
      * O servidor não conhece o inventário (ex.: banco do servidor restaurado de um backup antigo).
-     * Marca para abrir de novo na próxima passada; as etiquetas não enviadas continuam guardadas.
+     * Marca para abrir de novo na próxima passada, com TODAS as etiquetas (as já enviadas se perderam lá junto
+     * com o inventário) e a finalização. Só as etiquetas de que o coletor já desistiu por recusa ficam de fora.
      */
     private fun reabrir(inventario: InventarioEntity): RespostaServidor.Falha {
-        Log.w(TAG, "Servidor não conhece o inventário ${inventario.id} (${inventario.local}): será registrado de novo na próxima sincronização")
-        dao.definirAberturaEnviada(inventario.id, false)
+        val reenviadas = dao.prepararReabertura(inventario.id, LIMITE_RECUSAS)
+        Log.w(TAG, "Servidor não conhece o inventário ${inventario.id} (${inventario.local}): será registrado de novo " +
+            "na próxima sincronização, com todas as etiquetas ($reenviadas já enviada(s) antes vão de novo)")
         return RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Inventário desconhecido no servidor; reenviando")
     }
 

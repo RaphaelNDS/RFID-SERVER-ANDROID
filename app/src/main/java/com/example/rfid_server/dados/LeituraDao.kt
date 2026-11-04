@@ -34,12 +34,13 @@ interface LeituraDao {
     /**
      * A etiqueta acabou de ser cadastrada pelo coletor: as leituras dela viram "cadastradas" e voltam
      * para a fila (envioConcluido = 0), para o servidor registrar a leitura com a hora real.
-     * Devolve quantas leituras mudaram.
+     * recusada = 0: uma recusada antes que volta para a fila não pode continuar contada como recusada
+     * (nem ser apagada como recusada antiga). Devolve quantas leituras mudaram.
      */
     @Query(
         """UPDATE leituras SET situacao = 'CADASTRADA', codigoInterno = :codigoInterno, tipo = :tipo,
            marca = :marca, modelo = :modelo, patrimonio = :patrimonio, numeroSerie = :numeroSerie,
-           envioConcluido = 0, ultimoErro = NULL WHERE epc = :epc AND situacao != 'CADASTRADA'"""
+           envioConcluido = 0, recusada = 0, ultimoErro = NULL WHERE epc = :epc AND situacao != 'CADASTRADA'"""
     )
     fun marcarCadastradaPorEpc(
         epc: String, codigoInterno: String, tipo: String?, marca: String?,
@@ -66,8 +67,11 @@ interface LeituraDao {
     )
     fun desfazerRecusas(ids: List<Long>)
 
-    /** Recusadas de sessões anteriores somem do aparelho depois de [antesDe] (epoch ms da leitura). */
-    @Query("DELETE FROM leituras WHERE recusada = 1 AND arquivada = 1 AND lidoEm < :antesDe")
+    /**
+     * Recusadas de sessões anteriores somem do aparelho depois de [antesDe] (epoch ms da leitura).
+     * Só as fora da fila (envioConcluido = 1): uma que voltou para a fila ainda precisa chegar ao servidor.
+     */
+    @Query("DELETE FROM leituras WHERE recusada = 1 AND arquivada = 1 AND envioConcluido = 1 AND lidoEm < :antesDe")
     fun apagarRecusadasAntigas(antesDe: Long): Int
 
     /** Tudo que ainda precisa falar com o servidor, da mais antiga para a mais nova. */
