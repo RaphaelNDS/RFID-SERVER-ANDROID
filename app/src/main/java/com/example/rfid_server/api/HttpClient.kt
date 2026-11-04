@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import com.example.rfid_server.AppConfig
 import com.example.rfid_server.BuildConfig
+import com.example.rfid_server.CofreSessoes
 import com.example.rfid_server.SessaoAtual
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
@@ -41,6 +42,7 @@ object HttpClient {
                 criar(
                     sessaoAtual = { SessaoAtual.token(app) },
                     impressaoConfirmada = { AppConfig.getImpressaoDigital(app) },
+                    resolverSessao = { CofreSessoes.get(app).token(it) },
                     chaveDispositivo = { AppConfig.getChaveDispositivo(app) }
                 )
             }.also { client = it }
@@ -50,6 +52,9 @@ object HttpClient {
     internal fun criar(
         sessaoAtual: () -> String? = { null },
         impressaoConfirmada: () -> String? = { null },
+        /** Troca a referência guardada no banco local pelo token da sessão (ver CofreSessoes). */
+        resolverSessao: (String) -> String = { it },
+        // Último parâmetro: os testes passam a chave como lambda final (HttpClient.criar { "chave" })
         chaveDispositivo: () -> String
     ): OkHttpClient {
         // HTTPS: só aceita o certificado confirmado pelo responsável (ver ConfiancaCertificado)
@@ -83,6 +88,8 @@ object HttpClient {
                         when {
                             sessaoDoRegistro == null -> sessaoAtual()?.let { header(HEADER_SESSAO, it) }
                             sessaoDoRegistro.isBlank() -> removeHeader(HEADER_SESSAO)
+                            // Registro da fila: o banco guarda só a referência; o token sai do cofre aqui
+                            else -> header(HEADER_SESSAO, resolverSessao(sessaoDoRegistro))
                         }
                     }
                     .build()

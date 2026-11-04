@@ -10,10 +10,14 @@
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="rfid_prefs.xml" />
+        <!-- Tokens das sessões dos operadores (cifrados), referenciados pelas linhas da fila -->
+        <exclude domain="sharedpref" path="cofre_sessoes.xml" />
         <exclude domain="database" path="rfid-local.db" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="rfid_prefs.xml" />
+        <!-- Tokens das sessões dos operadores (cifrados), referenciados pelas linhas da fila -->
+        <exclude domain="sharedpref" path="cofre_sessoes.xml" />
         <exclude domain="database" path="rfid-local.db" />
     </device-transfer>
 </data-extraction-rules>
