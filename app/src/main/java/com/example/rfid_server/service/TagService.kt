@@ -181,16 +181,9 @@ class TagService internal constructor(
         val url = url("tags", "patrimonio", patrimonio) ?: return callback(falhaEndereco())
         val descricao = "buscar o patrimônio $patrimonio"
 
-        client.newCall(Request.Builder().url(url).get().build()).enqueue(object : Callback {
-
-            override fun onFailure(call: Call, e: IOException) {
-                callback(falhaConexao(descricao, e))
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                callback(response.use { interpretarConsulta(it, descricao) { json -> json.getString("epc") } })
-            }
-        })
+        enfileirar(Request.Builder().url(url).get().build(), descricao, callback) {
+            interpretarConsulta(it, descricao) { json -> json.getString("epc") }
+        }
     }
 
     /** Registra no servidor a leitura de uma tag cadastrada, com a hora em que o coletor a leu. */
@@ -222,21 +215,17 @@ class TagService internal constructor(
         val request = Request.Builder().url(url).comAutoria(autoria)
             .post(JSONObject().put("itens", itens).toString().toRequestBody(json)).build()
 
-        return try {
-            clienteLote.newCall(request).execute().use {
-                when {
-                    it.code == 404 -> {
-                        Log.w(TAG, "O servidor não conhece /api/android/leituras/lote (versão antiga): enviando uma leitura por vez")
-                        RespostaServidor.NaoEncontrado
-                    }
-
-                    !it.isSuccessful -> falhaHttp(it, "enviar $descricao")
-
-                    else -> interpretarLote(it.body?.string().orEmpty(), leituras.size, descricao)
+        return executar(request, "enviar $descricao", cliente = clienteLote) {
+            when {
+                it.code == 404 -> {
+                    Log.w(TAG, "O servidor não conhece /api/android/leituras/lote (versão antiga): enviando uma leitura por vez")
+                    RespostaServidor.NaoEncontrado
                 }
+
+                !it.isSuccessful -> falhaHttp(it, "enviar $descricao")
+
+                else -> interpretarLote(it.body?.string().orEmpty(), leituras.size, descricao)
             }
-        } catch (e: IOException) {
-            falhaConexao("enviar $descricao", e)
         }
     }
 
@@ -305,27 +294,18 @@ class TagService internal constructor(
         val url = url("catalogo") ?: return callback(falhaEndereco())
         val descricao = "buscar o catálogo"
 
-        client.newCall(Request.Builder().url(url).get().build()).enqueue(object : Callback {
+        enfileirar(Request.Builder().url(url).get().build(), descricao, callback) {
+            if (!it.isSuccessful) return@enfileirar falhaHttp(it, descricao)
 
-            override fun onFailure(call: Call, e: IOException) {
-                callback(falhaConexao(descricao, e))
+            val corpo = it.body?.string().orEmpty()
+            try {
+                CatalogoColetor.deJson(corpo)
+                RespostaServidor.Sucesso(corpo)
+            } catch (e: JSONException) {
+                Log.e(TAG, "Resposta inválida ao $descricao: ${corpo.take(120)}", e)
+                RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Resposta inválida do servidor")
             }
-
-            override fun onResponse(call: Call, response: Response) {
-                callback(response.use {
-                    if (!it.isSuccessful) return@use falhaHttp(it, descricao)
-
-                    val corpo = it.body?.string().orEmpty()
-                    try {
-                        CatalogoColetor.deJson(corpo)
-                        RespostaServidor.Sucesso(corpo)
-                    } catch (e: JSONException) {
-                        Log.e(TAG, "Resposta inválida ao $descricao: ${corpo.take(120)}", e)
-                        RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Resposta inválida do servidor")
-                    }
-                })
-            }
-        })
+        }
     }
 
     /**
@@ -334,7 +314,6 @@ class TagService internal constructor(
      * REQUISICAO_RECUSADA com a mensagem do servidor, para mostrar ao operador.
      */
     fun cadastrarTagAgora(cadastro: CadastroEntity): RespostaServidor<Unit> {
-        val url = url("tags") ?: return falhaEndereco()
         val descricao = "o cadastro da tag ${cadastro.epc}"
 
         val corpo = JSONObject()
@@ -347,34 +326,11 @@ class TagService internal constructor(
             .put("modeloId", cadastro.modeloId ?: JSONObject.NULL)
 
         // Quem cadastrou e quando (o cadastro pode ter sido feito offline)
-        val autoria = Autoria(cadastro.sessaoOperador, cadastro.criadoEm)
-        val request = Request.Builder().url(url).comAutoria(autoria).post(corpo.toString().toRequestBody(json)).build()
-
-        return try {
-            client.newCall(request).execute().use {
-                when (it.code) {
-                    in 200..299 -> {
-                        Log.d(TAG, "Enviado ao servidor: $descricao")
-                        RespostaServidor.Sucesso(Unit)
-                    }
-
-                    400, 403, 409 -> {
-                        val mensagem = mensagemDoServidor(it) ?: "Servidor recusou o cadastro (HTTP ${it.code})"
-                        Log.w(TAG, "Servidor recusou $descricao: $mensagem")
-                        RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, mensagem)
-                    }
-
-                    404 -> {
-                        Log.e(TAG, "O servidor não conhece /api/android/tags: servidor desatualizado?")
-                        RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Servidor desatualizado (HTTP 404)")
-                    }
-
-                    else -> falhaHttp(it, "enviar $descricao")
-                }
-            }
-        } catch (e: IOException) {
-            falhaConexao("enviar $descricao", e)
-        }
+        return enviarAgora(
+            listOf("tags"), corpo, descricao,
+            autoria = Autoria(cadastro.sessaoOperador, cadastro.criadoEm),
+            recusaComMensagem = { codigo -> "Servidor recusou o cadastro (HTTP $codigo)".takeIf { codigo in setOf(400, 403, 409) } }
+        )
     }
 
     /** Campo "mensagem" do JSON de erro do servidor ({"status","mensagem",...}), se houver. */
@@ -396,31 +352,22 @@ class TagService internal constructor(
         val request = Request.Builder().url(url).header(HttpClient.HEADER_SESSAO, "")
             .post(corpo.toString().toRequestBody(json)).build()
 
-        client.newCall(request).enqueue(object : Callback {
-
-            override fun onFailure(call: Call, e: IOException) {
-                callback(falhaConexao("entrar como ${MascaraSensivel.email(email)}", e))
+        enfileirar(request, "entrar como ${MascaraSensivel.email(email)}", callback) {
+            if (!it.isSuccessful) {
+                // Senha errada, bloqueio por tentativas, sem permissão, chave do coletor: a mensagem vem do servidor
+                val mensagem = mensagemDoServidor(it) ?: "Não foi possível entrar (HTTP ${it.code})"
+                Log.w(TAG, "Login de ${MascaraSensivel.email(email)} recusado pelo servidor (HTTP ${it.code}): $mensagem")
+                return@enfileirar RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, mensagem)
             }
 
-            override fun onResponse(call: Call, response: Response) {
-                callback(response.use {
-                    if (!it.isSuccessful) {
-                        // Senha errada, bloqueio por tentativas, sem permissão, chave do coletor: a mensagem vem do servidor
-                        val mensagem = mensagemDoServidor(it) ?: "Não foi possível entrar (HTTP ${it.code})"
-                        Log.w(TAG, "Login de ${MascaraSensivel.email(email)} recusado pelo servidor (HTTP ${it.code}): $mensagem")
-                        return@use RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, mensagem)
-                    }
-
-                    val texto = it.body?.string().orEmpty()
-                    try {
-                        RespostaServidor.Sucesso(SessaoOperador.deJson(texto))
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Resposta inválida ao entrar: ${texto.take(80)}", e)
-                        RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Resposta inválida do servidor")
-                    }
-                })
+            val texto = it.body?.string().orEmpty()
+            try {
+                RespostaServidor.Sucesso(SessaoOperador.deJson(texto))
+            } catch (e: Exception) {
+                Log.e(TAG, "Resposta inválida ao entrar: ${texto.take(80)}", e)
+                RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Resposta inválida do servidor")
             }
-        })
+        }
     }
 
     /** Encerra a sessão no servidor. Sem rede, a sessão expira sozinha no prazo; o app sai de qualquer jeito. */
@@ -452,35 +399,26 @@ class TagService internal constructor(
         val request = Request.Builder().url(url).header(HttpClient.HEADER_SESSAO, "")
             .post(corpo.toString().toRequestBody(json)).build()
 
-        client.newCall(request).enqueue(object : Callback {
+        enfileirar(request, "liberar o PIN com ${MascaraSensivel.email(email)}", callback) {
+            when {
+                it.isSuccessful -> {
+                    Log.w(TAG, "PIN das Configurações liberado pelo administrador ${MascaraSensivel.email(email)}")
+                    RespostaServidor.Sucesso(Unit)
+                }
 
-            override fun onFailure(call: Call, e: IOException) {
-                callback(falhaConexao("liberar o PIN com ${MascaraSensivel.email(email)}", e))
+                it.code == 404 -> {
+                    Log.e(TAG, "O servidor não conhece /api/android/pin/liberar: servidor desatualizado?")
+                    RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Servidor desatualizado: atualize o servidor para liberar o PIN")
+                }
+
+                else -> {
+                    // Senha errada, não é ADMIN, bloqueio por tentativas, chave do coletor: a mensagem vem do servidor
+                    val mensagem = mensagemDoServidor(it) ?: "Não foi possível liberar o PIN (HTTP ${it.code})"
+                    Log.w(TAG, "Liberação do PIN com ${MascaraSensivel.email(email)} recusada pelo servidor (HTTP ${it.code}): $mensagem")
+                    RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, mensagem)
+                }
             }
-
-            override fun onResponse(call: Call, response: Response) {
-                callback(response.use {
-                    when {
-                        it.isSuccessful -> {
-                            Log.w(TAG, "PIN das Configurações liberado pelo administrador ${MascaraSensivel.email(email)}")
-                            RespostaServidor.Sucesso(Unit)
-                        }
-
-                        it.code == 404 -> {
-                            Log.e(TAG, "O servidor não conhece /api/android/pin/liberar: servidor desatualizado?")
-                            RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Servidor desatualizado: atualize o servidor para liberar o PIN")
-                        }
-
-                        else -> {
-                            // Senha errada, não é ADMIN, bloqueio por tentativas, chave do coletor: a mensagem vem do servidor
-                            val mensagem = mensagemDoServidor(it) ?: "Não foi possível liberar o PIN (HTTP ${it.code})"
-                            Log.w(TAG, "Liberação do PIN com ${MascaraSensivel.email(email)} recusada pelo servidor (HTTP ${it.code}): $mensagem")
-                            RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, mensagem)
-                        }
-                    }
-                })
-            }
-        })
+        }
     }
 
     /**
@@ -495,30 +433,21 @@ class TagService internal constructor(
         val request = Request.Builder().url(url).header(HttpClient.HEADER_SESSAO, "")
             .post(corpo.toString().toRequestBody(json)).build()
 
-        client.newCall(request).enqueue(object : Callback {
+        enfileirar(request, "pedir nova senha para ${MascaraSensivel.email(email)}", callback) {
+            when {
+                it.isSuccessful -> {
+                    Log.i(TAG, "Pedido de nova senha para ${MascaraSensivel.email(email)} enviado ao administrador")
+                    RespostaServidor.Sucesso(mensagemDoServidor(it) ?: "Pedido enviado ao administrador.")
+                }
 
-            override fun onFailure(call: Call, e: IOException) {
-                callback(falhaConexao("pedir nova senha para ${MascaraSensivel.email(email)}", e))
+                it.code == 404 -> {
+                    Log.e(TAG, "O servidor não conhece /api/android/esqueci-senha: servidor desatualizado?")
+                    RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Servidor desatualizado: peça a nova senha ao administrador")
+                }
+
+                else -> falhaHttp(it, "pedir nova senha")
             }
-
-            override fun onResponse(call: Call, response: Response) {
-                callback(response.use {
-                    when {
-                        it.isSuccessful -> {
-                            Log.i(TAG, "Pedido de nova senha para ${MascaraSensivel.email(email)} enviado ao administrador")
-                            RespostaServidor.Sucesso(mensagemDoServidor(it) ?: "Pedido enviado ao administrador.")
-                        }
-
-                        it.code == 404 -> {
-                            Log.e(TAG, "O servidor não conhece /api/android/esqueci-senha: servidor desatualizado?")
-                            RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Servidor desatualizado: peça a nova senha ao administrador")
-                        }
-
-                        else -> falhaHttp(it, "pedir nova senha")
-                    }
-                })
-            }
-        })
+        }
     }
 
     // ================= ERROS DO APP =================
@@ -532,16 +461,12 @@ class TagService internal constructor(
         val request = Request.Builder().url(url).header(HttpClient.HEADER_SESSAO, "")
             .post(JSONObject().put("itens", itens).toString().toRequestBody(json)).build()
 
-        return try {
-            client.newCall(request).execute().use {
-                when {
-                    it.isSuccessful -> RespostaServidor.Sucesso(Unit)
-                    it.code == 404 -> RespostaServidor.NaoEncontrado
-                    else -> falhaHttp(it, "enviar ${itens.length()} erro(s) do app")
-                }
+        return executar(request, "enviar os erros do app") {
+            when {
+                it.isSuccessful -> RespostaServidor.Sucesso(Unit)
+                it.code == 404 -> RespostaServidor.NaoEncontrado
+                else -> falhaHttp(it, "enviar ${itens.length()} erro(s) do app")
             }
-        } catch (e: IOException) {
-            falhaConexao("enviar os erros do app", e)
         }
     }
 
@@ -555,30 +480,21 @@ class TagService internal constructor(
         // Header de sessão em branco: a consulta acontece na tela de login, sem operador
         val request = Request.Builder().url(url).header(HttpClient.HEADER_SESSAO, "").get().build()
 
-        client.newCall(request).enqueue(object : Callback {
-
-            override fun onFailure(call: Call, e: IOException) {
-                callback(falhaConexao(descricao, e))
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                callback(response.use {
-                    when {
-                        it.code == 204 || it.code == 404 -> RespostaServidor.NaoEncontrado
-                        !it.isSuccessful -> falhaHttp(it, descricao)
-                        else -> {
-                            val corpo = it.body?.string().orEmpty()
-                            try {
-                                RespostaServidor.Sucesso(VersaoPublicada.deJson(corpo))
-                            } catch (e: Exception) {
-                                Log.e(TAG, "Resposta inválida ao $descricao: ${corpo.take(120)}", e)
-                                RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Resposta inválida do servidor")
-                            }
-                        }
+        enfileirar(request, descricao, callback) {
+            when {
+                it.code == 204 || it.code == 404 -> RespostaServidor.NaoEncontrado
+                !it.isSuccessful -> falhaHttp(it, descricao)
+                else -> {
+                    val corpo = it.body?.string().orEmpty()
+                    try {
+                        RespostaServidor.Sucesso(VersaoPublicada.deJson(corpo))
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Resposta inválida ao $descricao: ${corpo.take(120)}", e)
+                        RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Resposta inválida do servidor")
                     }
-                })
+                }
             }
-        })
+        }
     }
 
     /**
@@ -653,16 +569,7 @@ class TagService internal constructor(
         val url = url("locais") ?: return callback(falhaEndereco())
         val descricao = "buscar a lista de locais"
 
-        client.newCall(Request.Builder().url(url).get().build()).enqueue(object : Callback {
-
-            override fun onFailure(call: Call, e: IOException) {
-                callback(falhaConexao(descricao, e))
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                callback(response.use { interpretarLista(it, descricao) })
-            }
-        })
+        enfileirar(Request.Builder().url(url).get().build(), descricao, callback) { interpretarLista(it, descricao) }
     }
 
     /**
@@ -674,16 +581,9 @@ class TagService internal constructor(
             ?: return callback(falhaEndereco())
         val descricao = "buscar o esperado do local '$local'"
 
-        client.newCall(Request.Builder().url(url).get().build()).enqueue(object : Callback {
-
-            override fun onFailure(call: Call, e: IOException) {
-                callback(falhaConexao(descricao, e))
-            }
-
-            override fun onResponse(call: Call, response: Response) {
-                callback(response.use { interpretarConsulta(it, descricao) { json -> EsperadoLocal.deJson(json.toString()) } })
-            }
-        })
+        enfileirar(Request.Builder().url(url).get().build(), descricao, callback) {
+            interpretarConsulta(it, descricao) { json -> EsperadoLocal.deJson(json.toString()) }
+        }
     }
 
     fun abrirInventarioAgora(id: String, local: String, iniciadoEm: Long, sessao: String? = null): RespostaServidor<Unit> {
@@ -725,13 +625,49 @@ class TagService internal constructor(
     private fun <T> consultarAgora(url: HttpUrl?, descricao: String, autoria: Autoria?, converter: (JSONObject) -> T): RespostaServidor<T> {
         if (url == null) return falhaEndereco()
 
-        return try {
-            client.newCall(Request.Builder().url(url).comAutoria(autoria).get().build()).execute().use {
-                interpretarConsulta(it, descricao, converter)
-            }
+        return executar(Request.Builder().url(url).comAutoria(autoria).get().build(), descricao) {
+            interpretarConsulta(it, descricao, converter)
+        }
+    }
+
+    /**
+     * Executa [request] na hora (bloqueante) e entrega a resposta a [interpretar], que roda dentro de
+     * `response.use` (o corpo é fechado depois). Falha de conexão, inclusive recusa do certificado, vira a
+     * Falha de [falhaConexao], com o log padrão; [descricao] completa "Sem conexão ao ...".
+     * [cliente]: o lote de leituras usa o [clienteLote], com mais tempo de espera.
+     */
+    private fun <T> executar(
+        request: Request,
+        descricao: String,
+        cliente: OkHttpClient = client,
+        interpretar: (Response) -> RespostaServidor<T>
+    ): RespostaServidor<T> =
+        try {
+            cliente.newCall(request).execute().use(interpretar)
         } catch (e: IOException) {
             falhaConexao(descricao, e)
         }
+
+    /**
+     * Versão assíncrona de [executar]: o [callback] recebe, fora da thread principal, o resultado de
+     * [interpretar] (dentro de `response.use`) ou a Falha de [falhaConexao] se não deu para falar com o servidor.
+     */
+    private fun <T> enfileirar(
+        request: Request,
+        descricao: String,
+        callback: (RespostaServidor<T>) -> Unit,
+        interpretar: (Response) -> RespostaServidor<T>
+    ) {
+        client.newCall(request).enqueue(object : Callback {
+
+            override fun onFailure(call: Call, e: IOException) {
+                callback(falhaConexao(descricao, e))
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                callback(response.use(interpretar))
+            }
+        })
     }
 
     private fun <T> interpretarConsulta(
@@ -757,41 +693,49 @@ class TagService internal constructor(
      * POST em /api/android/<segmentos>. Por padrão, 404 significa endereço que não existe no servidor
      * (versão antiga). Com [naoEncontradoEhDoRecurso], 404 significa que o recurso da URL
      * (ex.: o inventário) não existe lá, e volta como NaoEncontrado.
+     *
+     * [recusaComMensagem]: para os códigos HTTP em que o servidor recusa ESTE envio com uma mensagem para o
+     * operador, devolve o texto a usar se o corpo não trouxer "mensagem" (null = código tratado como de costume).
+     * A recusa volta como REQUISICAO_RECUSADA.
      */
     private fun enviarAgora(
         segmentos: List<String>,
         corpo: JSONObject,
         descricao: String,
         naoEncontradoEhDoRecurso: Boolean = false,
-        autoria: Autoria? = null
+        autoria: Autoria? = null,
+        recusaComMensagem: (Int) -> String? = { null }
     ): RespostaServidor<Unit> {
 
         val url = url(*segmentos.toTypedArray()) ?: return falhaEndereco()
         val request = Request.Builder().url(url).comAutoria(autoria).post(corpo.toString().toRequestBody(json)).build()
 
-        return try {
-            client.newCall(request).execute().use {
-                when {
-                    it.isSuccessful -> {
-                        Log.d(TAG, "Enviado(a) ao servidor: $descricao")
-                        RespostaServidor.Sucesso(Unit)
-                    }
-
-                    it.code == 404 && naoEncontradoEhDoRecurso -> {
-                        Log.w(TAG, "O servidor não encontrou o recurso ao enviar $descricao")
-                        RespostaServidor.NaoEncontrado
-                    }
-
-                    it.code == 404 -> {
-                        Log.e(TAG, "O servidor não conhece /api/android/${segmentos.joinToString("/")} ao enviar $descricao: servidor desatualizado?")
-                        RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Servidor desatualizado (HTTP 404)")
-                    }
-
-                    else -> falhaHttp(it, "enviar $descricao")
+        return executar(request, "enviar $descricao") {
+            val recusaPadrao = if (it.isSuccessful) null else recusaComMensagem(it.code)
+            when {
+                it.isSuccessful -> {
+                    Log.d(TAG, "Enviado(a) ao servidor: $descricao")
+                    RespostaServidor.Sucesso(Unit)
                 }
+
+                recusaPadrao != null -> {
+                    val mensagem = mensagemDoServidor(it) ?: recusaPadrao
+                    Log.w(TAG, "Servidor recusou $descricao (HTTP ${it.code}): $mensagem")
+                    RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, mensagem)
+                }
+
+                it.code == 404 && naoEncontradoEhDoRecurso -> {
+                    Log.w(TAG, "O servidor não encontrou o recurso ao enviar $descricao")
+                    RespostaServidor.NaoEncontrado
+                }
+
+                it.code == 404 -> {
+                    Log.e(TAG, "O servidor não conhece /api/android/${segmentos.joinToString("/")} ao enviar $descricao: servidor desatualizado?")
+                    RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Servidor desatualizado (HTTP 404)")
+                }
+
+                else -> falhaHttp(it, "enviar $descricao")
             }
-        } catch (e: IOException) {
-            falhaConexao("enviar $descricao", e)
         }
     }
 
