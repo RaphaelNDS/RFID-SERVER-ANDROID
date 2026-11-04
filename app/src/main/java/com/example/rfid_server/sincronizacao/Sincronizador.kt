@@ -20,13 +20,14 @@ import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
-enum class EstadoSincronizacao(val descricao: String) {
+/** [dependeDasConfiguracoes]: só resolve quando alguém mexe nas Configurações do coletor (repetir sozinho não adianta). */
+enum class EstadoSincronizacao(val descricao: String, val dependeDasConfiguracoes: Boolean = false) {
     SINCRONIZADO("Tudo enviado ao servidor"),
     SEM_CONEXAO("Sem conexão com o servidor"),
-    CHAVE_INVALIDA("Servidor recusou a chave do coletor"),
-    ENDERECO_INVALIDO("Endereço do servidor inválido"),
+    CHAVE_INVALIDA("Servidor recusou a chave do coletor", dependeDasConfiguracoes = true),
+    ENDERECO_INVALIDO("Endereço do servidor inválido", dependeDasConfiguracoes = true),
     ERRO_SERVIDOR("Erro no servidor"),
-    CERTIFICADO("Certificado do servidor não confirmado ou diferente: veja as Configurações")
+    CERTIFICADO("Certificado do servidor não confirmado ou diferente: veja as Configurações", dependeDasConfiguracoes = true)
 }
 
 /**
@@ -52,7 +53,12 @@ class Sincronizador internal constructor(
     private val enviarErros: () -> Unit = {},
     private val relogio: () -> Long = System::currentTimeMillis,
     /** Desde quando cada sessão está sendo recusada pelo servidor (as leituras dela esperam um prazo antes de virar recusadas). */
-    private val recusasDeSessao: RecusasDeSessao = RecusasDeSessaoEmMemoria()
+    private val recusasDeSessao: RecusasDeSessao = RecusasDeSessaoEmMemoria(),
+    /**
+     * Roda o bloco numa transação do banco (em produção, runInTransaction; nos testes, direto). O resultado de um
+     * lote é gravado de uma vez: se o app morrer no meio, nenhuma leitura aceita fica na fila para ir de novo.
+     */
+    private val emTransacao: (() -> Unit) -> Unit = { it() }
 ) {
 
     private val _estado = MutableLiveData<EstadoSincronizacao>()
@@ -83,9 +89,12 @@ class Sincronizador internal constructor(
     /**
      * Processa a fila agora, bloqueando a thread. Usado pelo [solicitar] e pelo SincronizacaoWorker.
      * Synchronized: o worker e o app podem chamar ao mesmo tempo, e a mesma leitura não pode ir duas vezes.
+     *
+     * [agendarSeFalhar] = false no SincronizacaoWorker: ele mesmo pede a nova tentativa (Result.retry), e agendar
+     * aqui criaria uma segunda tentativa quando quem roda é a periódica.
      */
     @Synchronized
-    fun processarPendentes(): EstadoSincronizacao {
+    fun processarPendentes(agendarSeFalhar: Boolean = true): EstadoSincronizacao {
         // Ordem: cadastros (a leitura de uma etiqueta recém-cadastrada já chega como cadastrada) →
         // leituras avulsas → inventários. Uma falha de comunicação para tudo.
         // Leituras retidas por sessão recusada não impedem os inventários, mas a passada não está "sincronizada"
@@ -99,8 +108,11 @@ class Sincronizador internal constructor(
         if (falha == null || falha.motivo == MotivoFalha.ERRO_SERVIDOR || falha.motivo == MotivoFalha.SESSAO_INVALIDA) enviarErros()
 
         if (falha != null) {
-            agendarNovaTentativa()
-            return atualizarEstado(estadoPara(falha.motivo))
+            val estado = estadoPara(falha.motivo)
+            // Chave, endereço e certificado só mudam pelas Configurações (que pedem a sincronização ao salvar);
+            // tentar de novo antes disso só acordaria o coletor à toa. A periódica de 15 min continua de rede de segurança
+            if (agendarSeFalhar && !estado.dependeDasConfiguracoes) agendarNovaTentativa()
+            return atualizarEstado(estado)
         }
 
         return atualizarEstado(EstadoSincronizacao.SINCRONIZADO)
@@ -139,7 +151,9 @@ class Sincronizador internal constructor(
 
         Log.i(TAG, "Sincronização iniciada: ${pendentes.size} leitura(s) pendente(s)")
 
-        val (comOperador, semOperador) = pendentes.partition { it.sessaoOperador != null }
+        // Já enviadas que só esperam a classificação (ex.: aceitas no lote com status desconhecido) vão uma por vez:
+        // lá só se consulta a tag. No lote seriam registradas de novo
+        val (comOperador, semOperador) = pendentes.partition { it.sessaoOperador != null && !it.envioConcluido }
         val lotes = comOperador.groupBy { it.sessaoOperador!! }.flatMap { (sessao, leituras) ->
             leituras.chunked(TAMANHO_LOTE).map { sessao to it }
         }
@@ -222,43 +236,56 @@ class Sincronizador internal constructor(
         val porIndice = resultados.associateBy { it.indice }
         var cadastradas = 0
         var naoCadastradas = 0
+        var aceitas = 0
         var recusadas = 0
         var erros = 0
 
-        lote.forEachIndexed { indice, leitura ->
-            val resultado = porIndice[indice]
+        // Tudo numa transação: o servidor já registrou o lote, e uma gravação pela metade reenviaria leituras aceitas
+        emTransacao {
+            lote.forEachIndexed { indice, leitura ->
+                val resultado = porIndice[indice]
 
-            when (resultado?.status) {
-                StatusLote.CADASTRADA -> {
-                    val tag = resultado.tag
-                    if (tag != null) {
-                        dao.marcarCadastrada(leitura.id, tag.codigoInterno, tag.tipo, tag.marca, tag.modelo, tag.patrimonio, tag.numeroSerie)
+                when (resultado?.status) {
+                    StatusLote.CADASTRADA -> {
+                        val tag = resultado.tag
+                        if (tag != null) {
+                            dao.marcarCadastrada(leitura.id, tag.codigoInterno, tag.tipo, tag.marca, tag.modelo, tag.patrimonio, tag.numeroSerie)
+                        }
+                        dao.marcarEnviada(leitura.id)
+                        disjuntor.aceita()
+                        cadastradas++
                     }
-                    dao.marcarEnviada(leitura.id)
-                    disjuntor.aceita()
-                    cadastradas++
-                }
 
-                StatusLote.NAO_CADASTRADA -> {
-                    dao.marcarNaoCadastrada(leitura.id)
-                    dao.marcarEnviada(leitura.id)
-                    disjuntor.aceita()
-                    naoCadastradas++
-                }
+                    StatusLote.NAO_CADASTRADA -> {
+                        dao.marcarNaoCadastrada(leitura.id)
+                        dao.marcarEnviada(leitura.id)
+                        disjuntor.aceita()
+                        naoCadastradas++
+                    }
 
-                StatusLote.RECUSADA -> {
-                    recusar(leitura, resultado.mensagem ?: "Recusada pelo servidor", contaNoDisjuntor = true)
-                    recusadas++
-                }
+                    // Registrada pelo servidor, com status que este app não conhece: sai da fila sem mudar a situação
+                    // (se ainda estiver PENDENTE, a próxima passada só consulta a tag, sem enviar de novo)
+                    StatusLote.ACEITA -> {
+                        dao.marcarEnviada(leitura.id)
+                        disjuntor.aceita()
+                        aceitas++
+                    }
 
-                StatusLote.ERRO, null -> {
-                    dao.registrarErro(leitura.id, resultado?.mensagem ?: "Sem resposta do servidor para esta leitura")
-                    erros++
+                    StatusLote.RECUSADA -> {
+                        recusar(leitura, resultado.mensagem ?: "Recusada pelo servidor", contaNoDisjuntor = true)
+                        recusadas++
+                    }
+
+                    StatusLote.ERRO, null -> {
+                        dao.registrarErro(leitura.id, resultado?.mensagem ?: "Sem resposta do servidor para esta leitura")
+                        erros++
+                    }
                 }
             }
         }
 
         Log.i(TAG, "Lote de ${lote.size} leitura(s) enviado: $cadastradas cadastrada(s), $naoCadastradas não cadastrada(s)" +
+            (if (aceitas > 0) ", $aceitas aceita(s) sem classificação" else "") +
             (if (recusadas > 0) ", $recusadas recusada(s)" else "") +
             if (erros > 0) ", $erros com erro no servidor (ficam para a próxima tentativa)" else "")
         return erros
@@ -416,6 +443,7 @@ class Sincronizador internal constructor(
                 instancia ?: context.applicationContext.let { app ->
                     val banco = BancoLocal.get(app)
                     val tagService = TagService(app)
+                    val emTransacao: (() -> Unit) -> Unit = { bloco -> banco.runInTransaction(Runnable { bloco() }) }
                     Sincronizador(
                         dao = banco.leituraDao(),
                         tagService = tagService,
@@ -423,10 +451,11 @@ class Sincronizador internal constructor(
                         agendarNovaTentativa = { SincronizacaoWorker.agendarNovaTentativa(app) },
                         inventarios = SincronizadorInventarios(banco.inventarioDao(), tagService,
                             registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) }),
-                        cadastros = SincronizadorCadastros(banco.cadastroDao(), banco.leituraDao(), tagService),
+                        cadastros = SincronizadorCadastros(banco.cadastroDao(), banco.leituraDao(), tagService, emTransacao),
                         registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) },
                         enviarErros = { RegistroErros.enviarPendentes(app) },
-                        recusasDeSessao = RecusasDeSessaoGuardadas(app)
+                        recusasDeSessao = RecusasDeSessaoGuardadas(app),
+                        emTransacao = emTransacao
                     )
                 }.also { instancia = it }
             }

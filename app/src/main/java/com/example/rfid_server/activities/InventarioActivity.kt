@@ -378,6 +378,9 @@ class InventarioActivity : AppCompatActivity() {
                     runOnUiThread {
                         if (total != null) {
                             Toast.makeText(this, "Inventário de ${inventario.local} finalizado: $total etiqueta(s)", Toast.LENGTH_LONG).show()
+                        } else {
+                            // Não finalizou porque a sessão terminou: manda para o login ("entre de novo para continuar")
+                            exigirSessao()
                         }
                     }
                 }

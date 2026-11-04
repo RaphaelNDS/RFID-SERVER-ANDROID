@@ -18,4 +18,16 @@ object MascaraSensivel {
     )
 
     fun limpar(texto: String): String = regras.fold(texto) { atual, (regra, troca) -> regra.replace(atual, troca) }
+
+    /**
+     * Email do operador para o logcat (qualquer app com acesso ao log do aparelho o leria): "raphael@empresa.com"
+     * vira "r***@empresa.com". Dá para reconhecer quem foi sem expor o endereço inteiro.
+     */
+    fun email(email: String?): String {
+        val texto = email?.trim().orEmpty()
+        if (texto.isEmpty()) return "***"
+        val arroba = texto.lastIndexOf('@')
+        if (arroba <= 0) return "${texto.first()}***"
+        return "${texto.first()}***${texto.substring(arroba)}"
+    }
 }

@@ -102,12 +102,23 @@ class RepositorioInventario internal constructor(
         }
     }
 
-    /** Finaliza o inventário aberto. [aoTerminar] recebe quantas etiquetas foram lidas (ou null se não havia inventário aberto). */
+    /**
+     * Finaliza o inventário aberto. [aoTerminar] recebe quantas etiquetas foram lidas, ou null se não havia
+     * inventário aberto ou ninguém está logado (a tela manda entrar de novo).
+     */
     fun finalizar(aoTerminar: (Int?) -> Unit = {}) {
         val finalizadoEm = relogio()
         val sessao = sessaoAtual()
 
         executor.execute {
+            // Como no abrir: sem sessão a finalização iria ao servidor sem operador e seria recusada.
+            // O inventário continua aberto, e o operador finaliza depois de entrar de novo
+            if (sessao == null) {
+                Log.w(TAG, "Inventário não finalizado: nenhum operador logado")
+                aoTerminar(null)
+                return@execute
+            }
+
             val id = abertoId ?: run {
                 Log.w(TAG, "Pedido de finalização sem inventário aberto")
                 aoTerminar(null)

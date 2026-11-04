@@ -170,6 +170,37 @@ class SincronizadorInventariosTest {
     }
 
     @Test(timeout = 10_000)
+    fun `ao reabrir todas as etiquetas e a finalizacao vao de novo menos as desistidas por recusa`() {
+        inventario("inv-1", finalizado = true, "E1", "E2", "E3", "E4")
+        dao.definirAberturaEnviada("inv-1", true)
+        dao.marcarFinalizacaoEnviada("inv-1")
+        val (e1, e2, e3, _) = dao.itens.sortedBy { it.id }
+        dao.marcarItensEnviados(listOf(e1.id, e2.id))
+        // E3: o coletor já desistiu dela (recusada 3 vezes em mais de um dia)
+        repeat(SincronizadorInventarios.LIMITE_RECUSAS) { dao.registrarRecusaItens(listOf(e3.id), "Usuário desativado", 0) }
+        dao.desistirItens(listOf(e3.id), SincronizadorInventarios.LIMITE_RECUSAS, 0)
+        servidor.enqueue(erro(404))     // E4: inventário desconhecido (banco do servidor restaurado)
+
+        assertNotNull(sincronizador().processar())
+        proximas(1)
+
+        val inv = dao.inventario("inv-1")
+        assertFalse(inv.aberturaEnviada)
+        assertFalse("A finalização também se perdeu no servidor", inv.finalizacaoEnviada)
+        assertEquals("E1 e E2 já enviadas voltam; E3 desistida continua fora",
+            listOf("E1", "E2", "E4"), dao.itens.filter { !it.enviado }.map { it.epc })
+
+        // Próxima passada: abertura, as 3 etiquetas num lote e a finalização
+        repeat(3) { servidor.enqueue(ok()) }
+        assertNull(sincronizador().processar())
+        val (abertura, itens, finalizacao) = proximas(3)
+        assertEquals("/api/android/inventarios", abertura.path)
+        assertEquals(3, JSONObject(itens.body.readUtf8()).getJSONArray("itens").length())
+        assertEquals("/api/android/inventarios/inv-1/finalizar", finalizacao.path)
+        assertTrue(dao.inventarios.isEmpty())
+    }
+
+    @Test(timeout = 10_000)
     fun `inventario recusado pelo servidor nao trava os outros`() {
         inventario("ruim", finalizado = true, iniciadoEm = 1_000)
         inventario("bom", finalizado = true, "E1", iniciadoEm = 2_000)

@@ -12,6 +12,7 @@ import com.example.rfid_server.dados.CadastroEntity
 import com.example.rfid_server.dados.CatalogoColetor
 import com.example.rfid_server.dados.EsperadoLocal
 import com.example.rfid_server.dados.VersaoPublicada
+import com.example.rfid_server.erros.MascaraSensivel
 import com.example.rfid_server.view.TagView
 import okhttp3.Call
 import okhttp3.Callback
@@ -32,6 +33,7 @@ import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.TimeUnit
 
 /** Resultado de uma chamada ao servidor: separa "não existe" de "não deu para perguntar". */
 sealed class RespostaServidor<out T> {
@@ -66,6 +68,11 @@ enum class StatusLote {
     NAO_CADASTRADA,
     /** Recusa definitiva desta leitura: não adianta reenviar. */
     RECUSADA,
+    /**
+     * Status que este app não conhece (servidor mais novo), numa resposta 2xx: o servidor registrou a leitura,
+     * então ela sai da fila. Não vem do servidor com esse nome.
+     */
+    ACEITA,
     /** Falha passageira no servidor: tenta de novo depois. */
     ERRO
 }
@@ -103,6 +110,13 @@ class TagService internal constructor(
     constructor(context: Context) : this(HttpClient.get(context), { AppConfig.getBaseUrl(context) })
 
     private val json = "application/json".toMediaType()
+
+    /**
+     * Só para o lote de leituras: o servidor classifica e grava até 100 leituras antes de responder, e os 10 s
+     * do cliente normal podem estourar num servidor ocupado. Estourando, o lote volta para a fila e vai de novo
+     * (o servidor ainda não tem como reconhecer o reenvio). Mesmo cliente (chave, certificado, conexões), só com mais paciência.
+     */
+    internal val clienteLote: OkHttpClient by lazy { client.newBuilder().readTimeout(LEITURA_LOTE_S, TimeUnit.SECONDS).build() }
 
     fun testarConexao(callback: (ResultadoConexao) -> Unit) {
 
@@ -146,17 +160,7 @@ class TagService internal constructor(
     }
 
     fun buscarTagAgora(epc: String, autoria: Autoria? = null): RespostaServidor<TagView> =
-        consultarAgora(url("tags", epc), "buscar a tag $epc", autoria) { json ->
-            TagView(
-                epc = epc,
-                codigoInterno = json.getString("codigoInterno"),
-                tipo = json.optStringOrNull("tipo"),
-                marca = json.optStringOrNull("marca"),
-                modelo = json.optStringOrNull("modelo"),
-                patrimonio = json.getString("patrimonio"),
-                numeroSerie = json.getString("numeroSerie")
-            )
-        }
+        consultarAgora(url("tags", epc), "buscar a tag $epc", autoria) { json -> tagDoJson(epc, json) }
 
     fun buscarTagPorPatrimonio(patrimonio: String, callback: (RespostaServidor<String>) -> Unit) {
 
@@ -205,7 +209,7 @@ class TagService internal constructor(
             .post(JSONObject().put("itens", itens).toString().toRequestBody(json)).build()
 
         return try {
-            client.newCall(request).execute().use {
+            clienteLote.newCall(request).execute().use {
                 when {
                     it.code == 404 -> {
                         Log.w(TAG, "O servidor não conhece /api/android/leituras/lote (versão antiga): enviando uma leitura por vez")
@@ -222,25 +226,14 @@ class TagService internal constructor(
         }
     }
 
+    /**
+     * Resposta do lote, item a item: um item estranho não derruba o lote inteiro (senão as 100 leituras voltariam
+     * à fila e seriam reenviadas a cada passada, para sempre). Só um corpo que não é o JSON do lote vira falha.
+     */
     private fun interpretarLote(corpo: String, quantidade: Int, descricao: String): RespostaServidor<List<ResultadoLote>> =
         try {
             val array = JSONObject(corpo).getJSONArray("resultados")
-            val resultados = (0 until array.length()).map { i ->
-                val item = array.getJSONObject(i)
-                val status = StatusLote.values().firstOrNull { it.name == item.optString("status") } ?: StatusLote.ERRO
-                val dados = item.optJSONObject("dados")?.let { d ->
-                    TagView(
-                        epc = item.optString("tag"),
-                        codigoInterno = d.getString("codigoInterno"),
-                        tipo = d.optStringOrNull("tipo"),
-                        marca = d.optStringOrNull("marca"),
-                        modelo = d.optStringOrNull("modelo"),
-                        patrimonio = d.getString("patrimonio"),
-                        numeroSerie = d.getString("numeroSerie")
-                    )
-                }
-                ResultadoLote(item.getInt("indice"), status, dados, item.optStringOrNull("mensagem"))
-            }
+            val resultados = (0 until array.length()).mapNotNull { i -> resultadoDoLote(array.optJSONObject(i), i, quantidade, descricao) }
 
             if (resultados.size != quantidade) {
                 Log.w(TAG, "Resposta ao enviar $descricao com ${resultados.size} resultado(s) para $quantidade leitura(s)")
@@ -250,6 +243,46 @@ class TagService internal constructor(
             Log.e(TAG, "Resposta inválida ao enviar $descricao. Esperado JSON, recebido: ${corpo.take(120)}", e)
             RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Resposta inválida do servidor")
         }
+
+    /** Um item do lote, ou null se não der para saber a que leitura ele se refere (a leitura fica na fila). */
+    private fun resultadoDoLote(item: JSONObject?, posicao: Int, quantidade: Int, descricao: String): ResultadoLote? {
+        if (item == null) {
+            Log.w(TAG, "Resposta ao enviar $descricao: resultado $posicao não é um objeto JSON, ignorado")
+            return null
+        }
+
+        // Sem "indice", vale a posição (o servidor responde na ordem do envio)
+        val indice = if (item.isNull("indice")) posicao else item.optInt("indice", -1)
+        if (indice !in 0 until quantidade) {
+            Log.w(TAG, "Resposta ao enviar $descricao: índice inválido (${item.opt("indice")}) no resultado $posicao, ignorado")
+            return null
+        }
+
+        val nome = item.optStringOrNull("status")
+        val status = StatusLote.values().firstOrNull { it.name == nome && it != StatusLote.ACEITA } ?: run {
+            // A requisição deu 2xx, então o servidor registrou a leitura: tratar como ERRO a reenviaria para sempre
+            Log.w(TAG, "Resposta ao enviar $descricao: status desconhecido '$nome' na leitura $indice; tratada como aceita")
+            StatusLote.ACEITA
+        }
+
+        // Dados da tag que não são um objeto: a leitura é aceita sem eles (a tela os busca depois)
+        val dados = item.optJSONObject("dados")?.let { tagDoJson(item.optStringOrNull("tag").orEmpty(), it) }
+        return ResultadoLote(indice, status, dados, item.optStringOrNull("mensagem"))
+    }
+
+    /**
+     * Dados de uma tag cadastrada (consulta da tag e lote). Campos obrigatórios que faltarem ou vierem null ficam
+     * vazios: no Android, getString de um null devolve o texto "null", e um campo faltando derrubaria a resposta toda.
+     */
+    private fun tagDoJson(epc: String, json: JSONObject) = TagView(
+        epc = epc,
+        codigoInterno = json.optStringOrNull("codigoInterno").orEmpty(),
+        tipo = json.optStringOrNull("tipo"),
+        marca = json.optStringOrNull("marca"),
+        modelo = json.optStringOrNull("modelo"),
+        patrimonio = json.optStringOrNull("patrimonio").orEmpty(),
+        numeroSerie = json.optStringOrNull("numeroSerie").orEmpty()
+    )
 
     // ================= CADASTRO DE ETIQUETA =================
 
@@ -352,7 +385,7 @@ class TagService internal constructor(
         client.newCall(request).enqueue(object : Callback {
 
             override fun onFailure(call: Call, e: IOException) {
-                callback(falhaConexao("entrar como $email", e))
+                callback(falhaConexao("entrar como ${MascaraSensivel.email(email)}", e))
             }
 
             override fun onResponse(call: Call, response: Response) {
@@ -360,7 +393,7 @@ class TagService internal constructor(
                     if (!it.isSuccessful) {
                         // Senha errada, bloqueio por tentativas, sem permissão, chave do coletor: a mensagem vem do servidor
                         val mensagem = mensagemDoServidor(it) ?: "Não foi possível entrar (HTTP ${it.code})"
-                        Log.w(TAG, "Login de $email recusado pelo servidor (HTTP ${it.code}): $mensagem")
+                        Log.w(TAG, "Login de ${MascaraSensivel.email(email)} recusado pelo servidor (HTTP ${it.code}): $mensagem")
                         return@use RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, mensagem)
                     }
 
@@ -408,14 +441,14 @@ class TagService internal constructor(
         client.newCall(request).enqueue(object : Callback {
 
             override fun onFailure(call: Call, e: IOException) {
-                callback(falhaConexao("liberar o PIN com $email", e))
+                callback(falhaConexao("liberar o PIN com ${MascaraSensivel.email(email)}", e))
             }
 
             override fun onResponse(call: Call, response: Response) {
                 callback(response.use {
                     when {
                         it.isSuccessful -> {
-                            Log.w(TAG, "PIN das Configurações liberado pelo administrador $email")
+                            Log.w(TAG, "PIN das Configurações liberado pelo administrador ${MascaraSensivel.email(email)}")
                             RespostaServidor.Sucesso(Unit)
                         }
 
@@ -427,7 +460,7 @@ class TagService internal constructor(
                         else -> {
                             // Senha errada, não é ADMIN, bloqueio por tentativas, chave do coletor: a mensagem vem do servidor
                             val mensagem = mensagemDoServidor(it) ?: "Não foi possível liberar o PIN (HTTP ${it.code})"
-                            Log.w(TAG, "Liberação do PIN com $email recusada pelo servidor (HTTP ${it.code}): $mensagem")
+                            Log.w(TAG, "Liberação do PIN com ${MascaraSensivel.email(email)} recusada pelo servidor (HTTP ${it.code}): $mensagem")
                             RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, mensagem)
                         }
                     }
@@ -451,14 +484,14 @@ class TagService internal constructor(
         client.newCall(request).enqueue(object : Callback {
 
             override fun onFailure(call: Call, e: IOException) {
-                callback(falhaConexao("pedir nova senha para $email", e))
+                callback(falhaConexao("pedir nova senha para ${MascaraSensivel.email(email)}", e))
             }
 
             override fun onResponse(call: Call, response: Response) {
                 callback(response.use {
                     when {
                         it.isSuccessful -> {
-                            Log.i(TAG, "Pedido de nova senha para $email enviado ao administrador")
+                            Log.i(TAG, "Pedido de nova senha para ${MascaraSensivel.email(email)} enviado ao administrador")
                             RespostaServidor.Sucesso(mensagemDoServidor(it) ?: "Pedido enviado ao administrador.")
                         }
 
@@ -560,6 +593,7 @@ class TagService internal constructor(
     private fun salvarConferindo(response: Response, versao: VersaoPublicada, destino: File, progresso: (Long) -> Unit): RespostaServidor<File> {
         val digest = MessageDigest.getInstance("SHA-256")
         var total = 0L
+        var grandeDemais = false
 
         destino.parentFile?.mkdirs()
         response.body!!.byteStream().use { entrada ->
@@ -568,12 +602,23 @@ class TagService internal constructor(
                 while (true) {
                     val lidos = entrada.read(buffer)
                     if (lidos < 0) break
+                    total += lidos
+                    // Maior que o publicado já não confere: para na hora, sem encher o armazenamento do coletor
+                    if (total > versao.tamanho) {
+                        grandeDemais = true
+                        break
+                    }
                     saida.write(buffer, 0, lidos)
                     digest.update(buffer, 0, lidos)
-                    total += lidos
                     progresso(total)
                 }
             }
+        }
+
+        if (grandeDemais) {
+            destino.delete()
+            Log.e(TAG, "APK da versão ${versao.versaoNome} maior que o publicado (mais de ${versao.tamanho} bytes): download interrompido e descartado")
+            return RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "O arquivo baixado não confere (maior que o esperado). Tente de novo")
         }
 
         val sha = digest.digest().joinToString("") { "%02x".format(it) }
@@ -861,6 +906,9 @@ class TagService internal constructor(
         private const val TAG = "TAG_SERVICE"
 
         const val MENSAGEM_NAO_CONFIGURADO = "Servidor não configurado: informe o IP do servidor nas Configurações do coletor"
+
+        /** Espera pela resposta do lote de leituras (segundos). */
+        internal const val LEITURA_LOTE_S = 30L
 
         /** Epoch em ms → ISO-8601 com o fuso do aparelho (ex.: 2026-10-13T13:03:51.337-03:00). */
         internal fun formatarDataHora(epochMs: Long): String =

@@ -97,4 +97,64 @@ class FilaErrosTest {
 
         assertEquals(1, fila().quantidade())
     }
+
+    @Test
+    fun `erro repetido durante o envio nao perde as ocorrencias novas`() {
+        val fila = fila()
+        repeat(3) { fila.registrar(TipoErro.ERRO_SERVIDOR, "HTTP 500") }
+        fila.registrar(TipoErro.ENVIO_RECUSADO, "recusa")
+        val lote = fila.pendentes()
+
+        // Enquanto o lote vai ao servidor, o mesmo erro acontece mais 2 vezes (agrupado no mesmo registro)
+        agora += 60_000
+        repeat(2) { fila.registrar(TipoErro.ENVIO_RECUSADO, "recusa") }
+
+        assertEquals(1, fila.confirmarEnvio(lote))
+
+        val restante = fila.pendentes()
+        assertEquals(1, restante.length())
+        with(restante.getJSONObject(0)) {
+            assertEquals("Só as que não foram no lote", 2, getInt("ocorrencias"))
+            assertEquals("recusa", getString("mensagem"))
+            assertFalse("Outro id: não é o mesmo envio", getString("id") in listOf("id-1", "id-2"))
+        }
+
+        // Continua agrupando as próximas repetições no mesmo registro
+        fila.registrar(TipoErro.ENVIO_RECUSADO, "recusa")
+        assertEquals(3, fila.pendentes().getJSONObject(0).getInt("ocorrencias"))
+    }
+
+    @Test
+    fun `lote recusado de vez pelo servidor e descartado e nao trava a fila`() {
+        val fila = fila()
+        repeat(60) { fila.registrar(TipoErro.ENVIO_RECUSADO, "recusa $it") }
+        val enviados = mutableListOf<Int>()
+
+        RegistroErros.enviarPendentes(fila) { lote ->
+            enviados += lote.length()
+            com.example.rfid_server.service.RespostaServidor.Falha(
+                com.example.rfid_server.service.MotivoFalha.REQUISICAO_RECUSADA, "Servidor recusou a requisição (HTTP 400)"
+            )
+        }
+        assertEquals("Os 50 recusados saem", 10, fila.quantidade())
+
+        RegistroErros.enviarPendentes(fila) { lote ->
+            enviados += lote.length()
+            com.example.rfid_server.service.RespostaServidor.Sucesso(Unit)
+        }
+        assertEquals(listOf(50, 10), enviados)
+        assertEquals(0, fila.quantidade())
+    }
+
+    @Test
+    fun `falha passageira ao enviar os erros mantem tudo na fila`() {
+        val fila = fila()
+        repeat(3) { fila.registrar(TipoErro.ENVIO_RECUSADO, "recusa $it") }
+
+        RegistroErros.enviarPendentes(fila) {
+            com.example.rfid_server.service.RespostaServidor.Falha(com.example.rfid_server.service.MotivoFalha.ERRO_SERVIDOR, "HTTP 503")
+        }
+
+        assertEquals(3, fila.quantidade())
+    }
 }
