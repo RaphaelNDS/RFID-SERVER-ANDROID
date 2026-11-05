@@ -2,6 +2,7 @@ package com.example.rfid_server
 
 import android.content.Context
 import android.util.Log
+import com.example.rfid_server.dados.BancoLocal
 import androidx.core.content.edit
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
@@ -106,17 +107,25 @@ class CofreSessoes internal constructor(
 
         fun get(context: Context): CofreSessoes =
             instancia ?: synchronized(this) {
-                instancia ?: context.applicationContext.getSharedPreferences(ARQUIVO, Context.MODE_PRIVATE).let { prefs ->
+                instancia ?: context.applicationContext.let { app ->
+                    val prefs = app.getSharedPreferences(ARQUIVO, Context.MODE_PRIVATE)
                     CofreSessoes(
                         ler = { prefs.getString(it, null) },
                         // commit(): a linha do banco vai apontar para esta referência logo em seguida
                         gravar = { valores -> prefs.edit(commit = true) { valores.forEach { (k, v) -> putString(k, v) } } },
                         todas = { prefs.all.mapNotNull { (k, v) -> (v as? String)?.let { k to it } }.toMap() },
                         apagar = { chaves -> prefs.edit { chaves.forEach { remove(it) } } },
-                        cifra = { AppConfig.cifra }
-                        // emUso: falta ligar as referências usadas no banco (leituras, inventários, itens e cadastros
-                        // pendentes; ver CadastroDao.sessoesEmUso). Enquanto isso, vale o padrão (nenhuma)
-                    ).also { it.limparAntigas() }
+                        cifra = { AppConfig.cifra },
+                        // Referências ainda gravadas no banco local (inclusive recusadas guardadas): o token delas fica
+                        emUso = {
+                            val banco = BancoLocal.get(app)
+                            (banco.leituraDao().sessoesEmUso() + banco.inventarioDao().sessoesEmUso() +
+                                banco.cadastroDao().sessoesEmUso()).toSet()
+                        }
+                    ).also { cofre ->
+                        // Fora da thread de quem pediu (pode ser a tela): o Room não aceita consulta na thread principal
+                        Thread({ cofre.limparAntigas() }, "limpeza-cofre-sessoes").start()
+                    }
                 }.also { instancia = it }
             }
     }

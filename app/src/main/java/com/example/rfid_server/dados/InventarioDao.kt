@@ -198,6 +198,14 @@ interface InventarioDao {
     @Query("SELECT id FROM inventarios WHERE recusadoEm IS NOT NULL AND recusadoEm < :antesDe")
     fun idsRecusadosAntes(antesDe: Long): List<String>
 
+    /** Referências de sessão (CofreSessoes) ainda gravadas nos inventários e etiquetas: o token delas não pode sair do cofre. */
+    @Query(
+        """SELECT sessaoOperador FROM inventarios WHERE sessaoOperador LIKE 'sessao1:%'
+           UNION SELECT sessaoFinalizacao FROM inventarios WHERE sessaoFinalizacao LIKE 'sessao1:%'
+           UNION SELECT sessaoOperador FROM inventario_itens WHERE sessaoOperador LIKE 'sessao1:%'"""
+    )
+    fun sessoesEmUso(): List<String>
+
     @Query("DELETE FROM inventario_itens WHERE inventarioId IN (:ids)")
     fun apagarItens(ids: List<String>)
 

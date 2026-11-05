@@ -96,6 +96,14 @@ class Sincronizador internal constructor(
      * [agendarSeFalhar] = false no SincronizacaoWorker: ele mesmo pede a nova tentativa (Result.retry), e agendar
      * aqui criaria uma segunda tentativa quando quem roda é a periódica.
      */
+    /**
+     * Roda [bloco] com a mesma trava do [processarPendentes]: nenhuma sincronização acontece ao mesmo tempo (se houver
+     * uma em andamento, espera ela terminar). Usado para apagar do coletor algo que pode estar sendo enviado.
+     * Chame fora da thread principal.
+     */
+    @Synchronized
+    fun exclusivo(bloco: () -> Unit) = bloco()
+
     @Synchronized
     fun processarPendentes(agendarSeFalhar: Boolean = true): EstadoSincronizacao {
         // Ordem: cadastros (a leitura de uma etiqueta recém-cadastrada já chega como cadastrada) →

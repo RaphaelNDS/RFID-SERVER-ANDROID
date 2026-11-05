@@ -27,7 +27,12 @@ class RepositorioInventario internal constructor(
     /** Token da sessão do operador logado (null = ninguém logado ou sessão expirada). */
     private val sessaoAtual: () -> String? = { null },
     /** Avisos de recusa que o operador já marcou como "Ciente". */
-    private val cientes: GuardaCientes = GuardaCientes.EmMemoria()
+    private val cientes: GuardaCientes = GuardaCientes.EmMemoria(),
+    /**
+     * Roda o bloco sem uma sincronização em andamento ao mesmo tempo (em produção, a trava do Sincronizador).
+     * Sem isso, cancelar no instante em que a abertura está sendo enviada deixava um inventário aberto e vazio no servidor.
+     */
+    private val semSincronizacao: (() -> Unit) -> Unit = { it() }
 ) {
 
     // Inventário aberto e EPCs já lidos nele. Só acessados na thread do executor
@@ -159,21 +164,28 @@ class RepositorioInventario internal constructor(
                 return@execute
             }
 
-            val enviadas = dao.contarItensEnviadosAgora(inventario.id)
-            if (!podeCancelar(inventario, enviadas)) {
-                Log.w(TAG, "Inventário ${inventario.id} (${inventario.local}) não cancelado: já foi enviado ao servidor " +
-                    "(abertura ${if (inventario.aberturaEnviada) "enviada" else "não enviada"}, $enviadas etiqueta(s) enviada(s))")
-                aoTerminar(ResultadoCancelamento.JA_ENVIADO)
-                return@execute
+            var resultado = ResultadoCancelamento.JA_ENVIADO
+            // Conferir e apagar sem sincronização no meio: se ela estiver enviando, espera terminar e confere de novo
+            semSincronizacao {
+                val atual = dao.inventarioAgora(inventario.id) ?: run {
+                    resultado = ResultadoCancelamento.SEM_INVENTARIO
+                    return@semSincronizacao
+                }
+                val enviadas = dao.contarItensEnviadosAgora(atual.id)
+                if (!podeCancelar(atual, enviadas)) {
+                    Log.w(TAG, "Inventário ${atual.id} (${atual.local}) não cancelado: já foi enviado ao servidor " +
+                        "(abertura ${if (atual.aberturaEnviada) "enviada" else "não enviada"}, $enviadas etiqueta(s) enviada(s))")
+                    return@semSincronizacao
+                }
+
+                val total = dao.contarItensAgora(atual.id)
+                dao.apagarInventario(atual.id)
+                abertoId = null
+                epcsLidos.clear()
+                resultado = ResultadoCancelamento.CANCELADO
+                Log.i(TAG, "Inventário ${atual.id} (${atual.local}) cancelado pelo operador: apagado do coletor com $total etiqueta(s) lida(s)")
             }
-
-            val total = dao.contarItensAgora(inventario.id)
-            dao.apagarInventario(inventario.id)
-            abertoId = null
-            epcsLidos.clear()
-
-            Log.i(TAG, "Inventário ${inventario.id} (${inventario.local}) cancelado pelo operador: apagado do coletor com $total etiqueta(s) lida(s)")
-            aoTerminar(ResultadoCancelamento.CANCELADO)
+            aoTerminar(resultado)
         }
     }
 
@@ -269,7 +281,8 @@ class RepositorioInventario internal constructor(
                         executor = ExecutorProtegido.umaThread(app, "gravar o inventário"),
                         solicitarSincronizacao = sincronizador::solicitar,
                         sessaoAtual = { SessaoAtual.token(app)?.let { CofreSessoes.get(app).referencia(it) } },
-                        cientes = GuardaCientes.Preferencias(app)
+                        cientes = GuardaCientes.Preferencias(app),
+                        semSincronizacao = { bloco -> sincronizador.exclusivo(bloco) }
                     )
                 }.also { instancia = it }
             }

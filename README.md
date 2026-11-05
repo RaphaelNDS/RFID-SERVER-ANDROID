@@ -328,6 +328,12 @@ no coletor enquanto não há rede.
 | Login pede para esperar | Bloqueio por senhas erradas: aguarde o tempo indicado. |
 | "PIN bloqueado" nas Configurações | 5 erros seguidos bloqueiam por 5 min; de novo, 15 min; depois 1 h. Mudar o relógio ou reiniciar logo depois não encurta. Um ADMIN libera pelo "Esqueci o PIN". (Na 1.6.1 o bloqueio podia voltar depois de reiniciar o coletor; corrigido na 1.6.2.) |
 | Pede a chave do coletor de novo depois de restaurar o aparelho | A chave fica cifrada com uma chave do Android que se perde na restauração: digite a chave do coletor de novo. |
+| "Recusadas: N" na tela principal | Toque nos contadores: aparece a lista com a etiqueta e o motivo, e o botão **Tentar de novo** devolve todas à fila. |
+| Faixa vermelha "Inventário … recusado pelo servidor" | O coletor desistiu de enviar (recusa definitiva). Avise o responsável e toque em **Ciente**; o motivo também vai para a tela de erros do coletor no servidor. |
+| Inventário aberto no local errado | **Cancelar inventário** (abaixo de Finalizar) apaga do coletor, desde que nada tenha sido enviado ao servidor. Depois de enviado, só finalizando. Local que não está na lista pede confirmação antes de iniciar. |
+| Sem rede, etiquetas "aguardando o servidor identificar" | Normal: foram lidas e guardadas; viram cadastradas ou não cadastradas quando a rede voltar. |
+| Gatilho dá dois bips graves e não lê | O leitor não começou a ler: o motivo aparece na faixa do leitor (ex.: bateria, leitor ocupado). Abaixo de 15% de bateria a faixa avisa para trocar ou carregar. |
+| "O relógio do coletor está … adiantado/atrasado" | Acerte data, hora e fuso nas configurações do Android: com o relógio errado o servidor recusa as leituras pela hora. |
 | Leituras "aguardando" com sessão recusada | O servidor não reconheceu a sessão (banco restaurado, servidor novo, coletor com outro nome): as leituras esperam 24 h. Corrija o servidor nesse prazo. |
 | Leitor não lê | Confira se o leitor Zebra está conectado/carregado; a leitura só acontece com o gatilho e só na tela visível. Sem nenhuma tela de leitura aberta por 2 min o leitor é desconectado (economia de bateria) e reconecta sozinho ao abrir uma. |
 | Leitor só lê etiquetas muito perto | Confira a **potência do leitor** nas Configurações (Máxima lê mais longe). |

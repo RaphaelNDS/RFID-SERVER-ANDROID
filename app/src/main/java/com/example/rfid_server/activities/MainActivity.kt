@@ -1,5 +1,6 @@
 package com.example.rfid_server.activities
 
+import com.example.rfid_server.api.RelogioServidor
 import com.example.rfid_server.erros.MascaraSensivel
 import android.content.Intent
 import android.os.Bundle
@@ -117,6 +118,7 @@ class MainActivity : AppCompatActivity() {
 
         viewModel.pendentes.observe(this) { atualizarAvisoSincronizacao() }
         viewModel.estadoSincronizacao.observe(this) { atualizarAvisoSincronizacao() }
+        RelogioServidor.desvio.observe(this) { atualizarAvisoSincronizacao() }
         viewModel.contagem.observe(this) {
             txtContadores.text = if (it.recusadas > 0) it.resumo() + getString(R.string.main_recusadas_toque) else it.resumo()
         }
@@ -162,16 +164,21 @@ class MainActivity : AppCompatActivity() {
 
     private fun atualizarAvisoSincronizacao() {
         val pendentes = viewModel.pendentes.value ?: 0
+        // Relógio do coletor muito diferente do servidor: o servidor recusa as leituras pela hora, então avisa sempre
+        val avisoRelogio = RelogioServidor.aviso(RelogioServidor.desvio.value)
 
-        if (pendentes == 0) {
+        if (pendentes == 0 && avisoRelogio == null) {
             txtSincronizacao.visibility = View.GONE
             return
         }
 
-        val estado = viewModel.estadoSincronizacao.value
-        val motivo = if (estado == null || estado == EstadoSincronizacao.SINCRONIZADO) getString(R.string.main_enviando) else estado.descricao
+        val avisoPendentes = if (pendentes == 0) null else {
+            val estado = viewModel.estadoSincronizacao.value
+            val motivo = if (estado == null || estado == EstadoSincronizacao.SINCRONIZADO) getString(R.string.main_enviando) else estado.descricao
+            getString(R.string.main_aviso_sincronizacao, motivo, pendentes)
+        }
 
-        txtSincronizacao.text = getString(R.string.main_aviso_sincronizacao, motivo, pendentes)
+        txtSincronizacao.text = listOfNotNull(avisoRelogio, avisoPendentes).joinToString("\n")
         txtSincronizacao.visibility = View.VISIBLE
     }
 

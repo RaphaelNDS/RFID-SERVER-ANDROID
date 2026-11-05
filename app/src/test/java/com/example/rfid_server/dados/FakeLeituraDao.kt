@@ -155,5 +155,8 @@ class FakeLeituraDao(vararg iniciais: LeituraEntity) : LeituraDao {
 
     override fun contarPendentes(): LiveData<Int> = pendentesCount.also { publicar() }
 
+    override fun sessoesEmUso(): List<String> =
+        leituras.mapNotNull { it.sessaoOperador }.filter { it.startsWith("sessao1:") }.distinct()
+
     override fun contarSessao(): LiveData<ContagemSessao> = contagemSessao.also { publicar() }
 }

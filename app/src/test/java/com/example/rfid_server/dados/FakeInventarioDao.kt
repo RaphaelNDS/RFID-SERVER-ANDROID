@@ -134,6 +134,10 @@ class FakeInventarioDao : InventarioDao {
     override fun idsRecusadosAntes(antesDe: Long): List<String> =
         inventarios.filter { it.recusadoEm != null && it.recusadoEm < antesDe }.map { it.id }
 
+    override fun sessoesEmUso(): List<String> =
+        (inventarios.flatMap { listOf(it.sessaoOperador, it.sessaoFinalizacao) } + itens.map { it.sessaoOperador })
+            .filterNotNull().filter { it.startsWith("sessao1:") }.distinct()
+
     override fun contarItensNaoEnviados(): LiveData<Int> = naoEnviados.also { publicar() }
 
     override fun contarItensNaoEnviados(inventarioId: String): LiveData<Int> =

@@ -111,6 +111,10 @@ interface LeituraDao {
     @Query("SELECT COUNT(*) FROM leituras WHERE situacao = 'PENDENTE' OR envioConcluido = 0")
     fun contarPendentes(): LiveData<Int>
 
+    /** Referências de sessão (CofreSessoes) ainda gravadas nas leituras: o token delas não pode sair do cofre. */
+    @Query("SELECT DISTINCT sessaoOperador FROM leituras WHERE sessaoOperador LIKE 'sessao1:%'")
+    fun sessoesEmUso(): List<String>
+
     /** Contadores da sessão atual (o que está na tela). COALESCE: SUM de tabela vazia é NULL. */
     @Query(
         """SELECT COUNT(*) AS lidas,
