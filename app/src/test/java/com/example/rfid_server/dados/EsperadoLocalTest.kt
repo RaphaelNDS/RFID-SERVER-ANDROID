@@ -78,4 +78,22 @@ class EsperadoLocalTest {
         assertEquals("inventário", esperado.copy(finalizadoEm = null, operador = null).descricaoReferencia())
         assertEquals("Notebook · Dell", item("E1").descricao())
     }
+
+    @Test
+    fun `lidas fora da lista vem primeiro e cada grupo fica na ordem de leitura`() {
+        val patrimonios = mapOf("E1" to "P-E1", "E2" to null)
+        val lidas = LidaInventario.classificar(listOf("E2", "X1", "E1", "X2"), patrimonios)
+
+        assertEquals(listOf("X1", "X2", "E2", "E1"), lidas.map { it.epc })
+        assertEquals(listOf(true, true, false, false), lidas.map { it.foraDaLista })
+        assertEquals(listOf(null, null, null, "P-E1"), lidas.map { it.patrimonio })
+    }
+
+    @Test
+    fun `sem lista do esperado nenhuma lida fica fora da lista`() {
+        val lidas = LidaInventario.classificar(listOf("B", "A"), null)
+
+        assertEquals(listOf("B", "A"), lidas.map { it.epc })
+        assertTrue(lidas.none { it.foraDaLista })
+    }
 }

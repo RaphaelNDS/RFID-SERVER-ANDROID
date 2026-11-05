@@ -95,6 +95,42 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"/>
 
+            <!-- Etiquetas aguardando envio: dá para pedir o envio na hora -->
+            <LinearLayout
+                android:id="@+id/linhaEnvio"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:visibility="gone"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    android:id="@+id/txtAguardando"
+                    android:textColor="@color/texto"
+                    android:textSize="15sp"
+                    android:layout_weight="1"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"/>
+
+                <Button
+                    android:id="@+id/btnEnviarAgora"
+                    style="@style/Widget.RFID.Botao.Texto"
+                    android:text="@string/inventario_enviar_agora"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"/>
+            </LinearLayout>
+
+            <!-- A sincronização só volta quando alguém mexe nas Configurações (chave, endereço, certificado) -->
+            <TextView
+                android:id="@+id/txtChameResponsavel"
+                android:text="@string/inventario_chame_responsavel"
+                android:textColor="@color/erro"
+                android:textStyle="bold"
+                android:textSize="15sp"
+                android:visibility="gone"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
+
             <TextView
                 android:id="@+id/txtReferencia"
                 android:textAppearance="@style/Texto.RFID.Secundario"
@@ -137,6 +173,27 @@
             android:visibility="gone"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
+
+        <!-- Só com lista grande (FiltroInventario): filtra em memória a aba aberta -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/campoFiltro"
+            android:hint="@string/inventario_filtro_hint"
+            android:visibility="gone"
+            app:endIconMode="clear_text"
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginTop="8dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/edtFiltro"
+                android:inputType="text"
+                android:imeOptions="actionDone"
+                android:maxLines="1"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+        </com.google.android.material.textfield.TextInputLayout>
 
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recyclerItens"
