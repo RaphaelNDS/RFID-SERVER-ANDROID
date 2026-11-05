@@ -19,6 +19,13 @@
     <string name="comum_versao_app" translatable="false">%1$s · %2$s</string>
 
     <!-- Login -->
+    <!-- Sessão encerrada porque o servidor a recusou na sincronização (motivo do servidor) -->
+    <string name="login_sessao_usuario_desativado">Seu usuário foi desativado. Fale com o administrador.</string>
+    <string name="login_sessao_usuario_excluido">Seu usuário não existe mais no servidor. Fale com o administrador.</string>
+    <string name="login_sessao_encerrada">O servidor encerrou sua sessão: entre de novo.</string>
+    <string name="login_sessao_expirada">Sua sessão expirou no servidor: entre de novo.</string>
+    <string name="login_sessao_outro_coletor">O servidor não reconhece sua sessão neste coletor (coletor cadastrado com outro nome?): entre de novo.</string>
+    <string name="login_sessao_desconhecida">O servidor não reconhece sua sessão (servidor trocado ou restaurado): entre de novo.</string>
     <string name="login_subtitulo">Sistema RFID · Controle de patrimônio</string>
     <string name="login_acesso_operador">Acesso do operador</string>
     <string name="login_instrucao">Entre com seu usuário do Sistema RFID</string>

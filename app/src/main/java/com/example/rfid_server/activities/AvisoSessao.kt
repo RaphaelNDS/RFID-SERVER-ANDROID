@@ -43,12 +43,21 @@ class AvisoSessao(
         }
     }
 
+    // Sessão encerrada pelo servidor durante a sincronização (outra thread): confere na hora, sem esperar os 30 s.
+    // Sem isso o operador seguia lendo até a próxima conferência, e as leituras eram ignoradas sem aviso
+    private val aoEncerrarSessao: () -> Unit = {
+        handler.removeCallbacks(verificacao)
+        handler.post(verificacao)
+    }
+
     fun iniciar() {
+        SessaoAtual.ouvirEncerramento(aoEncerrarSessao)
         handler.removeCallbacks(verificacao)
         handler.post(verificacao)
     }
 
     fun parar() {
+        SessaoAtual.pararDeOuvir(aoEncerrarSessao)
         handler.removeCallbacks(verificacao)
     }
 

@@ -17,16 +17,33 @@ import com.example.rfid_server.service.RespostaServidor
 import com.example.rfid_server.service.ResultadoLote
 import com.example.rfid_server.service.StatusLote
 import com.example.rfid_server.service.TagService
+import com.example.rfid_server.CofreSessoes
+import com.example.rfid_server.SessaoAtual
 import java.util.concurrent.Executor
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
-/** [dependeDasConfiguracoes]: só resolve quando alguém mexe nas Configurações do coletor (repetir sozinho não adianta). */
-enum class EstadoSincronizacao(val descricao: String, val dependeDasConfiguracoes: Boolean = false) {
+/**
+ * [dependeDasConfiguracoes]: só resolve quando alguém mexe nas Configurações do coletor (repetir sozinho não adianta).
+ * [resolveEntrandoDeNovo]: quem resolve é o operador sair e entrar de novo ("Enviar agora" não adianta).
+ */
+enum class EstadoSincronizacao(
+    val descricao: String,
+    val dependeDasConfiguracoes: Boolean = false,
+    val resolveEntrandoDeNovo: Boolean = false
+) {
     SINCRONIZADO("Tudo enviado ao servidor"),
     SEM_CONEXAO("Sem conexão com o servidor"),
     CHAVE_INVALIDA("Servidor recusou a chave do coletor", dependeDasConfiguracoes = true),
     ENDERECO_INVALIDO("Endereço do servidor inválido", dependeDasConfiguracoes = true),
     ERRO_SERVIDOR("Erro no servidor"),
+    /**
+     * A passada terminou com registros retidos porque o servidor recusou a sessão do operador (ver
+     * [Sincronizador.PRAZO_SESSAO_RECUSADA_MS]). "Enviar agora" não resolve (iria com a mesma sessão); as novas
+     * tentativas continuam (o servidor pode voltar a aceitar, ex.: banco restaurado), mas quem resolve é entrar de novo.
+     */
+    SESSAO_RECUSADA("O servidor recusou a sessão do operador: saia e entre de novo", resolveEntrandoDeNovo = true),
     CERTIFICADO("Certificado do servidor não confirmado ou diferente: veja as Configurações", dependeDasConfiguracoes = true)
 }
 
@@ -58,6 +75,17 @@ class Sincronizador internal constructor(
     /** Desde quando cada sessão está sendo recusada pelo servidor (as leituras dela esperam um prazo antes de virar recusadas). */
     private val recusasDeSessao: RecusasDeSessao = RecusasDeSessaoEmMemoria(),
     /**
+     * O servidor recusou a sessão (sessão gravada na leitura, motivo do servidor, mensagem). Em produção,
+     * [FimDaSessaoAtual.aoRecusar]: se for a sessão atual do aparelho e o motivo disser que ela não serve mais,
+     * encerra a sessão local (o operador entra de novo). Chamado na thread da sincronização.
+     */
+    private val aoRecusarSessao: (sessao: String, motivoSessao: String?, mensagem: String) -> Unit = { _, _, _ -> },
+    /**
+     * Roda o bloco depois do atraso em ms (em produção, um ScheduledExecutorService; nos testes, um agendador falso).
+     * Usado pelo [solicitarEmBreve].
+     */
+    private val agendar: (atrasoMs: Long, bloco: () -> Unit) -> Unit = { _, bloco -> bloco() },
+    /**
      * Roda o bloco numa transação do banco (em produção, runInTransaction; nos testes, direto). O resultado de um
      * lote é gravado de uma vez: se o app morrer no meio, nenhuma leitura aceita fica na fila para ir de novo.
      */
@@ -81,11 +109,38 @@ class Sincronizador internal constructor(
     private var leiturasRetidas = 0
     private var motivoRetencao: String? = null
 
-    /** Pede uma sincronização em segundo plano (pode chamar de qualquer thread, quantas vezes quiser). */
+    // Há um pedido do solicitarEmBreve agendado (os seguintes, até ele rodar, vão junto)
+    private val pedidoEmBreve = AtomicBoolean(false)
+
+    /**
+     * Pede uma sincronização em segundo plano, na hora (pode chamar de qualquer thread, quantas vezes quiser).
+     * Para quem espera o envio já: "Enviar agora", Configurações salvas, tela principal, SincronizacaoWorker.
+     */
     fun solicitar() {
         pedidoPendente.set(true)
         executor.execute {
             if (pedidoPendente.getAndSet(false)) processarPendentes()
+        }
+    }
+
+    /**
+     * Pede uma sincronização daqui a [ESPERA_PEDIDO_EM_BREVE_MS], juntando todos os pedidos feitos nesse intervalo numa
+     * passada só. Para cada etiqueta nova gravada (leitura e inventário): com o gatilho apertado chegam várias por
+     * segundo, e o [solicitar] só junta os pedidos que chegam durante a passada em andamento, então as passadas rodavam
+     * uma atrás da outra (dezenas de requisições em poucos segundos).
+     */
+    fun solicitarEmBreve() {
+        if (!pedidoEmBreve.compareAndSet(false, true)) return
+        try {
+            agendar(ESPERA_PEDIDO_EM_BREVE_MS) {
+                pedidoEmBreve.set(false)
+                solicitar()
+            }
+        } catch (e: Exception) {
+            // Agendador fora do ar (não deveria acontecer): não deixa o pedido preso, pede na hora
+            Log.w(TAG, "Não foi possível agendar a sincronização: pedindo agora", e)
+            pedidoEmBreve.set(false)
+            solicitar()
         }
     }
 
@@ -120,7 +175,10 @@ class Sincronizador internal constructor(
                 // O disjuntor das leituras (servidor recusando tudo) também para: os inventários seriam recusados igual
                 if (RegraFalhas.paraTudo(f) || disjuntor.disparou) break
             }
-            falha = falhas.firstOrNull { RegraFalhas.paraTudo(it) } ?: falhas.firstOrNull()
+            // Sessão recusada (registros retidos) só vira o estado da passada se não houve outra falha: um erro do
+            // servidor numa etapa seguinte é o que o operador precisa ver ("Enviar agora" pode resolver)
+            falha = falhas.firstOrNull { RegraFalhas.paraTudo(it) }
+                ?: falhas.firstOrNull { it.motivo != MotivoFalha.SESSAO_INVALIDA } ?: falhas.firstOrNull()
 
             // Erro do servidor (5xx, resposta inválida): vai para a tela de erros do coletor no servidor.
             // Sem conexão, chave, endereço ou certificado não: são do ambiente e já aparecem na tela do coletor
@@ -238,6 +296,8 @@ class Sincronizador internal constructor(
                     // cada leitura é conferida sozinha, e as recusadas saem da fila sem travar as outras
                     if (resposta.motivo == MotivoFalha.SESSAO_INVALIDA || resposta.motivo == MotivoFalha.REQUISICAO_RECUSADA) {
                         Log.w(TAG, "Servidor recusou um lote de ${lote.size} leitura(s) (${resposta.mensagem}): enviando uma por vez")
+                        // Se for a sessão atual e ela não servir mais, o operador volta ao login (as do lote seguem a regra de sempre)
+                        if (resposta.motivo == MotivoFalha.SESSAO_INVALIDA) aoRecusarSessao(sessao, resposta.motivoSessao, resposta.mensagem)
                         umaPorVez += lote
                         continue
                     }
@@ -338,6 +398,7 @@ class Sincronizador internal constructor(
                     StatusLote.RECUSADA -> {
                         val mensagem = resultado.mensagem ?: "Recusada pelo servidor"
                         val sessao = leitura.sessaoOperador
+                        if (resultado.motivoSessao != null && sessao != null) aoRecusarSessao(sessao, resultado.motivoSessao, mensagem)
                         // Recusa pela sessão que o servidor diz poder voltar (ex.: DESCONHECIDA): espera como no 401.
                         // Só com o "motivo" preenchido: no servidor antigo a recusa de item no lote é sempre definitiva
                         if (resultado.motivoSessao != null && sessao != null &&
@@ -416,6 +477,8 @@ class Sincronizador internal constructor(
         // servidor novo), então a leitura fica na fila. As outras leituras da sessão esperam a próxima passada.
         // Se o servidor disser que a recusa é definitiva (ex.: DESATIVADO, EXPIRADA), não espera
         val sessao = leitura.sessaoOperador
+        // Sessão atual que não serve mais (ex.: usuário desativado): o operador volta ao login. A leitura segue a regra abaixo
+        if (falha.motivo == MotivoFalha.SESSAO_INVALIDA && sessao != null) aoRecusarSessao(sessao, falha.motivoSessao, falha.mensagem)
         if (falha.motivo == MotivoFalha.SESSAO_INVALIDA && sessao != null &&
             MotivoSessao.podeVoltar(falha.motivoSessao) && dentroDoPrazo(sessao)
         ) {
@@ -496,7 +559,8 @@ class Sincronizador internal constructor(
         MotivoFalha.SEM_CONEXAO -> EstadoSincronizacao.SEM_CONEXAO
         MotivoFalha.CHAVE_INVALIDA -> EstadoSincronizacao.CHAVE_INVALIDA
         MotivoFalha.ENDERECO_INVALIDO -> EstadoSincronizacao.ENDERECO_INVALIDO
-        MotivoFalha.ERRO_SERVIDOR, MotivoFalha.REQUISICAO_RECUSADA, MotivoFalha.SESSAO_INVALIDA -> EstadoSincronizacao.ERRO_SERVIDOR
+        MotivoFalha.ERRO_SERVIDOR, MotivoFalha.REQUISICAO_RECUSADA -> EstadoSincronizacao.ERRO_SERVIDOR
+        MotivoFalha.SESSAO_INVALIDA -> EstadoSincronizacao.SESSAO_RECUSADA
         MotivoFalha.CERTIFICADO -> EstadoSincronizacao.CERTIFICADO
     }
 
@@ -518,6 +582,9 @@ class Sincronizador internal constructor(
          */
         internal const val PRAZO_SESSAO_RECUSADA_MS = 24L * 60 * 60 * 1000
 
+        /** Quanto o [solicitarEmBreve] espera, juntando os pedidos, antes de pedir a passada. */
+        internal const val ESPERA_PEDIDO_EM_BREVE_MS = 2_500L
+
         @Volatile
         private var instancia: Sincronizador? = null
 
@@ -527,22 +594,39 @@ class Sincronizador internal constructor(
                     val banco = BancoLocal.get(app)
                     val tagService = TagService(app)
                     val emTransacao: (() -> Unit) -> Unit = { bloco -> banco.runInTransaction(Runnable { bloco() }) }
+                    // Servidor recusou a sessão atual de vez (usuário desativado, sessão encerrada...): volta ao login
+                    val fimDaSessao = FimDaSessaoAtual(
+                        tokenAtual = { SessaoAtual.token(app) },
+                        referenciaDe = { CofreSessoes.get(app).referencia(it) },
+                        encerrar = { token, motivo -> SessaoAtual.encerrarPeloServidor(app, token, motivo) }
+                    )
+                    val aoRecusarSessao: (String, String?, String) -> Unit = { sessao, motivo, mensagem ->
+                        fimDaSessao.aoRecusar(sessao, motivo, mensagem)
+                    }
+                    // Só agenda (o envio roda no executor da sincronização): uma thread basta, e não segura o processo
+                    val agendador = Executors.newSingleThreadScheduledExecutor { r ->
+                        Thread(r, "agendar-sincronizacao").apply { isDaemon = true }
+                    }
                     Sincronizador(
                         dao = banco.leituraDao(),
                         tagService = tagService,
                         executor = ExecutorProtegido.umaThread(app, "sincronizar com o servidor"),
                         agendarNovaTentativa = { SincronizacaoWorker.agendarNovaTentativa(app) },
                         inventarios = SincronizadorInventarios(banco.inventarioDao(), tagService,
-                            registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) }),
+                            registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) },
+                            aoRecusarSessao = aoRecusarSessao),
                         cadastros = SincronizadorCadastros(
                             banco.cadastroDao(), banco.leituraDao(), tagService,
                             registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) },
                             recusasDeSessao = RecusasDeSessaoGuardadas(app, RecusasDeSessaoGuardadas.ARQUIVO_CADASTROS),
+                            aoRecusarSessao = aoRecusarSessao,
                             emTransacao = emTransacao
                         ),
                         registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) },
                         enviarErros = { RegistroErros.enviarPendentes(app) },
                         recusasDeSessao = RecusasDeSessaoGuardadas(app),
+                        aoRecusarSessao = aoRecusarSessao,
+                        agendar = { atraso, bloco -> agendador.schedule({ bloco() }, atraso, TimeUnit.MILLISECONDS) },
                         emTransacao = emTransacao
                     )
                 }.also { instancia = it }

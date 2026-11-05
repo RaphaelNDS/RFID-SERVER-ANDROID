@@ -132,6 +132,8 @@ object AppConfig {
             putBoolean(KEY_SESSAO_LER, sessao.podeLer)
             putBoolean(KEY_SESSAO_CADASTRAR, sessao.podeCadastrar)
             putString(KEY_ULTIMO_EMAIL, sessao.email)
+            // Entrou de novo: o motivo do fim da sessão anterior já não interessa
+            remove(KEY_SESSAO_MOTIVO_FIM)
         }
     }
 
@@ -154,6 +156,31 @@ object AppConfig {
             remove(KEY_SESSAO_TOKEN).remove(KEY_SESSAO_EXPIRA).remove(KEY_SESSAO_NOME)
                 .remove(KEY_SESSAO_EMAIL).remove(KEY_SESSAO_LER).remove(KEY_SESSAO_CADASTRAR)
         }
+    }
+
+    /**
+     * O servidor recusou de vez a sessão [token] (ver FimDaSessaoAtual): apaga a sessão, só se a guardada ainda for
+     * essa (um login novo feito nesse meio-tempo fica), e guarda o [motivoServidor] (ex.: "DESATIVADO") para a tela de
+     * login mostrar uma vez. Devolve true se apagou.
+     */
+    fun encerrarSessaoRecusada(context: Context, token: String, motivoServidor: String): Boolean {
+        synchronized(travaSegredos) {
+            if (lerSegredo(context, KEY_SESSAO_TOKEN, "o token da sessão") != token) return false
+            gravarSegredos(context) {
+                remove(KEY_SESSAO_TOKEN).remove(KEY_SESSAO_EXPIRA).remove(KEY_SESSAO_NOME)
+                    .remove(KEY_SESSAO_EMAIL).remove(KEY_SESSAO_LER).remove(KEY_SESSAO_CADASTRAR)
+                putString(KEY_SESSAO_MOTIVO_FIM, motivoServidor)
+            }
+        }
+        return true
+    }
+
+    /** Motivo guardado por [encerrarSessaoRecusada], ou null. Apaga depois de ler: a tela de login mostra uma vez só. */
+    fun tirarMotivoFimSessao(context: Context): String? {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val motivo = prefs.getString(KEY_SESSAO_MOTIVO_FIM, null) ?: return null
+        prefs.edit { remove(KEY_SESSAO_MOTIVO_FIM) }
+        return motivo
     }
 
     // Esperado de cada local (JSON de /api/android/inventarios/esperado): o inventário mostra o que falta
@@ -328,6 +355,7 @@ object AppConfig {
     private const val KEY_SESSAO_EMAIL = "sessao_email"
     private const val KEY_SESSAO_LER = "sessao_pode_ler"
     private const val KEY_SESSAO_CADASTRAR = "sessao_pode_cadastrar"
+    private const val KEY_SESSAO_MOTIVO_FIM = "sessao_motivo_fim"
     private const val KEY_ULTIMO_EMAIL = "ultimo_email"
     private const val KEY_AVISO_LEITURA = "aviso_leitura"
     /** Só para trazer o que a versão 1.5.0 e anteriores guardavam aqui (ver esperadoGuardado). */
