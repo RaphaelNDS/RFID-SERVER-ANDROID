@@ -263,6 +263,11 @@ class MainActivity : AppCompatActivity() {
                 true
             }
 
+            R.id.menu_recusadas -> {
+                mostrarRecusadas()
+                true
+            }
+
             R.id.menu_settings -> {
                 abrirConfiguracoes()
                 true

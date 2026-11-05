@@ -75,6 +75,7 @@
     <string name="main_enviando">Enviando</string>
     <string name="main_aviso_sincronizacao">%1$s — %2$d leitura(s) guardada(s) no coletor, aguardando envio</string>
     <string name="main_nova_leitura">Nova leitura</string>
+    <string name="main_menu_recusadas">Leituras recusadas</string>
     <string name="main_configuracoes">Configurações</string>
     <string name="main_sair_menu">Sair (trocar operador)</string>
     <string name="main_sair_titulo">Sair do coletor</string>
