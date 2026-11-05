@@ -128,13 +128,16 @@ class LoginActivity : AppCompatActivity() {
             return
         }
 
+        // Espera do servidor (até 15 s): o botão diz o que está acontecendo
         btnEntrar.isEnabled = false
+        btnEntrar.setText(R.string.login_entrando)
         txtStatus.visibility = View.GONE
         Log.i(TAG, "Tentando entrar como ${MascaraSensivel.email(email)}")
 
         TagService(this).entrar(email, senha) { resposta ->
             runOnUiThread {
                 btnEntrar.isEnabled = true
+                btnEntrar.setText(R.string.login_entrar)
 
                 when (resposta) {
                     is RespostaServidor.Sucesso -> {
@@ -161,19 +164,20 @@ class LoginActivity : AppCompatActivity() {
 
     /** "Esqueceu a senha?": confirma o email e manda o pedido ao administrador, que gera uma senha temporária. */
     private fun esqueciSenha() {
-        val campoEmail = EditText(this).apply {
-            setHint(R.string.comum_email)
-            inputType = android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS or android.text.InputType.TYPE_CLASS_TEXT
+        val vista = layoutInflater.inflate(R.layout.dialogo_email, null)
+        val campoEmail = vista.findViewById<EditText>(R.id.edtCampoDialogo).apply {
             setText(edtEmail.text.toString().trim())
+            setSelection(text.length)
         }
 
-        AlertDialog.Builder(this)
+        val dialogo = AlertDialog.Builder(this)
             .setTitle(R.string.login_esqueceu_senha)
             .setMessage(R.string.login_esqueci_mensagem)
-            .setView(campoEmail)
+            .setView(vista)
             .setPositiveButton(R.string.login_pedir_nova_senha) { _, _ -> pedirNovaSenha(campoEmail.text.toString().trim()) }
             .setNegativeButton(R.string.comum_cancelar, null)
-            .show()
+            .create()
+        CampoDialogo.mostrar(dialogo, campoEmail)
     }
 
     private fun pedirNovaSenha(email: String) {

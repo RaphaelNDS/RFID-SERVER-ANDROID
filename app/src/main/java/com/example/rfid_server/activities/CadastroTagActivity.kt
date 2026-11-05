@@ -4,7 +4,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import android.text.InputType
 import android.util.Log
 import android.view.View
 import android.widget.AdapterView
@@ -31,6 +30,7 @@ import com.example.rfid_server.dados.TipoCatalogo
 import com.example.rfid_server.erros.MascaraSensivel
 import com.example.rfid_server.service.RespostaServidor
 import com.example.rfid_server.service.TagService
+import com.google.android.material.appbar.MaterialToolbar
 import org.json.JSONException
 
 /**
@@ -119,6 +119,10 @@ class CadastroTagActivity : AppCompatActivity() {
         btnSalvar.setOnClickListener { salvar() }
 
         onBackPressedDispatcher.addCallback(this, confirmarDescarte)
+        // Seta da barra = botão voltar: com alteração não salva, pergunta "Descartar o cadastro?"
+        findViewById<MaterialToolbar>(R.id.barraCadastro).setNavigationOnClickListener {
+            onBackPressedDispatcher.onBackPressed()
+        }
         listOf(edtCodigoInterno, edtPatrimonio, edtNumeroSerie).forEach { campo ->
             campo.doAfterTextChanged { atualizarAlteracoes() }
         }
@@ -469,17 +473,16 @@ class CadastroTagActivity : AppCompatActivity() {
         }
         if (dialogoSenha?.isShowing == true) return
 
-        val campoSenha = EditText(this).apply {
-            setHint(R.string.comum_senha)
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-        }
+        // Mesmo campo do pedido de senha do AvisoSessao (dialogo_senha.xml)
+        val vista = layoutInflater.inflate(R.layout.dialogo_senha, null)
+        val campoSenha = vista.findViewById<EditText>(R.id.edtCampoDialogo)
         val mensagem = listOfNotNull(erro, getString(R.string.cadastro_sessao_terminou), getString(R.string.sessao_senha_de, email))
             .joinToString("\n\n")
 
-        dialogoSenha = AlertDialog.Builder(this)
+        val dialogo = AlertDialog.Builder(this)
             .setTitle(R.string.sessao_renovar_titulo)
             .setMessage(mensagem)
-            .setView(campoSenha)
+            .setView(vista)
             .setCancelable(false)
             .setPositiveButton(R.string.sessao_renovar) { _, _ -> renovar(email, campoSenha.text.toString()) }
             .setNegativeButton(R.string.comum_cancelar) { _, _ ->
@@ -487,7 +490,9 @@ class CadastroTagActivity : AppCompatActivity() {
                 cadastroEsperandoSessao = null
                 Toast.makeText(this, R.string.cadastro_sessao_nao_renovada, Toast.LENGTH_LONG).show()
             }
-            .show()
+            .create()
+        dialogoSenha = dialogo
+        CampoDialogo.mostrar(dialogo, campoSenha)
     }
 
     private fun renovar(email: String, senha: String) {

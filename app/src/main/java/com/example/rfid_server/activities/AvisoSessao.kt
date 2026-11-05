@@ -3,7 +3,6 @@ package com.example.rfid_server.activities
 import com.example.rfid_server.erros.MascaraSensivel
 import android.os.Handler
 import android.os.Looper
-import android.text.InputType
 import android.util.Log
 import android.widget.EditText
 import android.widget.Toast
@@ -89,18 +88,18 @@ class AvisoSessao(
     }
 
     private fun pedirSenha(sessao: SessaoOperador, erro: String? = null) {
-        val campoSenha = EditText(activity).apply {
-            setHint(R.string.comum_senha)
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-        }
+        // Campo com margem do diálogo, foco e teclado já abertos; o Concluir do teclado renova
+        val vista = activity.layoutInflater.inflate(R.layout.dialogo_senha, null)
+        val campoSenha = vista.findViewById<EditText>(R.id.edtCampoDialogo)
 
-        AlertDialog.Builder(activity)
+        val pedido = AlertDialog.Builder(activity)
             .setTitle(R.string.sessao_renovar_titulo)
             .setMessage((erro?.let { "$it\n\n" } ?: "") + activity.getString(R.string.sessao_senha_de, sessao.email))
-            .setView(campoSenha)
+            .setView(vista)
             .setPositiveButton(R.string.sessao_renovar) { _, _ -> renovar(sessao, campoSenha.text.toString()) }
             .setNegativeButton(R.string.comum_cancelar) { _, _ -> Log.i(TAG, "Operador ${MascaraSensivel.email(sessao.email)} cancelou a renovação da sessão") }
-            .show()
+            .create()
+        CampoDialogo.mostrar(pedido, campoSenha)
     }
 
     private fun renovar(sessao: SessaoOperador, senha: String) {
