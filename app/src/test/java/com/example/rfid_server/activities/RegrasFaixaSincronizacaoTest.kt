@@ -11,11 +11,14 @@ class RegrasFaixaSincronizacaoTest {
     private val responsavel = RegrasFaixaSincronizacao.Acoes(enviarAgora = false, chamarResponsavel = true)
 
     @Test
-    fun `texto da faixa poe o mais curto e acionavel primeiro e junta numa linha so`() {
+    fun `texto da faixa poe o relogio primeiro, depois o responsavel e por ultimo as pendencias`() {
+        // O relógio errado é o que faz o servidor recusar: não pode ficar no fim, onde o corte o escondia
         assertEquals(
-            "Chame o responsável. Sem chave — 3 leitura(s). Relógio errado",
-            RegrasFaixaSincronizacao.texto("Relógio errado", "Sem chave — 3 leitura(s).", "Chame o responsável.")
+            "Relógio errado. Chame o responsável. Sem chave — 3 leitura(s).",
+            RegrasFaixaSincronizacao.texto("Relógio errado.", "Sem chave — 3 leitura(s).", "Chame o responsável.")
         )
+        assertEquals("Relógio errado. Enviando — 2", RegrasFaixaSincronizacao.texto("Relógio errado.", "Enviando — 2", null))
+        assertEquals("Chame o responsável. Sem chave — 1", RegrasFaixaSincronizacao.texto(null, "Sem chave — 1", "Chame o responsável."))
         assertEquals("Relógio errado", RegrasFaixaSincronizacao.texto("Relógio errado", null, null))
         assertEquals("Enviando — 2", RegrasFaixaSincronizacao.texto(null, "Enviando — 2", null))
     }

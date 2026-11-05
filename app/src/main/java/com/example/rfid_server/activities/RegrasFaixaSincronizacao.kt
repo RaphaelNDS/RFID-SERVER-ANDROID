@@ -17,12 +17,13 @@ object RegrasFaixaSincronizacao {
     data class Acoes(val enviarAgora: Boolean, val chamarResponsavel: Boolean)
 
     /**
-     * Texto da faixa, que é uma linha só (até 2 linhas de texto, cortadas com "…", ao lado de "Enviar agora").
-     * Os avisos vão do mais curto e mais acionável ao mais longo, para o corte pegar o fim do último:
-     * "Chame o responsável", depois o motivo e quantas leituras aguardam, por fim o aviso do relógio.
+     * Texto da faixa (até 3 linhas, cortadas com "…", ao lado de "Enviar agora"). O aviso do relógio vem
+     * PRIMEIRO: com o relógio errado o servidor recusa as leituras, então é ele que explica as pendências (no
+     * fim, o corte o escondia sempre que havia leitura aguardando). Depois "Chame o responsável" e, por último,
+     * o motivo e quantas leituras aguardam, que é o que pode ser cortado.
      */
     fun texto(avisoRelogio: String?, avisoPendentes: String?, avisoResponsavel: String?): String =
-        listOfNotNull(avisoResponsavel, avisoPendentes, avisoRelogio).joinToString(" ")
+        listOfNotNull(avisoRelogio, avisoResponsavel, avisoPendentes).joinToString(" ")
 
     fun acoes(pendentes: Int, estado: EstadoSincronizacao?): Acoes {
         if (pendentes <= 0) return Acoes(enviarAgora = false, chamarResponsavel = false)

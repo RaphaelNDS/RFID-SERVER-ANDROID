@@ -7,7 +7,7 @@
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/barraConfiguracoes"
         style="@style/Widget.RFID.Barra"
-        app:title="Configurações"
+        app:title="@string/config_barra_titulo"
         app:navigationIcon="@drawable/ic_voltar"
         app:navigationIconTint="@color/white"
         app:navigationContentDescription="@string/config_voltar"

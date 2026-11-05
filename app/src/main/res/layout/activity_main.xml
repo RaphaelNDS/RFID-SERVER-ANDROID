@@ -1,6 +1,9 @@
 <!-- Tela principal. Tela de ~4" (~320x533dp): o que fica acima da lista é o mínimo, em faixas de uma linha
-     sempre que dá, para sobrar lugar para as etiquetas lidas. Inventário e Localizar ficam no rodapé (botões grandes) -->
+     sempre que dá, para sobrar lugar para as etiquetas lidas. Inventário e Localizar ficam no rodapé (botões grandes).
+     Operador e fim da sessão vão no subtítulo da barra. Os avisos (recusa, contadores, sincronização) ficam num bloco
+     que rola: no pior caso ele encolhe para a lista nunca ter menos que AlturaTopoPrincipal.MINIMO_LISTA_DP -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/raizPrincipal"
     android:orientation="vertical"
     android:keepScreenOn="true"
     android:layout_width="match_parent"
@@ -12,202 +15,222 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
+    <!-- Fora do bloco que rola: "Reconectar" fica sempre à vista -->
     <include layout="@layout/include_estado_leitor"/>
 
-    <!-- Inventário ou etiquetas que o coletor desistiu de enviar (some no "Ciente") -->
-    <include layout="@layout/include_aviso_recusa"/>
-
-    <!-- Operador, sessão e contadores da leitura atual -->
-    <LinearLayout
-        android:orientation="vertical"
-        android:background="@color/superficie"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="6dp"
-        android:paddingBottom="6dp"
+    <!-- Altura natural na maioria das vezes; a MainActivity fixa a altura (e ele rola) só quando os avisos
+         juntos deixariam a lista pequena demais. A barra de rolagem fica à vista para mostrar que há mais -->
+    <ScrollView
+        android:id="@+id/rolagemTopo"
+        android:fadeScrollbars="false"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
-        <!-- Operador e até quando vale a sessão (na barra de cima não cabe). Uma linha só: o fim do nome
-             pode sumir, mas a lista ganha a altura -->
-        <TextView
-            android:id="@+id/txtSessao"
-            android:textAppearance="@style/Texto.RFID.Secundario"
-            android:textSize="14sp"
-            android:maxLines="1"
-            android:ellipsize="end"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
-
-        <!-- Contadores da leitura atual (zeram no botão "Nova leitura"): número grande, rótulo pequeno.
-             O leitor de tela lê a fileira inteira de uma vez (descrição = ContagemSessao.resumo()) -->
         <LinearLayout
-            android:id="@+id/linhaContadores"
-            android:focusable="true"
-            android:importantForAccessibility="yes"
-            android:orientation="horizontal"
-            android:baselineAligned="false"
-            android:layout_marginTop="2dp"
+            android:id="@+id/conteudoTopo"
+            android:orientation="vertical"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
-            <LinearLayout
-                android:orientation="vertical"
-                android:gravity="center_horizontal"
-                android:layout_width="0dp"
-                android:layout_weight="1"
+            <!-- Inventário ou etiquetas que o coletor desistiu de enviar (some no "Ciente") -->
+            <include layout="@layout/include_aviso_recusa"/>
+
+            <!-- Contadores da leitura atual (zeram no botão "Nova leitura"): número grande, rótulo pequeno.
+                 À direita, na mesma linha, os selos "Aguardando" e "Recusadas" (só quando há). RelativeLayout para não
+                 aninhar pesos (os três contadores já dividem a largura por peso); sem selos, os contadores vão até o fim -->
+            <RelativeLayout
+                android:background="@color/superficie"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content">
 
-                <TextView
-                    android:id="@+id/txtNumLidas"
-                    android:textColor="@color/marinho"
-                    android:textSize="26sp"
-                    android:textStyle="bold"
-                    android:includeFontPadding="false"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"/>
+                <!-- O leitor de tela lê a fileira inteira de uma vez (descrição = ContagemSessao.resumo()) -->
+                <LinearLayout
+                    android:id="@+id/linhaContadores"
+                    android:focusable="true"
+                    android:importantForAccessibility="yes"
+                    android:orientation="horizontal"
+                    android:baselineAligned="false"
+                    android:layout_alignParentStart="true"
+                    android:layout_toStartOf="@+id/colunaSelos"
+                    android:layout_alignWithParentIfMissing="true"
+                    android:layout_centerVertical="true"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
 
-                <TextView
-                    android:text="@string/main_contador_lidas"
-                    android:textColor="@color/texto_secundario"
-                    android:textSize="12sp"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"/>
-            </LinearLayout>
+                    <LinearLayout
+                        android:orientation="vertical"
+                        android:gravity="center_horizontal"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content">
 
+                        <TextView
+                            android:id="@+id/txtNumLidas"
+                            android:textColor="@color/marinho"
+                            android:textSize="24sp"
+                            android:textStyle="bold"
+                            android:includeFontPadding="false"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"/>
+
+                        <TextView
+                            android:text="@string/main_contador_lidas"
+                            android:textColor="@color/texto_secundario"
+                            android:textSize="11sp"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"/>
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:orientation="vertical"
+                        android:gravity="center_horizontal"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content">
+
+                        <TextView
+                            android:id="@+id/txtNumCadastradas"
+                            android:textColor="@color/sucesso"
+                            android:textSize="24sp"
+                            android:textStyle="bold"
+                            android:includeFontPadding="false"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"/>
+
+                        <TextView
+                            android:text="@string/main_contador_cadastradas"
+                            android:textColor="@color/texto_secundario"
+                            android:textSize="11sp"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"/>
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:orientation="vertical"
+                        android:gravity="center_horizontal"
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content">
+
+                        <TextView
+                            android:id="@+id/txtNumNaoCadastradas"
+                            android:textColor="@color/atencao"
+                            android:textSize="24sp"
+                            android:textStyle="bold"
+                            android:includeFontPadding="false"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"/>
+
+                        <TextView
+                            android:text="@string/main_contador_nao_cadastradas"
+                            android:textColor="@color/texto_secundario"
+                            android:textSize="11sp"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"/>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- Selos, um embaixo do outro, à direita dos contadores (antes era uma linha própria de 48dp).
+                     Tocar em "Recusadas" mostra quais são, o motivo e "Tentar de novo": alvo de 44dp para a luva -->
+                <LinearLayout
+                    android:id="@+id/colunaSelos"
+                    android:orientation="vertical"
+                    android:gravity="end|center_vertical"
+                    android:visibility="gone"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:layout_marginStart="4dp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content">
+
+                    <TextView
+                        android:id="@+id/seloAguardando"
+                        android:background="@drawable/selo_atencao"
+                        android:textColor="@color/atencao"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:gravity="center"
+                        android:maxLines="1"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:paddingTop="2dp"
+                        android:paddingBottom="2dp"
+                        android:visibility="gone"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"/>
+
+                    <TextView
+                        android:id="@+id/seloRecusadas"
+                        android:background="@drawable/selo_erro"
+                        android:foreground="?attr/selectableItemBackground"
+                        android:textColor="@color/erro"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:gravity="center"
+                        android:maxLines="1"
+                        android:minHeight="44dp"
+                        android:paddingStart="8dp"
+                        android:paddingEnd="8dp"
+                        android:layout_marginTop="2dp"
+                        android:visibility="gone"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"/>
+                </LinearLayout>
+            </RelativeLayout>
+
+            <!-- Aparece só com leituras guardadas no aparelho aguardando envio ou com o relógio errado. Uma linha:
+                 texto à esquerda (até 3 linhas, o aviso do relógio primeiro) e "Enviar agora" à direita. Tocar na
+                 faixa (ou no botão) pede o envio na hora; problema das Configurações: "Chame o responsável" -->
             <LinearLayout
-                android:orientation="vertical"
-                android:gravity="center_horizontal"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content">
-
-                <TextView
-                    android:id="@+id/txtNumCadastradas"
-                    android:textColor="@color/sucesso"
-                    android:textSize="26sp"
-                    android:textStyle="bold"
-                    android:includeFontPadding="false"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"/>
-
-                <TextView
-                    android:text="@string/main_contador_cadastradas"
-                    android:textColor="@color/texto_secundario"
-                    android:textSize="12sp"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"/>
-            </LinearLayout>
-
-            <LinearLayout
-                android:orientation="vertical"
-                android:gravity="center_horizontal"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content">
-
-                <TextView
-                    android:id="@+id/txtNumNaoCadastradas"
-                    android:textColor="@color/atencao"
-                    android:textSize="26sp"
-                    android:textStyle="bold"
-                    android:includeFontPadding="false"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"/>
-
-                <TextView
-                    android:text="@string/main_contador_nao_cadastradas"
-                    android:textColor="@color/texto_secundario"
-                    android:textSize="12sp"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"/>
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- Selos que só aparecem quando há o que mostrar. Tocar em "Recusadas" mostra quais são, o motivo
-             e "Tentar de novo" -->
-        <LinearLayout
-            android:id="@+id/linhaSelos"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:visibility="gone"
-            android:layout_marginTop="4dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content">
-
-            <TextView
-                android:id="@+id/seloAguardando"
-                android:background="@drawable/selo_atencao"
-                android:textColor="@color/atencao"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:gravity="center"
-                android:minHeight="32dp"
-                android:paddingStart="12dp"
-                android:paddingEnd="12dp"
-                android:layout_marginEnd="8dp"
-                android:visibility="gone"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"/>
-
-            <TextView
-                android:id="@+id/seloRecusadas"
-                android:background="@drawable/selo_erro"
+                android:id="@+id/faixaSincronizacao"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@color/atencao_fundo"
                 android:foreground="?attr/selectableItemBackground"
-                android:textColor="@color/erro"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:gravity="center"
-                android:minHeight="44dp"
-                android:paddingStart="14dp"
-                android:paddingEnd="14dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="4dp"
+                android:minHeight="48dp"
                 android:visibility="gone"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"/>
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    android:id="@+id/txtSincronizacao"
+                    android:textColor="@color/atencao"
+                    android:textStyle="bold"
+                    android:textSize="14sp"
+                    android:maxLines="3"
+                    android:ellipsize="end"
+                    android:paddingTop="6dp"
+                    android:paddingBottom="6dp"
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"/>
+
+                <Button
+                    android:id="@+id/btnEnviarAgora"
+                    style="@style/Widget.RFID.Botao.Texto"
+                    android:text="@string/main_enviar_agora"
+                    android:textColor="@color/marinho"
+                    android:textStyle="bold"
+                    android:minHeight="48dp"
+                    android:layout_marginStart="4dp"
+                    android:visibility="gone"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"/>
+            </LinearLayout>
         </LinearLayout>
-    </LinearLayout>
-
-    <!-- Aparece só com leituras guardadas no aparelho aguardando envio ou com o relógio errado. Uma linha:
-         texto à esquerda (até 2 linhas) e "Enviar agora" à direita. Tocar na faixa (ou no botão) pede o envio
-         na hora; problema das Configurações: "Chame o responsável" -->
-    <LinearLayout
-        android:id="@+id/faixaSincronizacao"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="@color/atencao_fundo"
-        android:foreground="?attr/selectableItemBackground"
-        android:paddingStart="12dp"
-        android:paddingEnd="4dp"
-        android:minHeight="48dp"
-        android:visibility="gone"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
-
-        <TextView
-            android:id="@+id/txtSincronizacao"
-            android:textColor="@color/atencao"
-            android:textStyle="bold"
-            android:textSize="14sp"
-            android:maxLines="2"
-            android:ellipsize="end"
-            android:paddingTop="6dp"
-            android:paddingBottom="6dp"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="wrap_content"/>
-
-        <Button
-            android:id="@+id/btnEnviarAgora"
-            style="@style/Widget.RFID.Botao.Texto"
-            android:text="@string/main_enviar_agora"
-            android:textColor="@color/marinho"
-            android:textStyle="bold"
-            android:minHeight="48dp"
-            android:layout_marginStart="4dp"
-            android:visibility="gone"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"/>
-    </LinearLayout>
+    </ScrollView>
 
     <View
         android:background="@color/borda"
@@ -225,8 +248,11 @@
         android:layout_width="match_parent"
         android:layout_height="1dp"/>
 
+    <!-- A lista ocupa o resto; o bloco de avisos acima encolhe (e rola) para ela ter pelo menos
+         AlturaTopoPrincipal.MINIMO_LISTA_DP -->
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/pager"
+        android:minHeight="120dp"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"/>

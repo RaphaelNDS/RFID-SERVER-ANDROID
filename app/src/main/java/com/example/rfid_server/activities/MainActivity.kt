@@ -10,6 +10,7 @@ import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -36,6 +37,7 @@ import com.example.rfid_server.sincronizacao.SincronizacaoWorker
 import com.example.rfid_server.sincronizacao.Sincronizador
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
+import kotlin.math.roundToInt
 
 class MainActivity : AppCompatActivity() {
 
@@ -139,6 +141,8 @@ class MainActivity : AppCompatActivity() {
         faixaSincronizacao.setOnClickListener { if (btnEnviarAgora.isVisible) enviarAgora() }
 
         FaixaRecusa.ligar(this, RepositorioInventario.get(this))
+
+        limitarBlocoDeAvisos()
     }
 
     /** Título da aba com a quantidade da lista ("Leitura (12)"); só o rótulo enquanto a lista não carregou. */
@@ -173,7 +177,7 @@ class MainActivity : AppCompatActivity() {
         seloRecusadas.text = getString(R.string.main_selo_recusadas, contagem.recusadas)
         seloRecusadas.contentDescription = getString(R.string.main_selo_recusadas_descricao, contagem.recusadas)
 
-        findViewById<View>(R.id.linhaSelos).isVisible = seloAguardando.isVisible || seloRecusadas.isVisible
+        findViewById<View>(R.id.colunaSelos).isVisible = seloAguardando.isVisible || seloRecusadas.isVisible
     }
 
     private fun abrirInventario() {
@@ -214,14 +218,50 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** Operador e até quando vale a sessão, no subtítulo da barra do topo (a linha própria tirava altura da lista). */
     private fun mostrarOperador(sessao: com.example.rfid_server.SessaoOperador) {
-        findViewById<TextView>(R.id.txtSessao).text = getString(R.string.main_operador, sessao.nome, AvisoSessao.horario(sessao.expiraEm))
+        supportActionBar?.subtitle = getString(R.string.main_operador, sessao.nome, AvisoSessao.horario(sessao.expiraEm))
+    }
+
+    /**
+     * Bloco de avisos (recusa, contadores, sincronização) com a altura natural enquanto couber; se não couber,
+     * encolhe e rola para a lista ficar com pelo menos [AlturaTopoPrincipal.MINIMO_LISTA_DP]. Refeito a cada
+     * mudança de layout (aviso que aparece ou some, faixa do leitor com "Reconectar"...).
+     */
+    private fun limitarBlocoDeAvisos() {
+        val raiz = findViewById<ViewGroup>(R.id.raizPrincipal)
+        val rolagem = findViewById<View>(R.id.rolagemTopo)
+        val conteudo = findViewById<View>(R.id.conteudoTopo)
+        val minimoLista = (AlturaTopoPrincipal.MINIMO_LISTA_DP * resources.displayMetrics.density).roundToInt()
+
+        val ajustar = Runnable {
+            // O que a tela tem para o bloco e a lista juntos: tudo menos os outros itens da coluna
+            val outros = (0 until raiz.childCount).map { raiz.getChildAt(it) }
+                .filter { it !== rolagem && it !== pager && it.visibility != View.GONE }
+                .sumOf { it.height }
+            val blocoMaisLista = raiz.height - raiz.paddingTop - raiz.paddingBottom - outros
+            val altura = AlturaTopoPrincipal.limite(conteudo.height, blocoMaisLista, minimoLista) ?: ViewGroup.LayoutParams.WRAP_CONTENT
+            // Só mexe quando muda: senão cada layout pediria outro
+            if (rolagem.layoutParams.height != altura) {
+                rolagem.layoutParams = rolagem.layoutParams.apply { height = altura }
+            }
+        }
+        // Fora do layout em andamento (pedir layout no meio dele não vale)
+        val aoMudar = View.OnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            rolagem.removeCallbacks(ajustar)
+            rolagem.post(ajustar)
+        }
+        raiz.addOnLayoutChangeListener(aoMudar)
+        conteudo.addOnLayoutChangeListener(aoMudar)
     }
 
     private fun atualizarAvisoSincronizacao() {
         val pendentes = viewModel.pendentes.value ?: 0
         // Relógio do coletor muito diferente do servidor: o servidor recusa as leituras pela hora, então avisa sempre
-        val avisoRelogio = RelogioServidor.aviso(RelogioServidor.desvio.value)
+        // (versão curta, para caber na faixa junto com as pendências: "Relógio 7 min adiantado: acerte...")
+        val avisoRelogio = RelogioServidor.desvio.value
+            ?.takeIf { RelogioServidor.aviso(it) != null }
+            ?.let { getString(R.string.main_aviso_relogio, RelogioServidor.descrever(it)) }
 
         if (pendentes == 0 && avisoRelogio == null) {
             faixaSincronizacao.isVisible = false

@@ -2,6 +2,7 @@ package com.example.rfid_server
 
 import android.view.KeyEvent
 import android.view.inputmethod.EditorInfo
+import java.util.Locale
 
 /**
  * Decisões da tela Localizar que não dependem da tela (testadas no computador).
@@ -23,9 +24,15 @@ object RegrasLocalizar {
 
     fun inicio(epc: String?, patrimonio: String?): Inicio = when {
         !epc.isNullOrBlank() -> Inicio.PorEpc(epc.trim())
-        !patrimonio.isNullOrBlank() -> Inicio.PorPatrimonio(patrimonio.trim())
+        !patrimonio.isNullOrBlank() -> Inicio.PorPatrimonio(normalizarPatrimonio(patrimonio))
         else -> Inicio.Nada
     }
+
+    /**
+     * Patrimônio como o servidor guarda: o cadastro grava em MAIÚSCULAS, então a busca tira os espaços das
+     * pontas e converte também (Locale.ROOT: sem surpresa de idioma do aparelho, ex.: o "i" do turco).
+     */
+    fun normalizarPatrimonio(patrimonio: String): String = patrimonio.trim().uppercase(Locale.ROOT)
 
     /**
      * O que aparece na linha "Procurando: …" enquanto localiza (com o cartão de busca recolhido): o patrimônio,
