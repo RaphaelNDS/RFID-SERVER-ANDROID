@@ -30,6 +30,7 @@ import com.example.rfid_server.adapter.MainPagerAdapter
 import com.example.rfid_server.dados.ContagemSessao
 import com.example.rfid_server.dados.RepositorioInventario
 import com.example.rfid_server.dados.RepositorioLeituras
+import com.example.rfid_server.fragment.TitulosAbas
 import com.example.rfid_server.sincronizacao.EstadoSincronizacao
 import com.example.rfid_server.sincronizacao.SincronizacaoWorker
 import com.example.rfid_server.sincronizacao.Sincronizador
@@ -47,7 +48,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var faixaSincronizacao: View
     private lateinit var txtSincronizacao: TextView
     private lateinit var btnEnviarAgora: View
-    private lateinit var txtContadores: TextView
+    private lateinit var tabs: TabLayout
 
     // Com o app aberto, tenta enviar o que estiver pendente a cada minuto
     private val handler = Handler(Looper.getMainLooper())
@@ -79,14 +80,11 @@ class MainActivity : AppCompatActivity() {
         faixaSincronizacao = findViewById(R.id.faixaSincronizacao)
         txtSincronizacao = findViewById(R.id.txtSincronizacao)
         btnEnviarAgora = findViewById(R.id.btnEnviarAgora)
-        txtContadores = findViewById(R.id.txtContadores)
-        val tabs = findViewById<TabLayout>(R.id.tabs)
+        tabs = findViewById(R.id.tabs)
 
         pager.adapter = MainPagerAdapter(this)
 
-        TabLayoutMediator(tabs, pager) { tab, pos ->
-            tab.setText(if (pos == 0) R.string.main_aba_leitura else R.string.main_aba_nao_cadastradas)
-        }.attach()
+        TabLayoutMediator(tabs, pager) { tab, pos -> tab.text = tituloAba(pos) }.attach()
 
         repositorio = RepositorioLeituras.get(this)
         sincronizador = Sincronizador.get(this)
@@ -124,17 +122,66 @@ class MainActivity : AppCompatActivity() {
         viewModel.pendentes.observe(this) { atualizarAvisoSincronizacao() }
         viewModel.estadoSincronizacao.observe(this) { atualizarAvisoSincronizacao() }
         RelogioServidor.desvio.observe(this) { atualizarAvisoSincronizacao() }
-        viewModel.contagem.observe(this) {
-            txtContadores.text = if (it.recusadas > 0) it.resumo() + getString(R.string.main_recusadas_toque) else it.resumo()
-        }
-        // Recusadas aparecem só como número: tocar nos contadores mostra quais são, o motivo e "Tentar de novo"
-        txtContadores.setOnClickListener { mostrarRecusadas() }
+        viewModel.contagem.observe(this) { mostrarContadores(it) }
+        // Recusadas aparecem só como número: tocar no selo mostra quais são, o motivo e "Tentar de novo"
+        findViewById<View>(R.id.seloRecusadas).setOnClickListener { mostrarRecusadas() }
+
+        // Títulos das abas com a quantidade de cada lista ("Leitura (12)"), atualizados quando a lista muda
+        viewModel.leituras.observe(this) { atualizarAba(TitulosAbas.ABA_LEITURA) }
+        viewModel.naoCadastradas.observe(this) { atualizarAba(TitulosAbas.ABA_NAO_CADASTRADAS) }
+
+        // Rodapé: as mesmas ações que antes eram ícones na barra
+        findViewById<View>(R.id.btnInventario).setOnClickListener { abrirInventario() }
+        findViewById<View>(R.id.btnLocalizar).setOnClickListener { abrirLocalizar() }
 
         // Faixa de sincronização: o botão e a faixa inteira (alvo grande, para luva) pedem o envio na hora
         btnEnviarAgora.setOnClickListener { enviarAgora() }
         faixaSincronizacao.setOnClickListener { if (btnEnviarAgora.isVisible) enviarAgora() }
 
         FaixaRecusa.ligar(this, RepositorioInventario.get(this))
+    }
+
+    /** Título da aba com a quantidade da lista ("Leitura (12)"); só o rótulo enquanto a lista não carregou. */
+    private fun tituloAba(posicao: Int): String {
+        // O TabLayoutMediator monta as abas antes de o ViewModel existir: aí vai só o rótulo
+        if (!::viewModel.isInitialized) {
+            return getString(if (posicao == TitulosAbas.ABA_LEITURA) R.string.main_aba_leitura else R.string.main_aba_nao_cadastradas)
+        }
+        val (rotulo, quantidade) = if (posicao == TitulosAbas.ABA_LEITURA) R.string.main_aba_leitura to viewModel.leituras.value?.size
+            else R.string.main_aba_nao_cadastradas to viewModel.naoCadastradas.value?.size
+        return TitulosAbas.titulo(getString(rotulo), quantidade)
+    }
+
+    private fun atualizarAba(posicao: Int) {
+        tabs.getTabAt(posicao)?.text = tituloAba(posicao)
+    }
+
+    /** Fileira de contadores (número grande, rótulo pequeno) e os selos "Aguardando" e "Recusadas", só quando há. */
+    private fun mostrarContadores(contagem: ContagemSessao) {
+        findViewById<TextView>(R.id.txtNumLidas).text = contagem.lidas.toString()
+        findViewById<TextView>(R.id.txtNumCadastradas).text = contagem.cadastradas.toString()
+        findViewById<TextView>(R.id.txtNumNaoCadastradas).text = contagem.naoCadastradas.toString()
+        // O leitor de tela lê a fileira de uma vez: "Lidas: 12 • Cadastradas: 10 • ..."
+        findViewById<View>(R.id.linhaContadores).contentDescription = contagem.resumo()
+
+        val seloAguardando = findViewById<TextView>(R.id.seloAguardando)
+        seloAguardando.isVisible = contagem.mostrarSeloAguardando()
+        seloAguardando.text = getString(R.string.main_selo_aguardando, contagem.aguardandoServidor)
+
+        val seloRecusadas = findViewById<TextView>(R.id.seloRecusadas)
+        seloRecusadas.isVisible = contagem.mostrarSeloRecusadas()
+        seloRecusadas.text = getString(R.string.main_selo_recusadas, contagem.recusadas)
+        seloRecusadas.contentDescription = getString(R.string.main_selo_recusadas_descricao, contagem.recusadas)
+
+        findViewById<View>(R.id.linhaSelos).isVisible = seloAguardando.isVisible || seloRecusadas.isVisible
+    }
+
+    private fun abrirInventario() {
+        startActivity(Intent(this, InventarioActivity::class.java))
+    }
+
+    private fun abrirLocalizar() {
+        startActivity(Intent(this, LocalizarActivity::class.java))
     }
 
     /** Lista das leituras recusadas de vez ainda guardadas (da sessão e de sessões anteriores, até 30 dias). */
@@ -191,7 +238,7 @@ class MainActivity : AppCompatActivity() {
         // Problema que só se resolve nas Configurações (com PIN): o operador não tem o que fazer sozinho
         val avisoResponsavel = if (acoes.chamarResponsavel) getString(R.string.main_chame_responsavel) else null
 
-        txtSincronizacao.text = listOfNotNull(avisoRelogio, avisoPendentes, avisoResponsavel).joinToString("\n")
+        txtSincronizacao.text = RegrasFaixaSincronizacao.texto(avisoRelogio, avisoPendentes, avisoResponsavel)
         btnEnviarAgora.isVisible = acoes.enviarAgora
         faixaSincronizacao.isClickable = acoes.enviarAgora
         faixaSincronizacao.isVisible = true
@@ -213,16 +260,6 @@ class MainActivity : AppCompatActivity() {
 
             R.id.menu_nova_leitura -> {
                 confirmarNovaLeitura()
-                true
-            }
-
-            R.id.menu_localizar -> {
-                startActivity(Intent(this, LocalizarActivity::class.java))
-                true
-            }
-
-            R.id.menu_inventario -> {
-                startActivity(Intent(this, InventarioActivity::class.java))
                 true
             }
 

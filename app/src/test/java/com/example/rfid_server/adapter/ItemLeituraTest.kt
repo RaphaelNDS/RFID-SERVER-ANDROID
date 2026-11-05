@@ -3,11 +3,35 @@ package com.example.rfid_server.adapter
 import com.example.rfid_server.dados.LeituraEntity
 import com.example.rfid_server.dados.RecusaInventario
 import com.example.rfid_server.dados.Situacao
+import com.example.rfid_server.view.TagView
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ItemLeituraTest {
+
+    private fun tag(
+        patrimonio: String = "12345", tipo: String? = "Notebook", marca: String? = "Dell", modelo: String? = "Latitude 5420",
+        codigo: String = "CI-9", serie: String = "SN-1"
+    ) = TagView("E1", codigo, tipo, marca, modelo, patrimonio, serie)
+
+    @Test
+    fun `cartao da etiqueta tem patrimonio, tipo marca e modelo numa linha e codigo com serie`() {
+        assertEquals(
+            ItemLeitura.LinhasTag(patrimonio = "12345", descricao = "Notebook · Dell · Latitude 5420", codigo = "CI-9", serie = "SN-1"),
+            ItemLeitura.LinhasTag.de(tag())
+        )
+    }
+
+    @Test
+    fun `sem patrimonio, sem serie e descricao so com o que foi informado`() {
+        val linhas = ItemLeitura.LinhasTag.de(tag(patrimonio = "  ", marca = null, modelo = " ", serie = ""))
+        assertNull(linhas.patrimonio)
+        assertNull(linhas.serie)
+        assertEquals("Notebook", linhas.descricao)
+        assertNull(ItemLeitura.LinhasTag.de(tag(tipo = null, marca = "", modelo = null)).descricao)
+    }
 
     private fun cadastrada(id: Long, epc: String) = LeituraEntity(
         id = id, epc = epc, lidoEm = 0, situacao = Situacao.CADASTRADA,
