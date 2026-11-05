@@ -147,6 +147,8 @@ class Sincronizador internal constructor(
             return atualizarEstado(estado)
         }
 
+        // Hora da última passada completa: vai para o servidor no cabeçalho X-Ultima-Sinc-Ok (diagnóstico do coletor)
+        com.example.rfid_server.api.UltimaSincronizacaoOk.registrar()
         return atualizarEstado(EstadoSincronizacao.SINCRONIZADO)
     }
 

@@ -328,6 +328,8 @@ no coletor enquanto não há rede.
 | Login pede para esperar | Bloqueio por senhas erradas: aguarde o tempo indicado. |
 | "PIN bloqueado" nas Configurações | 5 erros seguidos bloqueiam por 5 min; de novo, 15 min; depois 1 h. Mudar o relógio ou reiniciar logo depois não encurta. Um ADMIN libera pelo "Esqueci o PIN". (Na 1.6.1 o bloqueio podia voltar depois de reiniciar o coletor; corrigido na 1.6.2.) |
 | Pede a chave do coletor de novo depois de restaurar o aparelho | A chave fica cifrada com uma chave do Android que se perde na restauração: digite a chave do coletor de novo. |
+| Quero enviar agora, sem esperar | Toque em **Enviar agora** na faixa de envio (tela principal e inventário). Se aparecer "Chame o responsável pelo coletor", o problema é de configuração (chave, endereço ou certificado). |
+| Repassar o resultado do inventário | Ao finalizar, o resumo (lidas, encontradas, faltando, fora da lista) tem **Compartilhar**, que manda em texto a lista do que faltou. Etiquetas "fora da lista" aparecem primeiro na aba Lidas, em destaque; tocar abre o Localizar. Com 20 itens ou mais aparece o filtro por patrimônio ou EPC. |
 | "Recusadas: N" na tela principal | Toque nos contadores: aparece a lista com a etiqueta e o motivo, e o botão **Tentar de novo** devolve todas à fila. |
 | Faixa vermelha "Inventário … recusado pelo servidor" | O coletor desistiu de enviar (recusa definitiva). Avise o responsável e toque em **Ciente**; o motivo também vai para a tela de erros do coletor no servidor. |
 | Inventário aberto no local errado | **Cancelar inventário** (abaixo de Finalizar) apaga do coletor, desde que nada tenha sido enviado ao servidor. Depois de enviado, só finalizando. Local que não está na lista pede confirmação antes de iniciar. |
