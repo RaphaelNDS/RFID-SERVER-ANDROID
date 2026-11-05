@@ -254,4 +254,23 @@
     <string name="atualizacao_recusada_titulo">Atualização recusada</string>
     <string name="atualizacao_recusada_mensagem">O arquivo baixado do servidor não foi instalado: %1$s.\n\nAvise o responsável pelo sistema.</string>
     <string name="atualizacao_sem_instalador">Não foi possível abrir o instalador do Android</string>
+
+    <!-- Leitor: falhas e bateria (faixa do leitor, IndicadorLeitor) -->
+    <string name="leitor_motivo_nenhum_leitor">Nenhum leitor encontrado: confira se o leitor está encaixado e ligado</string>
+    <string name="leitor_motivo_ocupado">Leitor ocupado por outro app</string>
+    <string name="leitor_motivo_operacao_em_andamento">Leitor ainda terminando a leitura anterior: solte e aperte o gatilho de novo</string>
+    <string name="leitor_motivo_sem_comunicacao">Leitor não responde: reencaixe o leitor</string>
+    <string name="leitor_motivo_tempo_esgotado">Leitor demorou demais para responder</string>
+    <string name="leitor_motivo_regiao">Região de rádio do leitor não configurada: avise o responsável</string>
+    <string name="leitor_motivo_bateria">Bateria do leitor fraca: troque ou carregue</string>
+    <string name="leitor_motivo_temperatura">Leitor muito quente: deixe esfriar alguns minutos</string>
+    <string name="leitor_motivo_queda">O leitor desconectou (bateria, encaixe ou Bluetooth)</string>
+    <string name="leitor_motivo_desconhecido">Motivo desconhecido</string>
+    <string name="leitor_desconectado_motivo">%1$s. Tentando de novo…</string>
+    <string name="leitor_parado_motivo">Leitor RFID desconectado: %1$s</string>
+    <string name="leitor_falha_leitura">O leitor não começou a ler: %1$s</string>
+    <string name="leitor_falha_gatilho">Leitor conectado, mas não foi possível configurar o gatilho: %1$s</string>
+    <string name="leitor_falha_potencia">Leitor conectado, mas não foi possível ajustar a potência: %1$s</string>
+    <string name="leitor_bateria_baixa">Bateria do leitor em %1$d%%: troque ou carregue</string>
+    <string name="leitor_bateria_critica">Bateria do leitor em %1$d%%: troque agora, a leitura vai parar</string>
 </resources>

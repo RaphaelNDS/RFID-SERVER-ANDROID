@@ -28,6 +28,17 @@ object ReconexaoLeitor {
     const val DESCONECTAR_OCIOSO_MS = 2 * 60_000L
 
     /**
+     * Mensagem registrada para o servidor quando o leitor volta depois de uma queda: quanto tempo ficou fora
+     * ([duracaoMs]) e quantas tentativas de conexão foram feitas até voltar (incluindo a que deu certo).
+     */
+    fun mensagemVolta(duracaoMs: Long, tentativas: Int): String {
+        val minutos = duracaoMs.coerceAtLeast(0) / 60_000
+        val tempo = if (minutos < 1) "menos de 1 min" else "$minutos min"
+        val vezes = if (tentativas == 1) "1 tentativa" else "$tentativas tentativas"
+        return "Leitor RFID voltou depois de $tempo e $vezes"
+    }
+
+    /**
      * Índice da potência na lista do leitor (do menor para o maior valor) para [percentual] da máxima.
      * 100 = a última (máxima). Nunca fica fora da lista.
      */

@@ -1,7 +1,13 @@
 package com.example.rfid_server
 
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
+import android.os.SystemClock
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.example.rfid_server.erros.RegistroErros
 import com.example.rfid_server.erros.TipoErro
 import androidx.lifecycle.LiveData
@@ -9,7 +15,10 @@ import androidx.lifecycle.MutableLiveData
 import com.zebra.rfid.api3.ENUM_TRANSPORT
 import com.zebra.rfid.api3.ENUM_TRIGGER_MODE
 import com.zebra.rfid.api3.HANDHELD_TRIGGER_EVENT_TYPE
+import com.zebra.rfid.api3.InvalidUsageException
+import com.zebra.rfid.api3.OperationFailureException
 import com.zebra.rfid.api3.RFIDReader
+import com.zebra.rfid.api3.RFIDResults
 import com.zebra.rfid.api3.Readers
 import com.zebra.rfid.api3.RfidEventsListener
 import com.zebra.rfid.api3.RfidReadEvents
@@ -65,9 +74,21 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
     private var tentativasSemSucesso = 0
     private var proximaTentativa: ScheduledFuture<*>? = null
 
-    // Motivo da última falha de conexão (vai para o servidor na primeira falha de cada sequência)
-    private var motivoFalhaConexao = "motivo desconhecido"
+    // Motivo da última falha de conexão (vai para a faixa e, na primeira falha de cada sequência, para o servidor)
+    private var motivoFalhaConexao = MotivoFalhaLeitor(CausaFalhaLeitor.DESCONHECIDA, "motivo desconhecido")
     private var erroFalhaConexao: Throwable? = null
+
+    // Queda do leitor (evento de desconexão): quando foi e quantas tentativas de conexão desde então, para registrar a volta
+    private var inicioQueda: Long? = null
+    private var tentativasDesdeQueda = 0
+
+    // No máximo um registro por minuto de cada tipo de falha (o operador pode apertar o gatilho várias vezes seguidas)
+    private val agrupadorFalhaLeitura = AgrupadorFalhas()
+    private val agrupadorFalhaConfiguracao = AgrupadorFalhas()
+    private val agrupadorVolta = AgrupadorFalhas()
+
+    // Bip de erro do leitor: um só para o app inteiro (o gatilho chega mesmo sem a tela ter um AvisoLeitura próprio)
+    private val avisoErro by lazy { AvisoLeitura(appContext) }
 
     @Volatile
     private var dono: Any? = null
@@ -87,6 +108,23 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
 
     val conectado: Boolean
         get() = reader?.isConnected == true
+
+    // Motivo da desconexão, falhas do gatilho/configuração e bateria: o que a faixa mostra além do [estado]
+    private val travaDetalhe = Any()
+
+    @Volatile
+    private var detalheAtual = DetalheLeitor()
+    private val _detalhe = MutableLiveData(DetalheLeitor())
+    val detalhe: LiveData<DetalheLeitor> = _detalhe
+
+    private fun atualizarDetalhe(mudanca: (DetalheLeitor) -> DetalheLeitor) {
+        synchronized(travaDetalhe) {
+            val novo = mudanca(detalheAtual)
+            if (novo == detalheAtual) return
+            detalheAtual = novo
+            _detalhe.postValue(novo)
+        }
+    }
 
     // ================= CONEXÃO =================
 
@@ -110,10 +148,13 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         }
 
         atualizarEstado(EstadoLeitor.CONECTANDO)
+        if (inicioQueda != null) tentativasDesdeQueda++
 
         if (conectarAgora()) {
             if (tentativasSemSucesso > 0) Log.i(TAG, "Leitor RFID reconectado depois de $tentativasSemSucesso tentativa(s) sem sucesso")
             tentativasSemSucesso = 0
+            registrarVoltaDaQueda()
+            atualizarDetalhe { it.copy(motivoDesconexao = null) }
             atualizarEstado(EstadoLeitor.CONECTADO)
             desconectarSeOcioso()
             return
@@ -122,10 +163,22 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         tentativasSemSucesso++
         // Primeira falha de uma sequência: registra para a tela de erros do coletor no servidor (não a cada tentativa)
         if (tentativasSemSucesso == 1) {
-            RegistroErros.registrar(appContext, TipoErro.LEITOR_RFID, "Leitor RFID não conectou: $motivoFalhaConexao", erroFalhaConexao)
+            RegistroErros.registrar(appContext, TipoErro.LEITOR_RFID, "Leitor RFID não conectou: ${descricaoLog(motivoFalhaConexao)}", erroFalhaConexao)
         }
+        val motivo = motivoFalhaConexao
+        atualizarDetalhe { it.copy(motivoDesconexao = motivo) }
         atualizarEstado(estadoDesconectado())
         agendarNovaTentativa(ReconexaoLeitor.esperaMs(tentativasSemSucesso))
+    }
+
+    // Roda na thread do executor. O leitor tinha caído e voltou: o servidor fica sabendo da queda e de quanto durou
+    private fun registrarVoltaDaQueda() {
+        val inicio = inicioQueda ?: return
+        val mensagem = ReconexaoLeitor.mensagemVolta(SystemClock.elapsedRealtime() - inicio, tentativasDesdeQueda.coerceAtLeast(1))
+        inicioQueda = null
+        tentativasDesdeQueda = 0
+        Log.i(TAG, mensagem)
+        registrarAgrupado(agrupadorVolta, mensagem, null)
     }
 
     // Roda na thread do executor. "Reconectar" numa tela que não lê (sem ouvinte) conectou o leitor: sem isto
@@ -168,7 +221,7 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
             val lista = readers?.GetAvailableRFIDReaderList()
 
             if (lista.isNullOrEmpty()) {
-                motivoFalhaConexao = "nenhum leitor RFID encontrado"
+                motivoFalhaConexao = MotivoFalhaLeitor(CausaFalhaLeitor.NENHUM_LEITOR, "nenhum leitor RFID encontrado")
                 erroFalhaConexao = null
                 if (ReconexaoLeitor.deveRegistrar(tentativasSemSucesso + 1)) Log.e(TAG, "Nenhum leitor RFID encontrado")
                 return false
@@ -180,11 +233,12 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
             if (!r.isConnected) r.connect()
 
             configurarLeitor(r)
+            acompanharBateriaDoAparelho()
             Log.i(TAG, "Leitor RFID conectado: ${lista[0].name}")
             true
 
         } catch (e: Exception) {
-            motivoFalhaConexao = "${e.javaClass.simpleName}: ${e.message.orEmpty()}"
+            motivoFalhaConexao = motivoDe(e)
             erroFalhaConexao = e
             if (ReconexaoLeitor.deveRegistrar(tentativasSemSucesso + 1)) Log.e(TAG, "Erro ao conectar no leitor RFID", e)
             false
@@ -198,14 +252,42 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         r.Events.setAttachTagDataWithReadEvent(true)
         r.Events.setReaderDisconnectEvent(true)
 
+        // Leitores com bateria própria (ex.: RFD40/RFD8500) mandam o nível por evento. O do MC3300x é interno e usa a
+        // bateria do coletor: pode não mandar nada, e aí vale a bateria do aparelho (acompanharBateriaDoAparelho)
+        try {
+            r.Events.setBatteryEvent(true)
+        } catch (e: Exception) {
+            Log.d(TAG, "Leitor sem evento de bateria: ${e.message}")
+        }
+
+        // Potência e gatilho separados: antes, uma falha na potência deixava o gatilho sem configurar
+        var falha: FalhaConfiguracao? = null
+        var erro: Exception? = null
         try {
             definirPotencia(r)
-
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao configurar a potência do leitor RFID", e)
+            falha = FalhaConfiguracao(ParteConfiguracao.POTENCIA, motivoDe(e))
+            erro = e
+        }
+        try {
             // leitura SOMENTE no gatilho
             r.Config.setTriggerMode(ENUM_TRIGGER_MODE.RFID_MODE, true)
-
         } catch (e: Exception) {
-            Log.e(TAG, "Erro ao configurar o leitor RFID", e)
+            Log.e(TAG, "Erro ao configurar o gatilho do leitor RFID", e)
+            // O gatilho é o mais grave (sem ele a leitura não começa): é o que a faixa mostra
+            falha = FalhaConfiguracao(ParteConfiguracao.GATILHO, motivoDe(e))
+            erro = e
+        }
+
+        val resultado = falha
+        atualizarDetalhe { it.copy(falhaConfiguracao = resultado) }
+        if (resultado != null) {
+            val parte = if (resultado.parte == ParteConfiguracao.GATILHO) "o gatilho" else "a potência"
+            registrarAgrupado(
+                agrupadorFalhaConfiguracao,
+                "Leitor RFID conectado, mas não foi possível configurar $parte: ${descricaoLog(resultado.motivo)}", erro
+            )
         }
     }
 
@@ -239,13 +321,16 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
             cancelarProximaTentativa()
             cancelarDesconexaoOciosa()
             tentativasSemSucesso = 0
+            inicioQueda = null
             liberarSdk()
+            atualizarDetalhe { it.copy(motivoDesconexao = null) }
             atualizarEstado(EstadoLeitor.PARADO)
             Log.i(TAG, "Leitor RFID desconectado")
         }
     }
 
     private fun liberarSdk() {
+        pararDeAcompanharBateriaDoAparelho()
         try {
             reader?.Events?.removeEventsListener(this)
             if (reader?.isConnected == true) reader?.disconnect()
@@ -255,7 +340,113 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         } finally {
             reader = null
             readers = null
+            // Sem leitor, não há configuração falha para mostrar (a próxima conexão configura de novo)
+            atualizarDetalhe { it.copy(falhaConfiguracao = null) }
         }
+    }
+
+    // ================= FALHAS E BATERIA =================
+
+    /** Traduz uma exceção do SDK da Zebra: pelo código (RFIDResults), quando há, e pelas palavras do texto. */
+    private fun motivoDe(e: Throwable): MotivoFalhaLeitor {
+        val resultado = (e as? OperationFailureException)?.results
+        // As "constantes" do SDK não são enum do Java: compara pelo código numérico (ver eventStatusNotify)
+        val causaSdk = when (resultado?.ordinal) {
+            null -> null
+            RFIDResults.RFID_OPERATION_IN_PROGRESS.ordinal -> CausaFalhaLeitor.OPERACAO_EM_ANDAMENTO
+            RFIDResults.RFID_COMM_NO_CONNECTION.ordinal -> CausaFalhaLeitor.SEM_COMUNICACAO
+            RFIDResults.RFID_API_COMMAND_TIMEOUT.ordinal -> CausaFalhaLeitor.TEMPO_ESGOTADO
+            RFIDResults.RFID_READER_REGION_NOT_CONFIGURED.ordinal -> CausaFalhaLeitor.REGIAO_NAO_CONFIGURADA
+            else -> null
+        }
+        val textos = when (e) {
+            is OperationFailureException -> listOf(e.vendorMessage, e.statusDescription, resultado?.toString(), e.message)
+            is InvalidUsageException -> listOf(e.vendorMessage, e.info, e.message)
+            else -> listOf(e.message, e.javaClass.simpleName)
+        }
+        return MotivoLeitor.classificar(causaSdk, textos)
+    }
+
+    private fun descricaoLog(motivo: MotivoFalhaLeitor): String =
+        if (motivo.detalhe.isBlank()) motivo.causa.name else "${motivo.detalhe} (${motivo.causa.name})"
+
+    private fun registrarAgrupado(agrupador: AgrupadorFalhas, mensagem: String, erro: Throwable?) {
+        val omitidas = agrupador.liberar() ?: return
+        RegistroErros.registrar(appContext, TipoErro.LEITOR_RFID, mensagem + AgrupadorFalhas.sufixo(omitidas), erro)
+    }
+
+    // Gatilho apertado e a leitura (ou a localização) não começou: antes só ia para o log, e o operador ficava sem
+    // som nem mensagem. Agora: bip de erro, faixa com o motivo por alguns segundos e registro para o servidor
+    private fun falhaAoIniciarLeitura(e: Exception, oQue: String) {
+        val motivo = motivoDe(e)
+        Log.e(TAG, "Erro ao iniciar $oQue: ${descricaoLog(motivo)}", e)
+        atualizarDetalhe { it.copy(falhaLeitura = motivo, momentoFalhaLeitura = SystemClock.elapsedRealtime()) }
+        avisoErro.erro()
+        registrarAgrupado(agrupadorFalhaLeitura, "Gatilho apertado e $oQue não começou: ${descricaoLog(motivo)}", e)
+    }
+
+    // A leitura começou: uma falha anterior ainda na faixa sai na hora
+    private fun leituraIniciada() {
+        atualizarDetalhe { if (it.falhaLeitura == null) it else it.copy(falhaLeitura = null) }
+    }
+
+    // A bateria do leitor veio do SDK (evento): a do aparelho deixa de ser usada
+    @Volatile
+    private var bateriaPeloSdk = false
+
+    // Só acessado na thread do executor
+    private var acompanhandoBateria = false
+
+    private val receptorBateria = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (bateriaPeloSdk) return
+            val nivel = BateriaLeitor.percentual(
+                intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1),
+                intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+            )
+            val status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+            val carregando = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+            atualizarBateria(nivel, carregando)
+        }
+    }
+
+    // No MC3300x o leitor é alimentado pela bateria do coletor: acompanha a do aparelho enquanto o leitor está conectado
+    private fun acompanharBateriaDoAparelho() {
+        if (acompanhandoBateria) return
+        try {
+            ContextCompat.registerReceiver(
+                appContext, receptorBateria, IntentFilter(Intent.ACTION_BATTERY_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED
+            )
+            acompanhandoBateria = true
+        } catch (e: RuntimeException) {
+            Log.w(TAG, "Não foi possível acompanhar a bateria do aparelho", e)
+        }
+    }
+
+    private fun pararDeAcompanharBateriaDoAparelho() {
+        if (!acompanhandoBateria) return
+        acompanhandoBateria = false
+        try {
+            appContext.unregisterReceiver(receptorBateria)
+        } catch (e: RuntimeException) {
+            Log.d(TAG, "Receptor de bateria já removido: ${e.message}")
+        }
+    }
+
+    private fun atualizarBateria(nivel: Int?, carregando: Boolean) {
+        val (anterior, atual) = synchronized(travaDetalhe) {
+            val antes = BateriaLeitor.classificar(detalheAtual.bateria, detalheAtual.carregando)
+            atualizarDetalhe { it.copy(bateria = nivel, carregando = carregando) }
+            antes to BateriaLeitor.classificar(nivel, carregando)
+        }
+        if (atual == anterior) return
+        when (atual) {
+            AlertaBateria.CRITICA -> Log.w(TAG, "Bateria do leitor RFID crítica: $nivel%")
+            AlertaBateria.BAIXA -> Log.w(TAG, "Bateria do leitor RFID baixa: $nivel%")
+            AlertaBateria.NORMAL -> Log.i(TAG, "Bateria do leitor RFID sem alerta: ${nivel ?: "?"}%${if (carregando) " (carregando)" else ""}")
+        }
+        // Alerta mais forte: o bip de erro, uma vez ao entrar na faixa crítica, se alguém estiver lendo
+        if (BateriaLeitor.deveTocarAlerta(anterior, atual) && ouvinte != null) avisoErro.erro()
     }
 
     // Compara com o último estado PUBLICADO (o value do LiveData só muda depois, na thread principal)
@@ -316,6 +507,7 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
             Log.i(TAG, "Nenhuma tela de leitura aberta há ${ReconexaoLeitor.DESCONECTAR_OCIOSO_MS / 60_000} min: " +
                 "leitor RFID desconectado para economizar bateria (reconecta ao abrir uma tela de leitura)")
             liberarSdk()
+            atualizarDetalhe { it.copy(motivoDesconexao = null) }
             atualizarEstado(EstadoLeitor.PARADO)
         }, ReconexaoLeitor.DESCONECTAR_OCIOSO_MS, TimeUnit.MILLISECONDS)
     }
@@ -383,10 +575,23 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
             STATUS_EVENT_TYPE.DISCONNECTION_EVENT.ordinal -> {
                 Log.w(TAG, "Leitor RFID desconectou (bateria, encaixe ou Bluetooth): reconectando automaticamente")
                 executor.execute {
+                    // Começo da queda (se já não havia uma em andamento): a volta é registrada com a duração
+                    if (inicioQueda == null) {
+                        inicioQueda = SystemClock.elapsedRealtime()
+                        tentativasDesdeQueda = 0
+                    }
                     liberarSdk()
+                    atualizarDetalhe { it.copy(motivoDesconexao = MotivoFalhaLeitor(CausaFalhaLeitor.QUEDA, "evento de desconexão do leitor")) }
                     atualizarEstado(estadoDesconectado())
                     agendarNovaTentativa(ReconexaoLeitor.ESPERA_APOS_DESCONEXAO_MS)
                 }
+            }
+
+            STATUS_EVENT_TYPE.BATTERY_EVENT.ordinal -> {
+                val bateria = e.StatusEventData.BatteryData
+                bateriaPeloSdk = true
+                Log.d(TAG, "Bateria do leitor (evento do SDK): ${bateria.level}%, carregando: ${bateria.charging}, causa: ${bateria.cause}")
+                atualizarBateria(bateria.level, bateria.charging)
             }
 
             else -> Log.d(TAG, "Evento do leitor sem tratamento: $tipo")
@@ -418,18 +623,20 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
             try {
                 reader?.Actions?.TagLocationing?.Perform(alvo, null, null)
                 localizandoComGatilho = true
+                leituraIniciada()
                 Log.d(TAG, "Gatilho pressionado: localizando $alvo")
             } catch (e: Exception) {
-                Log.e(TAG, "Erro ao iniciar a localização de $alvo", e)
+                falhaAoIniciarLeitura(e, "a localização de $alvo")
             }
             return
         }
 
         try {
             reader?.Actions?.Inventory?.perform()
+            leituraIniciada()
             Log.d(TAG, "Gatilho pressionado: leitura iniciada")
         } catch (e: Exception) {
-            Log.e(TAG, "Erro ao iniciar a leitura", e)
+            falhaAoIniciarLeitura(e, "a leitura")
         }
     }
 
