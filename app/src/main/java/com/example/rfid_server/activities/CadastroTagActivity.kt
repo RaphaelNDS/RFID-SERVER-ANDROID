@@ -62,7 +62,11 @@ class CadastroTagActivity : AppCompatActivity() {
 
     // ===== Sessão do operador (ver SessaoNoCadastro) =====
     // Avisa com 30 e 5 min e deixa renovar; renovada, volta a acompanhar a sessão nova
-    private val avisoSessao by lazy { AvisoSessao(this) { nova -> aoRenovarSessao(nova) } }
+    // Sessão encerrada pelo servidor (ou vencida) com o formulário aberto: tratarSemSessao pede a senha aqui se
+    // houver algo a perder; senão vai para o login como as outras telas
+    private val avisoSessao by lazy {
+        AvisoSessao(this, aoMudarSessao = { nova -> aoRenovarSessao(nova) }, aoSessaoAcabar = { tratarSemSessao(); true })
+    }
     private val relogioSessao = Handler(Looper.getMainLooper())
     private val pararAvisoSessao = Runnable { avisoSessao.parar() }
     private val fimDaSessao = Runnable { if (SessaoAtual.get(this) == null) tratarSemSessao() }

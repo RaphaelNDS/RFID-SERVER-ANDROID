@@ -30,7 +30,12 @@ import java.util.Locale
  */
 class AvisoSessao(
     private val activity: AppCompatActivity,
-    private val aoMudarSessao: (SessaoOperador) -> Unit = {}
+    private val aoMudarSessao: (SessaoOperador) -> Unit = {},
+    /**
+     * Sessão acabou (pelo tempo ou encerrada pelo servidor) com a tela aberta. Devolve true se a tela trata sozinha
+     * (ex.: o Cadastro pede a senha sem sair, para não perder o formulário); false ou ausente = vai para o login.
+     */
+    private val aoSessaoAcabar: (() -> Boolean)? = null
 ) {
 
     private val handler = Handler(Looper.getMainLooper())
@@ -63,8 +68,11 @@ class AvisoSessao(
 
     private fun verificar() {
         if (activity.isFinishing || activity.isDestroyed) return
-        // Sessão acabou com a tela aberta: volta para o login (mesma regra das telas)
-        val sessao = activity.exigirSessao() ?: return
+        // Sessão acabou com a tela aberta: volta para o login (mesma regra das telas), a não ser que a tela trate
+        val sessao = SessaoAtual.get(activity) ?: run {
+            if (aoSessaoAcabar?.invoke() != true) activity.exigirSessao()
+            return
+        }
         val agora = System.currentTimeMillis()
         val minutos = PoliticaAvisoSessao.avisoDevido(sessao.token, sessao.expiraEm, agora) ?: return
 
