@@ -524,10 +524,16 @@ class InventarioActivity : AppCompatActivity() {
     // ================= AÇÕES =================
 
     private fun iniciar() {
-        val local = edtLocal.text.toString().trim()
+        // Mesma regra do servidor: sem espaços nas pontas nem repetidos, e no máximo 120 caracteres
+        val local = LocalInventario.normalizar(edtLocal.text.toString())
 
         if (local.isEmpty()) {
             Toast.makeText(this, R.string.inventario_informe_local, Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (!LocalInventario.dentroDoLimite(local)) {
+            Log.w(TAG, "Inventário não iniciado: local com ${local.length} caracteres (máximo ${LocalInventario.MAXIMO})")
+            edtLocal.error = getString(R.string.inventario_local_grande, LocalInventario.MAXIMO, local.length)
             return
         }
 

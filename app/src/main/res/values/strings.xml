@@ -105,6 +105,8 @@
     <string name="estado_leitor_reconectar">Reconectar</string>
 
     <!-- Cadastro de etiqueta -->
+    <string name="cadastro_sessao_terminou">Sua sessão terminou com o cadastro aberto. Digite a sua senha para continuar: o que foi preenchido não se perde.</string>
+    <string name="cadastro_sessao_nao_renovada">Cadastro ainda não salvo. Toque em Salvar cadastro para digitar a senha e salvar.</string>
     <string name="cadastro_titulo">Cadastrar etiqueta</string>
     <string name="cadastro_descartar_titulo">Descartar o cadastro?</string>
     <string name="cadastro_descartar_mensagem">O que foi preenchido e não foi salvo será perdido.</string>
@@ -140,6 +142,7 @@
     <string name="cadastro_guardado">Cadastro guardado: será enviado ao servidor</string>
 
     <!-- Inventário -->
+    <string name="inventario_local_grande">O local pode ter no máximo %1$d caracteres (este tem %2$d). Encurte o nome.</string>
     <string name="inventario_lida_fora_da_lista">Fora da lista: não era esperada neste local. Toque para localizar.</string>
     <string name="inventario_filtro_hint">Filtrar por patrimônio ou EPC</string>
     <string name="inventario_enviar_agora">Enviar agora</string>
@@ -267,6 +270,13 @@
     <string name="config_cert_confirmado">Certificado confirmado (SHA-256):\n%1$s</string>
 
     <!-- PIN das Configurações -->
+    <string name="pin_liberar_com_chave">Liberar com a chave do coletor</string>
+    <string name="pin_chave_explicacao">Sem conexão com o servidor (ex.: troca de servidor)? Digite a chave deste coletor, a mesma cadastrada no servidor. O PIN é apagado e um novo é criado em seguida. Cada erro conta como PIN errado.</string>
+    <string name="pin_chave_hint">Chave do coletor</string>
+    <string name="pin_chave_informe">Digite a chave do coletor</string>
+    <string name="pin_chave_errada">Chave incorreta. Restam %1$d tentativa(s)</string>
+    <string name="pin_chave_errada_bloqueado">Chave incorreta: PIN bloqueado por %1$d minutos</string>
+    <string name="pin_chave_bloqueado">PIN bloqueado por muitas tentativas erradas. Aguarde %1$d minuto(s) ou peça a um administrador para liberar.</string>
     <string name="pin_hint">PIN</string>
     <string name="pin_repita">Repita o PIN</string>
     <string name="pin_novo">PIN novo</string>

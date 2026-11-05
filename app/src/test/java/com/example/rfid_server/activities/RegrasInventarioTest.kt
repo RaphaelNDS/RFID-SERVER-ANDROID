@@ -159,4 +159,22 @@ class RegrasInventarioTest {
         assertEquals("EPC E9", ResumoFinalizacao.descreverFaltante(item("E9", patrimonio = null, tipo = null, marca = null)))
         assertEquals("Patrimônio 1 - Notebook · Dell", ResumoFinalizacao.descreverFaltante(item("E9", patrimonio = "1")))
     }
+
+    // ================= local do inventário =================
+
+    @Test
+    fun `local e normalizado como no servidor`() {
+        assertEquals("Sala 101", LocalInventario.normalizar("  Sala   101 "))
+        assertEquals("Sala 101 bloco B", LocalInventario.normalizar("Sala\t101\n bloco  B"))
+        assertEquals("", LocalInventario.normalizar("   "))
+    }
+
+    @Test
+    fun `local de ate 120 caracteres depois de normalizado e aceito`() {
+        assertTrue(LocalInventario.dentroDoLimite("a".repeat(120)))
+        assertFalse(LocalInventario.dentroDoLimite("a".repeat(121)))
+        // Espaços repetidos e nas pontas não contam: viram um só, como no servidor
+        assertTrue(LocalInventario.dentroDoLimite("  " + "a".repeat(60) + "     " + "b".repeat(59) + "  "))
+        assertFalse(LocalInventario.dentroDoLimite("a".repeat(60) + " " + "b".repeat(60)))
+    }
 }
