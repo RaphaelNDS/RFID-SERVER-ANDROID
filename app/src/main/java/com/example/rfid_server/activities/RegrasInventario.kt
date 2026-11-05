@@ -64,6 +64,16 @@ object RitmoComparacao {
     }
 }
 
+/** Decisões de apresentação da tela de inventário em andamento (testadas no computador). */
+object RegrasTelaInventario {
+
+    /**
+     * A instrução "Aperte o gatilho…" só aparece até a primeira leitura: depois disso o operador já sabe o que
+     * fazer, e a linha vira espaço para a lista do que falta.
+     */
+    fun mostrarInstrucao(totalLidas: Int): Boolean = totalLidas == 0
+}
+
 /** O que aparece na tela de inventário depois de cada cálculo (feito fora da thread principal). */
 data class SituacaoTelaInventario(
     /** Null: sem lista do esperado para comparar (primeiro inventário, servidor sem a lista, ainda buscando). */

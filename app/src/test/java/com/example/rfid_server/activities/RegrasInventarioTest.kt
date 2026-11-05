@@ -177,4 +177,13 @@ class RegrasInventarioTest {
         assertTrue(LocalInventario.dentroDoLimite("  " + "a".repeat(60) + "     " + "b".repeat(59) + "  "))
         assertFalse(LocalInventario.dentroDoLimite("a".repeat(60) + " " + "b".repeat(60)))
     }
+
+    // ================= CABEÇALHO =================
+
+    @Test
+    fun `instrucao do gatilho so aparece ate a primeira leitura`() {
+        assertTrue(RegrasTelaInventario.mostrarInstrucao(0))
+        assertFalse(RegrasTelaInventario.mostrarInstrucao(1))
+        assertFalse(RegrasTelaInventario.mostrarInstrucao(500))
+    }
 }

@@ -151,6 +151,7 @@
     <string name="cadastro_guardado">Cadastro guardado: será enviado ao servidor</string>
 
     <!-- Inventário -->
+    <string name="tela_voltar">Voltar</string>
     <string name="inventario_local_grande">O local pode ter no máximo %1$d caracteres (este tem %2$d). Encurte o nome.</string>
     <string name="inventario_lida_fora_da_lista">Fora da lista: não era esperada neste local. Toque para localizar.</string>
     <string name="inventario_filtro_hint">Filtrar por patrimônio ou EPC</string>
@@ -219,6 +220,9 @@
     <string name="esperado_codigo">Código %1$s</string>
 
     <!-- Localizar -->
+    <string name="localizar_procurando_patrimonio">Procurando: Patrimônio %1$s</string>
+    <string name="localizar_procurando_epc">Procurando: EPC %1$s</string>
+    <string name="localizar_alterar">Alterar</string>
     <string name="localizar_titulo">Patrimônio procurado</string>
     <string name="localizar_hint">Número do patrimônio</string>
     <string name="localizar_buscar">Buscar</string>
@@ -226,7 +230,6 @@
     <string name="localizar_aguardando">Aguardando...</string>
     <string name="localizar_digite_patrimonio">Digite o patrimônio</string>
     <string name="localizar_buscando">Buscando patrimônio...</string>
-    <string name="localizar_item_sem_patrimonio">Item sem patrimônio: localizando pela etiqueta</string>
     <string name="localizar_localizando">Localizando...</string>
     <string name="localizar_nao_encontrado">Patrimônio não encontrado</string>
     <string name="localizar_sem_sinal">Sem sinal da etiqueta</string>

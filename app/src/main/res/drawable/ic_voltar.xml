@@ -1,4 +1,4 @@
-<!-- Seta de voltar da barra do topo (Cadastro e Configurações) -->
+<!-- Seta de voltar da barra do topo (Cadastro, Configurações, Inventário e Localizar) -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"

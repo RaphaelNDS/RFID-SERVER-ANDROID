@@ -28,6 +28,15 @@ object Proximidade {
         else -> "Muito longe"
     }
 
+    /** Faixa de cor da barra (cinza longe, âmbar aproximando, verde muito perto): mesmos cortes de [descricao]. */
+    enum class Faixa { LONGE, APROXIMANDO, MUITO_PERTO }
+
+    fun faixa(nivel: Int): Faixa = when {
+        nivel >= 70 -> Faixa.MUITO_PERTO
+        nivel >= 50 -> Faixa.APROXIMANDO
+        else -> Faixa.LONGE
+    }
+
     // Quanto mais perto, mais rápido o bip
     fun intervaloFeedbackMs(nivel: Int): Long = when {
         nivel > 80 -> 120
