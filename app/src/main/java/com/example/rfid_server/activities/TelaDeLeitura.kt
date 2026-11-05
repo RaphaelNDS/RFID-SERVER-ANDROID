@@ -3,6 +3,7 @@ package com.example.rfid_server.activities
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
+import com.example.rfid_server.AppConfig
 import com.example.rfid_server.RfidManager
 import com.example.rfid_server.SessaoOperador
 
@@ -31,6 +32,7 @@ class TelaDeLeitura(
 ) : DefaultLifecycleObserver {
 
     private val avisoSessao = AvisoSessao(activity, aoMudarSessao)
+    private val appContext = activity.applicationContext
 
     private val ciclo = CicloTelaDeLeitura(
         exigirSessao = { activity.exigirSessao() != null },
@@ -49,7 +51,11 @@ class TelaDeLeitura(
         activity.lifecycle.addObserver(this)
     }
 
-    override fun onResume(owner: LifecycleOwner) = ciclo.retomar()
+    override fun onResume(owner: LifecycleOwner) {
+        ciclo.retomar()
+        // Bloqueio do PIN vencido com o aparelho ligado: apaga, senão voltaria no próximo reinício
+        AppConfig.limparBloqueioPinVencido(appContext)
+    }
 
     override fun onPause(owner: LifecycleOwner) = ciclo.pausar()
 }

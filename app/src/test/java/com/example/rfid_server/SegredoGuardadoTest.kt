@@ -25,9 +25,12 @@ class SegredoGuardadoTest {
         var falharAoCifrar = false
         var falharAoDecifrar = false
         var decifradas = 0
+        /** Roda uma vez, no meio do cifrar: simula outra thread gravando enquanto o valor antigo é cifrado. */
+        var duranteCifrar: (() -> Unit)? = null
 
         override fun cifrar(texto: String): String {
             if (falharAoCifrar) throw IllegalStateException("Keystore com defeito")
+            duranteCifrar?.let { duranteCifrar = null; it() }
             return "X" + texto.reversed()
         }
 
@@ -133,5 +136,49 @@ class SegredoGuardadoTest {
         cifra.falharAoDecifrar = true
 
         assertNull(AppConfig.getSessao(context))
+    }
+
+    // ---------- Regravação do texto puro sem atropelar valor novo ----------
+
+    @Test
+    fun `chave nova salva enquanto a antiga era cifrada nao e sobrescrita pela antiga`() {
+        // Textos diferentes em cada teste: o cache de decifrados do AppConfig vive entre os testes
+        prefs.edit().putString("chave_dispositivo", "chave-antiga-corrida").commit()
+        cifra.duranteCifrar = { AppConfig.saveChaveDispositivo(context, "chave-nova") }
+
+        // Quem leu antes da troca ainda recebe a antiga; o que fica guardado é a nova
+        assertEquals("chave-antiga-corrida", AppConfig.getChaveDispositivo(context))
+        assertEquals("chave-nova", AppConfig.getChaveDispositivo(context))
+        assertTrue(prefs.getString("chave_dispositivo", null)!!.startsWith(SegredoGuardado.PREFIXO))
+    }
+
+    @Test
+    fun `saida do operador enquanto o token antigo era cifrado nao traz o token de volta`() {
+        AppConfig.saveSessao(context, sessao("qualquer"))
+        prefs.edit().putString("sessao_token", "token-antigo-saida").commit()
+        cifra.duranteCifrar = { AppConfig.limparSessao(context) }
+
+        AppConfig.getSessao(context)
+
+        assertNull(prefs.getString("sessao_token", null))
+        assertNull(AppConfig.getSessao(context))
+    }
+
+    @Test
+    fun `login novo enquanto o token antigo era cifrado fica valendo`() {
+        prefs.edit().putString("sessao_token", "token-antigo-login").commit()
+        cifra.duranteCifrar = { AppConfig.saveSessao(context, sessao("token-novo")) }
+
+        AppConfig.getSessao(context)
+
+        assertEquals("token-novo", AppConfig.getSessao(context)?.token)
+    }
+
+    @Test
+    fun `sem ninguem mexer no meio o texto puro continua sendo regravado cifrado`() {
+        prefs.edit().putString("sessao_token", "token-antigo-sozinho").commit()
+
+        assertEquals("token-antigo-sozinho", AppConfig.getSessao(context)?.token)
+        assertEquals(SegredoGuardado.PREFIXO + "X" + "token-antigo-sozinho".reversed(), prefs.getString("sessao_token", null))
     }
 }

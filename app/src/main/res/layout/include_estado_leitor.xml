@@ -14,12 +14,14 @@
     <View
         android:id="@+id/marcaEstadoLeitor"
         android:background="@drawable/marca_estado"
+        android:importantForAccessibility="no"
         android:layout_marginEnd="10dp"
         android:layout_width="10dp"
         android:layout_height="10dp"/>
 
     <TextView
         android:id="@+id/txtEstadoLeitor"
+        android:accessibilityLiveRegion="polite"
         android:textStyle="bold"
         android:textSize="14sp"
         android:layout_width="0dp"

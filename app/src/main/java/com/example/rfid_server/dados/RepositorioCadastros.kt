@@ -1,5 +1,6 @@
 package com.example.rfid_server.dados
 
+import com.example.rfid_server.ExecutorProtegido
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.LiveData
@@ -7,7 +8,6 @@ import com.example.rfid_server.CofreSessoes
 import com.example.rfid_server.SessaoAtual
 import com.example.rfid_server.sincronizacao.Sincronizador
 import java.util.concurrent.Executor
-import java.util.concurrent.Executors
 
 /**
  * Cadastros de etiqueta feitos no coletor: grava no aparelho e o Sincronizador envia ao servidor
@@ -28,26 +28,36 @@ class RepositorioCadastros internal constructor(
 
     /** [aoTerminar] recebe false se não havia operador logado (nada é guardado). */
     fun salvar(cadastro: CadastroEntity, aoTerminar: (Boolean) -> Unit = {}) {
-        val sessao = sessaoAtual() ?: run {
-            Log.w(TAG, "Cadastro da etiqueta ${cadastro.epc} não guardado: nenhum operador logado")
-            aoTerminar(false)
-            return
-        }
-        val novo = cadastro.copy(
-            id = 0,
-            epc = cadastro.epc.trim(),
-            codigoInterno = cadastro.codigoInterno.trim(),
-            patrimonio = cadastro.patrimonio.trim(),
-            numeroSerie = cadastro.numeroSerie.trim(),
-            criadoEm = relogio(),
-            situacao = SituacaoCadastro.PENDENTE,
-            erro = null,
-            sessaoOperador = sessao
-        )
+        val criadoEm = relogio()
 
         executor.execute {
-            val anterior = dao.porEpc(novo.epc)
-            dao.salvar(novo)
+            // Na thread do repositório: na primeira vez a referência cifra o token e grava (commit) no CofreSessoes.
+            // Sem operador logado nada é guardado e [aoTerminar] recebe false (a tela já volta para a thread principal)
+            val sessao = sessaoAtual() ?: run {
+                Log.w(TAG, "Cadastro da etiqueta ${cadastro.epc} não guardado: nenhum operador logado")
+                aoTerminar(false)
+                return@execute
+            }
+            val novo = cadastro.copy(
+                id = 0,
+                epc = cadastro.epc.trim(),
+                codigoInterno = cadastro.codigoInterno.trim(),
+                patrimonio = cadastro.patrimonio.trim(),
+                numeroSerie = cadastro.numeroSerie.trim(),
+                criadoEm = criadoEm,
+                situacao = SituacaoCadastro.PENDENTE,
+                erro = null,
+                sessaoOperador = sessao
+            )
+
+            val anterior = try {
+                dao.porEpc(novo.epc).also { dao.salvar(novo) }
+            } catch (e: Exception) {
+                // Ex.: memória cheia. A tela está esperando a resposta com o botão Salvar desligado: responde antes de
+                // repassar o erro (o executor protegido registra e avisa o operador)
+                aoTerminar(false)
+                throw e
+            }
 
             Log.i(
                 TAG,
@@ -101,7 +111,7 @@ class RepositorioCadastros internal constructor(
                 instancia ?: context.applicationContext.let { app ->
                     RepositorioCadastros(
                         dao = BancoLocal.get(app).cadastroDao(),
-                        executor = Executors.newSingleThreadExecutor(),
+                        executor = ExecutorProtegido.umaThread(app, "gravar o cadastro"),
                         solicitarSincronizacao = Sincronizador.get(app)::solicitar,
                         sessaoAtual = { SessaoAtual.token(app)?.let { CofreSessoes.get(app).referencia(it) } }
                     )

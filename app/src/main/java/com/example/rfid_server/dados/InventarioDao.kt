@@ -135,8 +135,45 @@ interface InventarioDao {
     )
     fun contarItensNaoEnviados(): LiveData<Int>
 
+    /** Como [contarItensNaoEnviados], mas na hora (bloqueante): estado da fila mandado ao servidor nos cabeçalhos. */
+    @Query(
+        """SELECT COUNT(*) FROM inventario_itens WHERE enviado = 0
+           AND inventarioId NOT IN (SELECT id FROM inventarios WHERE recusadoEm IS NOT NULL)"""
+    )
+    fun contarItensNaoEnviadosAgora(): Int
+
     @Query("SELECT COUNT(*) FROM inventario_itens WHERE inventarioId = :inventarioId AND enviado = 0")
     fun contarItensNaoEnviados(inventarioId: String): LiveData<Int>
+
+    /** Etiquetas deste inventário que já saíram da fila (enviadas ou desistidas): com alguma, não dá para cancelar. */
+    @Query("SELECT COUNT(*) FROM inventario_itens WHERE inventarioId = :inventarioId AND enviado = 1")
+    fun contarItensEnviadosAgora(inventarioId: String): Int
+
+    /**
+     * O que o coletor desistiu de enviar e o operador precisa saber (faixa vermelha nas telas):
+     *  - inventários recusados de vez a partir de [desde] (epoch ms), com [RecusaInventario.etiquetas] = 0;
+     *  - etiquetas desistidas (enviadas com primeiraRecusaEm guardada, ver [reenviarItens]) de inventários que
+     *    não foram recusados inteiros: uma linha por inventário, com quantas são.
+     * Antes, os dois casos só saíam da contagem "aguardando envio", sem aviso nenhum.
+     */
+    @Query(
+        """SELECT id AS inventarioId, local, ultimoErro AS motivo, 0 AS etiquetas FROM inventarios
+           WHERE recusadoEm IS NOT NULL AND recusadoEm >= :desde
+           UNION ALL
+           SELECT inv.id AS inventarioId, inv.local AS local, MAX(it.ultimoErro) AS motivo, COUNT(*) AS etiquetas
+           FROM inventario_itens it JOIN inventarios inv ON inv.id = it.inventarioId
+           WHERE it.enviado = 1 AND it.primeiraRecusaEm IS NOT NULL AND inv.recusadoEm IS NULL
+           GROUP BY inv.id, inv.local
+           ORDER BY local, inventarioId"""
+    )
+    fun recusas(desde: Long): LiveData<List<RecusaInventario>>
+
+    /** O operador cancelou o inventário antes de qualquer envio: some do aparelho, com as etiquetas lidas. */
+    @Transaction
+    fun apagarInventario(id: String) {
+        apagarItens(listOf(id))
+        apagarInventarios(listOf(id))
+    }
 
     /** Apaga do coletor os inventários finalizados que já chegaram inteiros ao servidor. Devolve quantos. */
     @Transaction
@@ -168,9 +205,42 @@ interface InventarioDao {
     @Query("SELECT id FROM inventarios WHERE recusadoEm IS NOT NULL AND recusadoEm < :antesDe")
     fun idsRecusadosAntes(antesDe: Long): List<String>
 
+    /** Referências de sessão (CofreSessoes) ainda gravadas nos inventários e etiquetas: o token delas não pode sair do cofre. */
+    @Query(
+        """SELECT sessaoOperador FROM inventarios WHERE sessaoOperador LIKE 'sessao1:%'
+           UNION SELECT sessaoFinalizacao FROM inventarios WHERE sessaoFinalizacao LIKE 'sessao1:%'
+           UNION SELECT sessaoOperador FROM inventario_itens WHERE sessaoOperador LIKE 'sessao1:%'"""
+    )
+    fun sessoesEmUso(): List<String>
+
     @Query("DELETE FROM inventario_itens WHERE inventarioId IN (:ids)")
     fun apagarItens(ids: List<String>)
 
     @Query("DELETE FROM inventarios WHERE id IN (:ids)")
     fun apagarInventarios(ids: List<String>)
+}
+
+/**
+ * Aviso de recusa definitiva do servidor (ver [InventarioDao.recusas]). [etiquetas] = 0: o inventário inteiro foi
+ * recusado; > 0: só essas etiquetas dele.
+ */
+data class RecusaInventario(
+    val inventarioId: String,
+    val local: String,
+    val motivo: String?,
+    val etiquetas: Int
+) {
+    val inventarioInteiro: Boolean get() = etiquetas == 0
+
+    /**
+     * Identifica o aviso no "Ciente". Nas etiquetas entra a quantidade: se o coletor desistir de mais etiquetas
+     * do mesmo inventário depois, o aviso volta a aparecer.
+     */
+    fun chave(): String = if (inventarioInteiro) "inventario:$inventarioId" else "etiquetas:$inventarioId:$etiquetas"
+
+    companion object {
+        /** Os avisos que o operador ainda não marcou como "Ciente". */
+        fun naoVistos(avisos: List<RecusaInventario>, cientes: Set<String>): List<RecusaInventario> =
+            avisos.filter { it.chave() !in cientes }
+    }
 }

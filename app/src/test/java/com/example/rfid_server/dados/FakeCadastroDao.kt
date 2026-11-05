@@ -42,6 +42,8 @@ class FakeCadastroDao : CadastroDao {
 
     override fun contarPendentes(): LiveData<Int> = pendentesLive.also { publicar() }
 
+    override fun contarPendentesAgora(): Int = cadastros.count { it.situacao == SituacaoCadastro.PENDENTE }
+
     override fun marcarRecusado(id: Long, erro: String) =
         alterar(id) { it.copy(situacao = SituacaoCadastro.RECUSADO, erro = erro) }
 
@@ -51,4 +53,7 @@ class FakeCadastroDao : CadastroDao {
         cadastros.removeAll { it.id == id }
         publicar()
     }
+
+    override fun sessoesEmUso(): List<String> =
+        cadastros.mapNotNull { it.sessaoOperador }.filter { it.startsWith("sessao1:") }.distinct()
 }

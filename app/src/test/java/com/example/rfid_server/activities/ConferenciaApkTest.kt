@@ -52,6 +52,41 @@ class ConferenciaApkTest {
         assertTrue(problema(codigoApk = 49)!!.contains("diferente do anunciado"))
     }
 
+    // ---------- Rotação de chave (esquema v3, Android 9+) ----------
+
+    private val chaveNova = setOf(ConferenciaApk.sha256Hex("certificado novo depois da rotação".toByteArray()))
+
+    private fun problemaComHistorico(
+        certificadosApk: Set<String> = chaveNova,
+        historicoApk: Set<String> = chave + chaveNova,
+        pacoteApk: String? = pacote,
+        codigoApk: Long? = 48
+    ) = ConferenciaApk.problema(pacote, chave, 48, pacoteApk, certificadosApk, codigoApk, historicoApk)
+
+    @Test
+    fun `APK com chave nova cuja linhagem inclui a chave instalada e aceito`() {
+        assertNull(problemaComHistorico())
+    }
+
+    @Test
+    fun `chave nova sem linhagem ou com linhagem sem a chave instalada e recusada`() {
+        assertTrue(problemaComHistorico(historicoApk = emptySet())!!.contains("outra chave"))
+        assertTrue(problemaComHistorico(historicoApk = outraChave + chaveNova)!!.contains("outra chave"))
+        // Linhagem que não termina na chave do próprio APK não vale
+        assertTrue(problemaComHistorico(certificadosApk = outraChave)!!.contains("outra chave"))
+    }
+
+    @Test
+    fun `rotacao nao libera pacote diferente nem codigo diferente`() {
+        assertTrue(problemaComHistorico(pacoteApk = "com.exemplo.malicioso")!!.contains("outro app"))
+        assertTrue(problemaComHistorico(codigoApk = 47)!!.contains("diferente do anunciado"))
+    }
+
+    @Test
+    fun `com mais de um assinante a linhagem nao vale`() {
+        assertTrue(problemaComHistorico(certificadosApk = chaveNova + outraChave)!!.contains("outra chave"))
+    }
+
     @Test
     fun `sha256Hex gera 64 caracteres hexadecimais minusculos`() {
         val hex = ConferenciaApk.sha256Hex(byteArrayOf(1, 2, 3))

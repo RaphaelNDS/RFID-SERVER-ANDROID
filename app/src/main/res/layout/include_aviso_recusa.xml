@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Faixa vermelha (FaixaRecusa): inventário ou etiquetas que o coletor desistiu de enviar; "Ciente" esconde o aviso -->
+<!-- Overdraw: é uma faixa incluída no meio da tela, não o fundo de uma tela inteira -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="Overdraw"
+    android:id="@+id/painelAvisoRecusa"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@color/erro_fundo"
+    android:paddingStart="12dp"
+    android:paddingEnd="4dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp"
+    android:visibility="gone"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <TextView
+        android:id="@+id/txtAvisoRecusa"
+        android:textColor="@color/erro"
+        android:textStyle="bold"
+        android:textSize="14sp"
+        android:layout_width="0dp"
+        android:layout_weight="1"
+        android:layout_height="wrap_content"/>
+
+    <Button
+        android:id="@+id/btnCienteRecusa"
+        style="@style/Widget.Material3.Button.TextButton"
+        android:text="@string/aviso_recusa_ciente"
+        android:textColor="@color/erro"
+        android:layout_marginStart="8dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"/>
+</LinearLayout>

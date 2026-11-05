@@ -26,14 +26,38 @@ class CofreSessoesTest {
     private val cifra = CifraFalsa()
     private var agora = 1_000_000_000_000L
 
-    private fun cofre() = CofreSessoes(
+    private fun cofre(emUso: () -> Set<String> = { emptySet() }) = CofreSessoes(
         ler = { guardado[it] },
         gravar = { guardado.putAll(it) },
         todas = { guardado.toMap() },
         apagar = { chaves -> chaves.forEach { guardado.remove(it) } },
         cifra = { cifra },
-        relogio = { agora }
+        relogio = { agora },
+        emUso = emUso
     )
+
+    @Test
+    fun `relogio que pulou para frente nao apaga o token de leituras ainda na fila`() {
+        val naFila = cofre().referencia("token-da-leitura-na-fila")
+        val semUso = cofre().referencia("token-sem-uso")
+        // Relógio do aparelho pulou 1 ano para frente (ex.: data errada depois de a bateria descarregar)
+        agora += 365L * 24 * 60 * 60 * 1000
+
+        assertEquals(1, cofre(emUso = { setOf(naFila) }).limparAntigas())
+
+        assertEquals("Em uso: continua", "token-da-leitura-na-fila", cofre().token(naFila))
+        assertEquals("Sem uso: apagada", semUso, cofre().token(semUso))
+    }
+
+    @Test
+    fun `se nao der para conferir as sessoes em uso nada e apagado`() {
+        val ref = cofre().referencia("token-ana")
+        agora += CofreSessoes.GUARDA_MS + 1
+
+        assertEquals(0, cofre(emUso = { throw IllegalStateException("banco indisponível") }).limparAntigas())
+
+        assertEquals("token-ana", cofre().token(ref))
+    }
 
     @Test
     fun `referencia nao contem o token e e sempre a mesma para o mesmo token`() {

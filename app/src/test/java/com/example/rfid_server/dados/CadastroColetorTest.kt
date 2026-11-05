@@ -51,6 +51,27 @@ class CadastroColetorTest {
     }
 
     @Test
+    fun `sessao e lida na thread do repositorio e sem operador nada e guardado`() {
+        // Executor que só roda quando o teste manda: a tela não pode tocar no cofre (cifrar e gravar) antes disso
+        val tarefas = ArrayDeque<Runnable>()
+        var lidas = 0
+        sessao = null
+        val repositorio = RepositorioCadastros(dao, { tarefas.addLast(it) }, { sincronizacoes++ }, { 5_000L },
+            sessaoAtual = { lidas++; sessao })
+        var terminou: Boolean? = null
+
+        repositorio.salvar(cadastro()) { terminou = it }
+        assertEquals("Nada na thread de quem chamou", 0, lidas)
+        assertNull(terminou)
+
+        tarefas.removeFirst().run()
+        assertEquals(1, lidas)
+        assertEquals(false, terminou)
+        assertNull(dao.porEpcAgora("E1"))
+        assertEquals(0, sincronizacoes)
+    }
+
+    @Test
     fun `resultado do envio acompanha o que o sincronizador fez com o cadastro`() {
         repositorio.salvar(cadastro())
         val guardado = dao.porEpcAgora("E1")!!

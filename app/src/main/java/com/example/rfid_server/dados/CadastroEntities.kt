@@ -66,6 +66,10 @@ interface CadastroDao {
     @Query("SELECT COUNT(*) FROM cadastros WHERE situacao = 'PENDENTE'")
     fun contarPendentes(): LiveData<Int>
 
+    /** Como [contarPendentes], mas na hora (bloqueante): estado da fila mandado ao servidor nos cabeçalhos. */
+    @Query("SELECT COUNT(*) FROM cadastros WHERE situacao = 'PENDENTE'")
+    fun contarPendentesAgora(): Int
+
     @Query("UPDATE cadastros SET situacao = 'RECUSADO', erro = :erro WHERE id = :id")
     fun marcarRecusado(id: Long, erro: String)
 
@@ -74,4 +78,11 @@ interface CadastroDao {
 
     @Query("DELETE FROM cadastros WHERE id = :id")
     fun apagar(id: Long)
+
+    /**
+     * Referências de sessão (CofreSessoes.PREFIXO) usadas nos cadastros guardados: o cofre não apaga esses tokens.
+     * Os recusados entram também (o operador pode corrigir e reenviar).
+     */
+    @Query("SELECT DISTINCT sessaoOperador FROM cadastros WHERE sessaoOperador LIKE 'sessao1:%'")
+    fun sessoesEmUso(): List<String>
 }

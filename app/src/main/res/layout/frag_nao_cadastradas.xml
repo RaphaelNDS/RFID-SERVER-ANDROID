@@ -13,6 +13,17 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
+    <!-- Lista vazia: diz o que fazer (some com a primeira não cadastrada) -->
+    <TextView
+        android:id="@+id/txtVazioNao"
+        android:text="@string/nao_cadastradas_vazia"
+        android:textAppearance="@style/Texto.RFID.Secundario"
+        android:gravity="center"
+        android:padding="24dp"
+        android:visibility="gone"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerNao"
         android:paddingStart="12dp"

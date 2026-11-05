@@ -1,5 +1,6 @@
 package com.example.rfid_server.activities
 
+import com.example.rfid_server.api.RelogioServidor
 import com.example.rfid_server.erros.MascaraSensivel
 import android.content.Intent
 import android.os.Bundle
@@ -14,6 +15,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
+import androidx.core.view.isVisible
 import androidx.lifecycle.ViewModelProvider
 import androidx.viewpager2.widget.ViewPager2
 import com.example.rfid_server.AppConfig
@@ -26,6 +28,7 @@ import com.example.rfid_server.SessaoAtual
 import com.example.rfid_server.service.TagService
 import com.example.rfid_server.adapter.MainPagerAdapter
 import com.example.rfid_server.dados.ContagemSessao
+import com.example.rfid_server.dados.RepositorioInventario
 import com.example.rfid_server.dados.RepositorioLeituras
 import com.example.rfid_server.sincronizacao.EstadoSincronizacao
 import com.example.rfid_server.sincronizacao.SincronizacaoWorker
@@ -41,7 +44,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var viewModel: MainViewModel
 
     private lateinit var pager: ViewPager2
+    private lateinit var faixaSincronizacao: View
     private lateinit var txtSincronizacao: TextView
+    private lateinit var btnEnviarAgora: View
     private lateinit var txtContadores: TextView
 
     // Com o app aberto, tenta enviar o que estiver pendente a cada minuto
@@ -71,7 +76,9 @@ class MainActivity : AppCompatActivity() {
         mostrarOperador(sessao)
 
         pager = findViewById(R.id.pager)
+        faixaSincronizacao = findViewById(R.id.faixaSincronizacao)
         txtSincronizacao = findViewById(R.id.txtSincronizacao)
+        btnEnviarAgora = findViewById(R.id.btnEnviarAgora)
         txtContadores = findViewById(R.id.txtContadores)
         val tabs = findViewById<TabLayout>(R.id.tabs)
 
@@ -116,7 +123,48 @@ class MainActivity : AppCompatActivity() {
 
         viewModel.pendentes.observe(this) { atualizarAvisoSincronizacao() }
         viewModel.estadoSincronizacao.observe(this) { atualizarAvisoSincronizacao() }
-        viewModel.contagem.observe(this) { txtContadores.text = it.resumo() }
+        RelogioServidor.desvio.observe(this) { atualizarAvisoSincronizacao() }
+        viewModel.contagem.observe(this) {
+            txtContadores.text = if (it.recusadas > 0) it.resumo() + getString(R.string.main_recusadas_toque) else it.resumo()
+        }
+        // Recusadas aparecem só como número: tocar nos contadores mostra quais são, o motivo e "Tentar de novo"
+        txtContadores.setOnClickListener { mostrarRecusadas() }
+
+        // Faixa de sincronização: o botão e a faixa inteira (alvo grande, para luva) pedem o envio na hora
+        btnEnviarAgora.setOnClickListener { enviarAgora() }
+        faixaSincronizacao.setOnClickListener { if (btnEnviarAgora.isVisible) enviarAgora() }
+
+        FaixaRecusa.ligar(this, RepositorioInventario.get(this))
+    }
+
+    /** Lista das leituras recusadas de vez ainda guardadas (da sessão e de sessões anteriores, até 30 dias). */
+    private fun mostrarRecusadas() {
+        repositorio.recusadas { recusadas ->
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (recusadas.isEmpty()) {
+                    Toast.makeText(this, R.string.recusadas_nenhuma, Toast.LENGTH_SHORT).show()
+                    return@runOnUiThread
+                }
+
+                val semMotivo = getString(R.string.recusadas_sem_motivo)
+                val mensagem = buildString {
+                    recusadas.forEach { append(getString(R.string.recusadas_item, it.epc, it.ultimoErro ?: semMotivo)).append("\n\n") }
+                    append(getString(R.string.recusadas_rodape))
+                }
+
+                AlertDialog.Builder(this)
+                    .setTitle(getString(R.string.recusadas_titulo, recusadas.size))
+                    .setMessage(mensagem)
+                    .setPositiveButton(R.string.recusadas_tentar_de_novo) { _, _ ->
+                        repositorio.tentarDeNovo(recusadas.map { it.id }) { total ->
+                            runOnUiThread { Toast.makeText(this, getString(R.string.recusadas_voltaram, total), Toast.LENGTH_LONG).show() }
+                        }
+                    }
+                    .setNegativeButton(R.string.recusadas_fechar, null)
+                    .show()
+            }
+        }
     }
 
     private fun mostrarOperador(sessao: com.example.rfid_server.SessaoOperador) {
@@ -125,17 +173,34 @@ class MainActivity : AppCompatActivity() {
 
     private fun atualizarAvisoSincronizacao() {
         val pendentes = viewModel.pendentes.value ?: 0
+        // Relógio do coletor muito diferente do servidor: o servidor recusa as leituras pela hora, então avisa sempre
+        val avisoRelogio = RelogioServidor.aviso(RelogioServidor.desvio.value)
 
-        if (pendentes == 0) {
-            txtSincronizacao.visibility = View.GONE
+        if (pendentes == 0 && avisoRelogio == null) {
+            faixaSincronizacao.isVisible = false
             return
         }
 
         val estado = viewModel.estadoSincronizacao.value
-        val motivo = if (estado == null || estado == EstadoSincronizacao.SINCRONIZADO) getString(R.string.main_enviando) else estado.descricao
+        val acoes = RegrasFaixaSincronizacao.acoes(pendentes, estado)
 
-        txtSincronizacao.text = getString(R.string.main_aviso_sincronizacao, motivo, pendentes)
-        txtSincronizacao.visibility = View.VISIBLE
+        val avisoPendentes = if (pendentes == 0) null else {
+            val motivo = if (estado == null || estado == EstadoSincronizacao.SINCRONIZADO) getString(R.string.main_enviando) else estado.descricao
+            getString(R.string.main_aviso_sincronizacao, motivo, pendentes)
+        }
+        // Problema que só se resolve nas Configurações (com PIN): o operador não tem o que fazer sozinho
+        val avisoResponsavel = if (acoes.chamarResponsavel) getString(R.string.main_chame_responsavel) else null
+
+        txtSincronizacao.text = listOfNotNull(avisoRelogio, avisoPendentes, avisoResponsavel).joinToString("\n")
+        btnEnviarAgora.isVisible = acoes.enviarAgora
+        faixaSincronizacao.isClickable = acoes.enviarAgora
+        faixaSincronizacao.isVisible = true
+    }
+
+    private fun enviarAgora() {
+        Log.i(TAG, "Operador pediu o envio imediato das leituras guardadas (${viewModel.pendentes.value ?: 0} aguardando)")
+        sincronizador.solicitar()
+        Toast.makeText(this, R.string.main_enviando_agora, Toast.LENGTH_SHORT).show()
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {

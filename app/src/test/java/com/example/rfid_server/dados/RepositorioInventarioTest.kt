@@ -46,6 +46,28 @@ class RepositorioInventarioTest {
     }
 
     @Test
+    fun `abrir e finalizar leem a sessao na thread do repositorio`() {
+        // Executor que só roda quando o teste manda: a tela não pode tocar no cofre (cifrar e gravar)
+        val tarefas = ArrayDeque<Runnable>()
+        var lidas = 0
+        val repositorio = RepositorioInventario(dao, { tarefas.addLast(it) }, {}, { agora }, { "inv-x" },
+            sessaoAtual = { lidas++; sessao })
+        while (tarefas.isNotEmpty()) tarefas.removeFirst().run()   // retomada e avisos do init
+        var aberto: Boolean? = null
+        var total: Int? = -1
+
+        repositorio.abrir("Sala") { aberto = it }
+        repositorio.finalizar { total = it }
+        assertEquals("Nada na thread de quem chamou", 0, lidas)
+
+        while (tarefas.isNotEmpty()) tarefas.removeFirst().run()
+        assertEquals(2, lidas)
+        assertEquals(true, aberto)
+        assertEquals(0, total)
+        assertEquals("sessao-ana", dao.inventario("inv-x").sessaoFinalizacao)
+    }
+
+    @Test
     fun `nao abre um segundo inventario nem com local vazio`() {
         val repositorio = repositorio()
         val resultados = mutableListOf<Boolean>()
@@ -161,5 +183,132 @@ class RepositorioInventarioTest {
         assertEquals(listOf("E1", "E2"), dao.itens.map { it.epc })
         assertEquals("inv-1", dao.itens.last().inventarioId)
         assertEquals("Sala 101", depois.inventarioAberto.value?.local)
+    }
+
+    // ---------- Cancelar ----------
+
+    @Test
+    fun `cancelar antes de qualquer envio apaga o inventario e as etiquetas e permite abrir outro`() {
+        val repositorio = repositorio()
+        repositorio.abrir("Sala 11")
+        repositorio.registrar("E1")
+        repositorio.registrar("E2")
+        var resultado: RepositorioInventario.ResultadoCancelamento? = null
+
+        repositorio.cancelar { resultado = it }
+
+        assertEquals(RepositorioInventario.ResultadoCancelamento.CANCELADO, resultado)
+        assertTrue(dao.inventarios.isEmpty() && dao.itens.isEmpty())
+        assertNull(repositorio.inventarioAberto.value)
+
+        var abriu: Boolean? = null
+        repositorio.abrir("Sala 101") { abriu = it }
+        assertEquals(true, abriu)
+        repositorio.registrar("E1")
+        assertEquals("E1 lida de novo no inventário novo", listOf("inv-2"), dao.itens.map { it.inventarioId })
+    }
+
+    @Test
+    fun `nao cancela depois que a abertura foi enviada`() {
+        val repositorio = repositorio()
+        repositorio.abrir("Sala 101")
+        repositorio.registrar("E1")
+        dao.definirAberturaEnviada("inv-1", true)
+        var resultado: RepositorioInventario.ResultadoCancelamento? = null
+
+        repositorio.cancelar { resultado = it }
+
+        assertEquals(RepositorioInventario.ResultadoCancelamento.JA_ENVIADO, resultado)
+        assertEquals(1, dao.inventarios.size)
+        assertEquals(1, dao.itens.size)
+    }
+
+    @Test
+    fun `nao cancela se alguma etiqueta ja saiu da fila, mesmo com a abertura voltando para a fila`() {
+        val repositorio = repositorio()
+        repositorio.abrir("Sala 101")
+        repositorio.registrar("E1")
+        dao.marcarItensEnviados(dao.itens.map { it.id })
+        var resultado: RepositorioInventario.ResultadoCancelamento? = null
+
+        repositorio.cancelar { resultado = it }
+
+        assertEquals(RepositorioInventario.ResultadoCancelamento.JA_ENVIADO, resultado)
+        assertEquals(1, dao.inventarios.size)
+    }
+
+    @Test
+    fun `cancelar sem inventario aberto nao faz nada`() {
+        var resultado: RepositorioInventario.ResultadoCancelamento? = null
+
+        repositorio().cancelar { resultado = it }
+
+        assertEquals(RepositorioInventario.ResultadoCancelamento.SEM_INVENTARIO, resultado)
+    }
+
+    // ---------- Local novo ----------
+
+    @Test
+    fun `local novo e o que nao esta nas sugestoes, sem diferenciar maiusculas e espacos`() {
+        val conhecidos = listOf("Sala 101", "Almoxarifado")
+
+        assertFalse(RepositorioInventario.localNovo("  sala   101 ", conhecidos))
+        assertFalse(RepositorioInventario.localNovo("ALMOXARIFADO", conhecidos))
+        assertTrue(RepositorioInventario.localNovo("Sala 11", conhecidos))
+        assertFalse("Sem nenhum local conhecido não há com o que comparar", RepositorioInventario.localNovo("Sala 11", emptyList()))
+    }
+
+    // ---------- Avisos de recusa ----------
+
+    private fun recusarInteiro(id: String, local: String, motivo: String, quando: Long) {
+        dao.inserirInventario(InventarioEntity(id, local, 1_000))
+        dao.registrarRecusa(id, motivo, quando)
+        dao.desistir(id, quando)
+    }
+
+    @Test
+    fun `aviso de inventario recusado aparece ate o operador marcar ciente, e continua escondido ao reabrir`() {
+        agora = RepositorioInventario.GUARDA_AVISO_MS + 100_000
+        val cientes = RepositorioInventario.GuardaCientes.EmMemoria()
+        val repositorio = RepositorioInventario(dao, { it.run() }, {}, { agora }, sessaoAtual = { sessao }, cientes = cientes)
+        val avisos = repositorio.avisosRecusa.also { it.observeForever { } }
+        assertEquals(emptyList<RecusaInventario>(), avisos.value)
+
+        recusarInteiro("inv-a", "Sala 101", "Local inativo", agora)
+        recusarInteiro("antigo", "Sala 9", "Antigo", 1_000)
+
+        val aviso = avisos.value!!.single()
+        assertEquals(RecusaInventario("inv-a", "Sala 101", "Local inativo", 0), aviso)
+
+        repositorio.marcarCiente(aviso)
+        assertEquals(emptyList<RecusaInventario>(), avisos.value)
+        assertEquals(setOf("inventario:inv-a"), cientes.chaves)
+
+        // App aberto de novo: o "ciente" continua valendo
+        val depois = RepositorioInventario(dao, { it.run() }, {}, { agora }, cientes = cientes).avisosRecusa.also { it.observeForever { } }
+        assertEquals(emptyList<RecusaInventario>(), depois.value)
+    }
+
+    @Test
+    fun `aviso de etiquetas desistidas volta se o coletor desistir de mais etiquetas`() {
+        val cientes = RepositorioInventario.GuardaCientes.EmMemoria(setOf("inventario:apagado-ha-tempo"))
+        val repositorio = RepositorioInventario(dao, { it.run() }, {}, { agora }, sessaoAtual = { sessao }, cientes = cientes)
+        val avisos = repositorio.avisosRecusa.also { it.observeForever { } }
+        repositorio.abrir("Sala 101")
+        repositorio.registrar("E1")
+        repositorio.registrar("E2")
+        val (e1, e2) = dao.itens.map { it.id }
+
+        dao.registrarRecusaItens(listOf(e1), "Sessão desativada", agora)
+        dao.desistirItens(listOf(e1), 1, agora)
+        val primeiro = avisos.value!!.single()
+        assertEquals(1, primeiro.etiquetas)
+        repositorio.marcarCiente(primeiro)
+        assertTrue(avisos.value!!.isEmpty())
+        assertEquals("Chaves de avisos que não existem mais saem da lista", setOf(primeiro.chave()), cientes.chaves)
+
+        dao.registrarRecusaItens(listOf(e2), "Sessão desativada", agora)
+        dao.desistirItens(listOf(e2), 1, agora)
+        assertEquals(2, avisos.value!!.single().etiquetas)
     }
 }

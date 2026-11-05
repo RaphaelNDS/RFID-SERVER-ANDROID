@@ -38,8 +38,12 @@ class RecusasDeSessaoEmMemoria : RecusasDeSessao {
  * Guardada nas preferências do app: o prazo continua contando mesmo se o app fechar. A chave é o SHA-256 do
  * token (o token em si já fica no banco local, não precisa de mais uma cópia).
  */
-class RecusasDeSessaoGuardadas(context: Context) : RecusasDeSessao {
-    private val prefs = context.applicationContext.getSharedPreferences(ARQUIVO, Context.MODE_PRIVATE)
+class RecusasDeSessaoGuardadas(
+    context: Context,
+    /** Um arquivo por fila: [manterSomente] de uma (ex.: leituras) não pode apagar as sessões da outra (cadastros). */
+    arquivo: String = ARQUIVO
+) : RecusasDeSessao {
+    private val prefs = context.applicationContext.getSharedPreferences(arquivo, Context.MODE_PRIVATE)
 
     override fun primeiraRecusa(sessao: String): Long? {
         val chave = chave(sessao)
@@ -65,7 +69,8 @@ class RecusasDeSessaoGuardadas(context: Context) : RecusasDeSessao {
     private fun chave(sessao: String): String =
         MessageDigest.getInstance("SHA-256").digest(sessao.toByteArray()).joinToString("") { "%02x".format(it) }
 
-    private companion object {
-        const val ARQUIVO = "recusas_sessao"
+    companion object {
+        private const val ARQUIVO = "recusas_sessao"
+        const val ARQUIVO_CADASTROS = "recusas_sessao_cadastros"
     }
 }

@@ -12,6 +12,9 @@
 
     <include layout="@layout/include_estado_leitor"/>
 
+    <!-- Inventário ou etiquetas que o coletor desistiu de enviar (some no "Ciente") -->
+    <include layout="@layout/include_aviso_recusa"/>
+
     <!-- Operador, sessão e contadores da leitura atual -->
     <LinearLayout
         android:orientation="vertical"
@@ -27,12 +30,15 @@
         <TextView
             android:id="@+id/txtSessao"
             android:textAppearance="@style/Texto.RFID.Secundario"
+            android:maxLines="2"
+            android:ellipsize="end"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
 
-        <!-- Contadores da leitura atual (zeram no botão "Nova leitura") -->
+        <!-- Contadores da leitura atual (zeram no botão "Nova leitura"). Tocar mostra as leituras recusadas -->
         <TextView
             android:id="@+id/txtContadores"
+            android:background="?attr/selectableItemBackground"
             android:textColor="@color/marinho"
             android:textSize="15sp"
             android:textStyle="bold"
@@ -41,13 +47,34 @@
             android:layout_height="wrap_content"/>
     </LinearLayout>
 
-    <!-- Aparece só quando há leituras guardadas no aparelho aguardando envio -->
-    <TextView
-        android:id="@+id/txtSincronizacao"
-        style="@style/Texto.RFID.Aviso"
+    <!-- Aparece só com leituras guardadas no aparelho aguardando envio ou com o relógio errado.
+         Tocar na faixa (ou no botão) pede o envio na hora; problema das Configurações: "Chame o responsável" -->
+    <LinearLayout
+        android:id="@+id/faixaSincronizacao"
+        android:orientation="vertical"
+        android:background="@color/atencao_fundo"
+        android:foreground="?attr/selectableItemBackground"
         android:visibility="gone"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"/>
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:id="@+id/txtSincronizacao"
+            style="@style/Texto.RFID.Aviso"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+
+        <Button
+            android:id="@+id/btnEnviarAgora"
+            style="@style/Widget.RFID.Botao.Texto"
+            android:text="@string/main_enviar_agora"
+            android:textColor="@color/marinho"
+            android:minHeight="48dp"
+            android:layout_marginStart="4dp"
+            android:visibility="gone"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"/>
+    </LinearLayout>
 
     <View
         android:background="@color/borda"

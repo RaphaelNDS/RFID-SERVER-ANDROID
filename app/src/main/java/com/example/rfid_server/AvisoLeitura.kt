@@ -3,6 +3,8 @@ package com.example.rfid_server
 import android.content.Context
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.util.Log
@@ -16,7 +18,7 @@ import android.util.Log
  *
  * Crie no onCreate da tela e chame [liberar] no onDestroy: o ToneGenerator usa um recurso nativo
  * limitado do aparelho (se não for liberado, depois de algumas telas o som para de funcionar).
- * [tagNova] e [bip] podem ser chamados de qualquer thread.
+ * [erro] é o aviso de falha do leitor (dois bips graves). [tagNova], [bip] e [erro] podem ser chamados de qualquer thread.
  */
 class AvisoLeitura(context: Context) {
 
@@ -29,6 +31,9 @@ class AvisoLeitura(context: Context) {
     private val vibrador = appContext.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
 
     private val limitador = LimitadorAviso(INTERVALO_MINIMO_MS)
+
+    // Segundo bip do [erro]
+    private val principal = Handler(Looper.getMainLooper())
 
     fun tagNova() {
         if (!AppConfig.isAvisoLeitura(appContext)) return
@@ -45,6 +50,30 @@ class AvisoLeitura(context: Context) {
         } catch (e: RuntimeException) {
             // Tela fechando ao mesmo tempo (gerador já liberado): perder um bip não tem problema
             Log.d(TAG, "Bip não emitido: ${e.message}")
+        }
+    }
+
+    /**
+     * Falha do leitor (ex.: o gatilho foi apertado e a leitura não começou): dois bips graves curtos e vibração dupla,
+     * bem diferente do bip agudo de etiqueta nova. Toca sempre, no volume de alarme, mesmo com o ajuste
+     * "aviso a cada etiqueta nova" desligado: é um erro que o operador precisa perceber.
+     */
+    fun erro() {
+        tomErro()
+        principal.postDelayed(::tomErro, INTERVALO_BIPS_ERRO_MS)
+        try {
+            vibrador?.vibrate(VibrationEffect.createWaveform(VIBRACAO_ERRO, -1))
+        } catch (e: RuntimeException) {
+            Log.d(TAG, "Vibração de erro não emitida: ${e.message}")
+        }
+    }
+
+    private fun tomErro() {
+        try {
+            som?.startTone(ToneGenerator.TONE_PROP_NACK, DURACAO_BIP_ERRO_MS)
+        } catch (e: RuntimeException) {
+            // Gerador liberado entre o primeiro e o segundo bip: perder um bip não tem problema
+            Log.d(TAG, "Bip de erro não emitido: ${e.message}")
         }
     }
 
@@ -77,5 +106,10 @@ class AvisoLeitura(context: Context) {
 
         /** Com muitas etiquetas de uma vez, no máximo um bip a cada 150 ms (fica um "trrr" e não um bip contínuo). */
         private const val INTERVALO_MINIMO_MS = 150L
+
+        // Bip de erro: tom grave (TONE_PROP_NACK, ~400 Hz) duas vezes, com uma pausa curta entre os dois
+        private const val DURACAO_BIP_ERRO_MS = 120
+        private const val INTERVALO_BIPS_ERRO_MS = 220L
+        private val VIBRACAO_ERRO = longArrayOf(0, 120, 100, 120)
     }
 }

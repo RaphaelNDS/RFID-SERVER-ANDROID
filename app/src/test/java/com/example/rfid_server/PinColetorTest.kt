@@ -114,6 +114,27 @@ class PinColetorTest {
     }
 
     @Test
+    fun `bloqueio vencido com o aparelho ligado e apagado e nao volta no proximo reinicio`() {
+        val bloqueado = errar(5)
+        // Ainda bloqueado: nada a limpar
+        assertEquals(null, PinColetor.semBloqueioVencido(bloqueado, parede + 4 * min, ligado + 4 * min))
+
+        // Venceu com o aparelho ligado: apaga o bloqueio e mantém os erros
+        val limpo = PinColetor.semBloqueioVencido(bloqueado, parede + 6 * min, ligado + 6 * min)!!
+        assertEquals(5, limpo.erros)
+        assertEquals(0, limpo.bloqueadoAte)
+
+        // Dias depois o aparelho reinicia (elapsedRealtime volta perto de zero): continua livre
+        assertEquals(0, PinColetor.restanteBloqueio(limpo, parede + 3 * 24 * 60 * min, 1 * min))
+        // Antes da correção, o estado não limpo bloqueava de novo depois do reinício
+        assertEquals(4 * min, PinColetor.restanteBloqueio(bloqueado, parede + 3 * 24 * 60 * min, 1 * min))
+
+        // O próximo erro continua a contagem: no 10º, bloqueio de 15 min
+        val proximo = (6..10).fold(limpo) { e, _ -> PinColetor.aposErro(e, parede + 7 * min, ligado + 7 * min) }
+        assertEquals(15 * min, PinColetor.restanteBloqueio(proximo, parede + 7 * min, ligado + 7 * min))
+    }
+
+    @Test
     fun `estado gravado pela versao antiga continua valendo pelo relogio`() {
         // 1.6.1: erros zerados no bloqueio e só o bloqueado_ate gravado
         val antigo = PinColetor.EstadoTentativas(erros = 0, bloqueadoAte = parede + 3 * min)

@@ -2,6 +2,7 @@ package com.example.rfid_server
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
 import androidx.core.content.edit
 import com.example.rfid_server.dados.EsperadoGuardado
@@ -58,18 +59,40 @@ object AppConfig {
         // Guardado sem cifra por uma versão anterior do app: regrava cifrado (uma vez só)
         if (lido.regravar) {
             val novo = guardarSegredo(valor, nome)
-            if (novo != guardado) {
-                prefs.edit { putString(chavePrefs, novo) }
-                Log.i(TAG, "$nome guardado sem cifra por versão anterior do app: regravado cifrado")
-            }
+            if (novo != guardado) regravarSeIgual(context, chavePrefs, guardado, novo, nome)
         }
         return valor
     }
 
+    /**
+     * Troca o texto puro antigo pelo cifrado só se ninguém mudou o valor nesse meio-tempo (uma chave nova salva nas
+     * Configurações, um login ou uma saída em outra thread): senão o valor antigo voltaria por cima do novo.
+     * Quem grava a chave e a sessão também passa por esta trava (ver [gravarSegredos]).
+     */
+    private fun regravarSeIgual(context: Context, chavePrefs: String, guardado: String, novo: String, nome: String) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        synchronized(travaSegredos) {
+            if (prefs.getString(chavePrefs, null) != guardado) {
+                Log.i(TAG, "$nome mudou enquanto era cifrado: o valor novo fica como está (sem regravar o antigo)")
+                return
+            }
+            prefs.edit { putString(chavePrefs, novo) }
+        }
+        Log.i(TAG, "$nome guardado sem cifra por versão anterior do app: regravado cifrado")
+    }
+
+    private val travaSegredos = Any()
+
+    /** Grava a chave ou a sessão sob a mesma trava da regravação (ver [regravarSeIgual]). */
+    private fun gravarSegredos(context: Context, bloco: SharedPreferences.Editor.() -> Unit) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        synchronized(travaSegredos) { prefs.edit(action = bloco) }
+    }
+
     // Chave cadastrada no servidor (rfid.dispositivos.chaves) para este coletor
     fun saveChaveDispositivo(context: Context, chave: String) {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        prefs.edit { putString(KEY_CHAVE_DISPOSITIVO, guardarSegredo(chave, "a chave do coletor")) }
+        val guardada = guardarSegredo(chave, "a chave do coletor")
+        gravarSegredos(context) { putString(KEY_CHAVE_DISPOSITIVO, guardada) }
     }
 
     fun getChaveDispositivo(context: Context): String =
@@ -100,9 +123,9 @@ object AppConfig {
 
     // Sessão do operador logado (token + permissões). Use SessaoAtual, que já trata a expiração
     fun saveSessao(context: Context, sessao: SessaoOperador) {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        prefs.edit {
-            putString(KEY_SESSAO_TOKEN, guardarSegredo(sessao.token, "o token da sessão"))
+        val token = guardarSegredo(sessao.token, "o token da sessão")
+        gravarSegredos(context) {
+            putString(KEY_SESSAO_TOKEN, token)
             putLong(KEY_SESSAO_EXPIRA, sessao.expiraEm)
             putString(KEY_SESSAO_NOME, sessao.nome)
             putString(KEY_SESSAO_EMAIL, sessao.email)
@@ -127,8 +150,7 @@ object AppConfig {
     }
 
     fun limparSessao(context: Context) {
-        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        prefs.edit {
+        gravarSegredos(context) {
             remove(KEY_SESSAO_TOKEN).remove(KEY_SESSAO_EXPIRA).remove(KEY_SESSAO_NOME)
                 .remove(KEY_SESSAO_EMAIL).remove(KEY_SESSAO_LER).remove(KEY_SESSAO_CADASTRAR)
         }
@@ -280,6 +302,18 @@ object AppConfig {
 
     /** PIN certo: zera os erros e o bloqueio. */
     fun limparTentativasPin(context: Context) = saveTentativasPin(context, PinColetor.EstadoTentativas())
+
+    /**
+     * Apaga o bloqueio do PIN que já acabou (ver PinColetor.semBloqueioVencido), para ele não voltar no próximo
+     * reinício do aparelho. Barato (só lê as preferências): chamado ao abrir as telas de leitura e ao pedir o PIN.
+     */
+    fun limparBloqueioPinVencido(context: Context) {
+        val limpo = PinColetor.semBloqueioVencido(
+            getTentativasPin(context), System.currentTimeMillis(), android.os.SystemClock.elapsedRealtime()
+        ) ?: return
+        saveTentativasPin(context, limpo)
+        Log.i(TAG, "Bloqueio do PIN das Configurações já tinha acabado: apagado (os erros seguem contados)")
+    }
 
     private const val KEY_PIN_HASH = "pin_hash"
     private const val KEY_PIN_SAL = "pin_sal"

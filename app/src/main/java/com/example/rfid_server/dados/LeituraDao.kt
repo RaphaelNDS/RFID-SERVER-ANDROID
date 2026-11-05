@@ -94,8 +94,41 @@ interface LeituraDao {
     @Query("SELECT * FROM leituras WHERE arquivada = 0 AND situacao = 'NAO_CADASTRADA' ORDER BY id DESC")
     fun naoCadastradasDaSessao(): LiveData<List<LeituraEntity>>
 
+    /**
+     * Lidas nesta sessão e ainda sem resposta do servidor (ex.: coletor sem rede): aparecem na aba de leitura como
+     * "aguardando o servidor identificar"; antes sumiam da tela até a rede voltar.
+     */
+    @Query("SELECT * FROM leituras WHERE arquivada = 0 AND situacao = 'PENDENTE' ORDER BY id DESC")
+    fun aguardandoDaSessao(): LiveData<List<LeituraEntity>>
+
+    /**
+     * Aba de leitura: cadastradas e aguardando numa consulta só. Com duas consultas separadas, uma etiqueta que
+     * passava de aguardando para cadastrada aparecia duas vezes ou sumia por um instante (a lista piscava).
+     */
+    @Query("SELECT * FROM leituras WHERE arquivada = 0 AND situacao IN ('CADASTRADA', 'PENDENTE') ORDER BY id DESC")
+    fun abaLeituraDaSessao(): LiveData<List<LeituraEntity>>
+
+    /**
+     * Recusadas de vez ainda guardadas no aparelho (desta sessão e das anteriores, até serem apagadas 30 dias
+     * depois), da mais nova para a mais antiga. Só as fora da fila: a que voltou para a fila não é mais recusada.
+     */
+    @Query("SELECT * FROM leituras WHERE recusada = 1 AND envioConcluido = 1 ORDER BY id DESC")
+    fun recusadasAgora(): List<LeituraEntity>
+
     @Query("SELECT COUNT(*) FROM leituras WHERE situacao = 'PENDENTE' OR envioConcluido = 0")
     fun contarPendentes(): LiveData<Int>
+
+    /** Como [contarPendentes], mas na hora (bloqueante): estado da fila mandado ao servidor nos cabeçalhos. */
+    @Query("SELECT COUNT(*) FROM leituras WHERE situacao = 'PENDENTE' OR envioConcluido = 0")
+    fun contarPendentesAgora(): Int
+
+    /** Hora da leitura (epoch ms) da pendente mais antiga, ou null com a fila vazia. */
+    @Query("SELECT MIN(lidoEm) FROM leituras WHERE situacao = 'PENDENTE' OR envioConcluido = 0")
+    fun lidoEmPendenteMaisAntiga(): Long?
+
+    /** Referências de sessão (CofreSessoes) ainda gravadas nas leituras: o token delas não pode sair do cofre. */
+    @Query("SELECT DISTINCT sessaoOperador FROM leituras WHERE sessaoOperador LIKE 'sessao1:%'")
+    fun sessoesEmUso(): List<String>
 
     /** Contadores da sessão atual (o que está na tela). COALESCE: SUM de tabela vazia é NULL. */
     @Query(

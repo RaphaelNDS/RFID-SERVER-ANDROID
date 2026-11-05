@@ -13,7 +13,7 @@ plugins {
 // versionName: mude à mão a cada versão entregue (1.4.0 → 1.4.1 correção, 1.5.0 funcionalidade nova).
 // versionCode: número de commits do git, então sobe sozinho a cada commit e o Android sempre aceita
 // instalar por cima da versão anterior. Para forçar um valor: ./gradlew assembleRelease -Prfid.codigoVersao=N
-val versaoApp = "1.6.1"
+val versaoApp = "1.6.2"
 
 // Abaixo disto o Android recusa instalar por cima (a 1.3.0 instalada nos coletores tem versionCode 6)
 val codigoVersaoMinimo = 7
@@ -213,6 +213,7 @@ dependencies {
     testImplementation(libs.androidx.arch.core.testing)    // LiveData síncrono nos testes do ViewModel
     testImplementation(libs.robolectric)                   // Android simulado no computador: banco local (Room) num SQLite de verdade
     testImplementation(libs.androidx.test.core)            // contexto do app nos testes com Robolectric
+    testImplementation(libs.work.testing)                  // roda o SincronizacaoWorker nos testes (TestListenableWorkerBuilder)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     implementation(libs.lifecycle.viewmodel.ktx)

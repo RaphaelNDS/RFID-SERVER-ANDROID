@@ -665,7 +665,17 @@ class TagService internal constructor(
             }
 
             override fun onResponse(call: Call, response: Response) {
-                callback(response.use(interpretar))
+                // A leitura do corpo também pode falhar (conexão caiu no meio). Sem tratar aqui o callback nunca era
+                // chamado e a tela ficava esperando para sempre (ex.: Localizar parado em "Buscando...")
+                val resultado = try {
+                    response.use(interpretar)
+                } catch (e: IOException) {
+                    falhaConexao(descricao, e)
+                } catch (e: RuntimeException) {
+                    Log.e(TAG, "Resposta inesperada do servidor ao $descricao", e)
+                    RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Resposta inválida do servidor ao $descricao")
+                }
+                callback(resultado)
             }
         })
     }

@@ -8,6 +8,7 @@ import com.example.rfid_server.dados.FakeLeituraDao
 import com.example.rfid_server.dados.LeituraEntity
 import com.example.rfid_server.dados.Situacao
 import com.example.rfid_server.dados.SituacaoCadastro
+import com.example.rfid_server.erros.TipoErro
 import com.example.rfid_server.service.MotivoFalha
 import com.example.rfid_server.service.TagService
 import okhttp3.mockwebserver.MockResponse
@@ -133,6 +134,96 @@ class SincronizadorCadastrosTest {
         assertEquals(SituacaoCadastro.RECUSADO, recusado.situacao)
         assertEquals("Esta etiqueta já está cadastrada (patrimônio PAT-9)", recusado.erro)
         assertNull("E2 foi aceito e saiu da fila", cadastros.porEpcAgora("E2"))
+    }
+
+    private fun sessaoRecusada(motivo: String?) = json(401, JSONObject()
+        .put("status", 401).put("codigo", "SESSAO_OPERADOR").put("mensagem", "Sessão do operador recusada")
+        .apply { if (motivo != null) put("motivo", motivo) }.toString())
+
+    private val erros = mutableListOf<Pair<String, String>>()
+    private var agora = 1_760_000_000_000L
+    private val recusas = RecusasDeSessaoEmMemoria()
+
+    private fun sincronizador() = SincronizadorCadastros(
+        cadastros, FakeLeituraDao(), tagService(),
+        registrarErro = { tipo, msg -> erros += tipo to msg },
+        recusasDeSessao = recusas,
+        relogio = { agora }
+    )
+
+    @Test(timeout = 10_000)
+    fun `sessao recusada que pode voltar fica na fila dentro do prazo e nao tenta os outros da mesma sessao`() {
+        cadastros.salvar(cadastro("E1").copy(sessaoOperador = "sessao1:ana"))
+        cadastros.salvar(cadastro("E2").copy(sessaoOperador = "sessao1:ana"))
+        servidor.enqueue(sessaoRecusada("DESCONHECIDA"))
+
+        val falha = sincronizador().processar()
+
+        assertEquals("A passada não está sincronizada", MotivoFalha.SESSAO_INVALIDA, falha?.motivo)
+        assertEquals("Só o primeiro foi tentado", 1, servidor.requestCount)
+        with(cadastros.porEpcAgora("E1")!!) {
+            assertEquals(SituacaoCadastro.PENDENTE, situacao)
+            assertEquals("Sessão do operador recusada", erro)
+        }
+        assertEquals(SituacaoCadastro.PENDENTE, cadastros.porEpcAgora("E2")!!.situacao)
+        assertTrue("Ainda não é recusa definitiva", erros.isEmpty())
+    }
+
+    @Test(timeout = 10_000)
+    fun `sessao recusada vira recusa definitiva depois de 24 h e registra o erro sem o EPC`() {
+        cadastros.salvar(cadastro("E1").copy(sessaoOperador = "sessao1:ana"))
+        servidor.enqueue(sessaoRecusada(null))
+        servidor.enqueue(sessaoRecusada(null))
+
+        sincronizador().processar()
+        assertEquals(SituacaoCadastro.PENDENTE, cadastros.porEpcAgora("E1")!!.situacao)
+
+        agora += Sincronizador.PRAZO_SESSAO_RECUSADA_MS
+        assertNull(sincronizador().processar())
+
+        assertEquals(SituacaoCadastro.RECUSADO, cadastros.porEpcAgora("E1")!!.situacao)
+        assertEquals(listOf(TipoErro.ENVIO_RECUSADO to "Servidor recusou um cadastro de etiqueta: Sessão do operador recusada"), erros)
+        assertFalse(erros.single().second.contains("E1"))
+    }
+
+    @Test(timeout = 10_000)
+    fun `sessao recusada com motivo definitivo vira recusa na hora`() {
+        cadastros.salvar(cadastro("E1").copy(sessaoOperador = "sessao1:ana"))
+        servidor.enqueue(sessaoRecusada("DESATIVADO"))
+
+        assertNull(sincronizador().processar())
+
+        assertEquals(SituacaoCadastro.RECUSADO, cadastros.porEpcAgora("E1")!!.situacao)
+        assertEquals(1, erros.size)
+    }
+
+    @Test(timeout = 10_000)
+    fun `sessao que volta a valer esquece a recusa`() {
+        cadastros.salvar(cadastro("E1").copy(sessaoOperador = "sessao1:ana"))
+        servidor.enqueue(sessaoRecusada("DESCONHECIDA"))
+        servidor.enqueue(json(200))
+
+        sincronizador().processar()
+        assertNotNull(recusas.primeiraRecusa("sessao1:ana"))
+
+        agora += 60_000
+        assertNull(sincronizador().processar())
+
+        assertNull(cadastros.porEpcAgora("E1"))
+        assertNull(recusas.primeiraRecusa("sessao1:ana"))
+    }
+
+    @Test(timeout = 10_000)
+    fun `cadastro recusado pelo servidor vai para os erros do coletor`() {
+        cadastros.salvar(cadastro("E1"))
+        servidor.enqueue(json(409, """{"status":409,"mensagem":"Esta etiqueta já está cadastrada (patrimônio PAT-9)"}"""))
+
+        assertNull(sincronizador().processar())
+
+        assertEquals(
+            listOf(TipoErro.ENVIO_RECUSADO to "Servidor recusou um cadastro de etiqueta: Esta etiqueta já está cadastrada (patrimônio PAT-9)"),
+            erros
+        )
     }
 
     @Test(timeout = 10_000)
