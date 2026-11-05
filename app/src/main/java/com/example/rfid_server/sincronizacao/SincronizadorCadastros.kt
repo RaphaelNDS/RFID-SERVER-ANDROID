@@ -31,6 +31,8 @@ class SincronizadorCadastros(
     private val relogio: () -> Long = System::currentTimeMillis,
     /** O servidor recusou a sessão de um cadastro (sessão gravada, motivo do servidor, mensagem): ver Sincronizador. */
     private val aoRecusarSessao: (sessao: String, motivoSessao: String?, mensagem: String) -> Unit = { _, _, _ -> },
+    /** A sessão gravada no cadastro é a sessão atual do aparelho? Decide o estado dos retidos (ver Sincronizador). */
+    private val ehSessaoAtual: (sessao: String) -> Boolean = { true },
     /** Transação do banco (em produção, runInTransaction; nos testes, direto). Último: os testes passam como lambda final. */
     private val emTransacao: (() -> Unit) -> Unit = { it() }
 ) {
@@ -115,13 +117,11 @@ class SincronizadorCadastros(
             }
         }
 
-        // Cadastros retidos pela sessão: a passada não está "sincronizada" (estado na tela e nova tentativa agendada)
+        // Cadastros retidos pela sessão: a passada não está "sincronizada" (estado na tela e nova tentativa agendada).
+        // "Saia e entre de novo" só se algum for da sessão atual; de sessões anteriores, só aguardam
         contador.primeira?.let { return it }
         if (retidos == 0) return null
-        return RespostaServidor.Falha(
-            MotivoFalha.SESSAO_INVALIDA,
-            "$retidos cadastro(s) aguardando: o servidor recusou a sessão do operador ($motivoRetencao)"
-        )
+        return Sincronizador.falhaDeRetencao(sessoesRetidas, ehSessaoAtual, "$retidos cadastro(s)", motivoRetencao)
     }
 
     /**

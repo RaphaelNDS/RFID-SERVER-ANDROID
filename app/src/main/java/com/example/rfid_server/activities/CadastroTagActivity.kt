@@ -17,6 +17,8 @@ import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
 import androidx.core.widget.doAfterTextChanged
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Lifecycle
+import com.google.android.material.textfield.TextInputLayout
 import com.example.rfid_server.AppConfig
 import com.example.rfid_server.R
 import com.example.rfid_server.SessaoAtual
@@ -282,7 +284,9 @@ class CadastroTagActivity : AppCompatActivity() {
     }
 
     private fun salvar() {
-        val codigoInterno = edtCodigoInterno.text.toString().trim()
+        // Patrimônio, código interno e série em MAIÚSCULAS (ver FormularioCadastro.normalizarCodigo): o servidor compara
+        // o patrimônio com igualdade exata, e o DataWedge/teclado físico gravam como vier
+        val codigoInterno = FormularioCadastro.normalizarCodigo(edtCodigoInterno.text.toString())
         if (codigoInterno.isEmpty()) {
             edtCodigoInterno.error = getString(R.string.cadastro_informe_codigo_interno)
             return
@@ -295,8 +299,8 @@ class CadastroTagActivity : AppCompatActivity() {
         val cadastro = CadastroEntity(
             epc = epc,
             codigoInterno = codigoInterno,
-            patrimonio = edtPatrimonio.text.toString().trim(),
-            numeroSerie = edtNumeroSerie.text.toString().trim(),
+            patrimonio = FormularioCadastro.normalizarCodigo(edtPatrimonio.text.toString()),
+            numeroSerie = FormularioCadastro.normalizarCodigo(edtNumeroSerie.text.toString()),
             tipoId = tipo?.id, tipoNome = tipo?.id?.let { tipo.nome },
             marcaId = marca?.id, marcaNome = marca?.id?.let { marca.nome },
             modeloId = modelo?.id, modeloNome = modelo?.id?.let { modelo.nome },
@@ -407,6 +411,8 @@ class CadastroTagActivity : AppCompatActivity() {
     override fun onDestroy() {
         espera.removeCallbacksAndMessages(null)
         relogioSessao.removeCallbacksAndMessages(null)
+        // Tira o ouvinte global do fim de sessão (SessaoAtual) e o laço do Handler: sem isso a tela fechada vazava
+        avisoSessao.parar()
         dialogoSenha?.dismiss()
         super.onDestroy()
     }
@@ -466,7 +472,7 @@ class CadastroTagActivity : AppCompatActivity() {
      * Igual à renovação do AvisoSessao, que não tem como ser chamada daqui (o pedido de senha dele é privado e
      * exige a sessão ainda válida). Renovada, salva de novo o cadastro que estava esperando ([cadastroEsperandoSessao]).
      */
-    private fun pedirSenha(erro: String? = null) {
+    private fun pedirSenha() {
         val email = emailParaRenovar() ?: run {
             exigirSessao()
             return
@@ -476,15 +482,17 @@ class CadastroTagActivity : AppCompatActivity() {
         // Mesmo campo do pedido de senha do AvisoSessao (dialogo_senha.xml)
         val vista = layoutInflater.inflate(R.layout.dialogo_senha, null)
         val campoSenha = vista.findViewById<EditText>(R.id.edtCampoDialogo)
-        val mensagem = listOfNotNull(erro, getString(R.string.cadastro_sessao_terminou), getString(R.string.sessao_senha_de, email))
+        val mensagem = listOf(getString(R.string.cadastro_sessao_terminou), getString(R.string.sessao_senha_de, email))
             .joinToString("\n\n")
 
+        // "Renovar" sem ouvinte aqui: tratado no onShow (abaixo) para o diálogo NÃO fechar ao tocar. Ele fica aberto
+        // durante o login (até 15 s), com o botão em "Renovando…", e só fecha quando a sessão é renovada
         val dialogo = AlertDialog.Builder(this)
             .setTitle(R.string.sessao_renovar_titulo)
             .setMessage(mensagem)
             .setView(vista)
             .setCancelable(false)
-            .setPositiveButton(R.string.sessao_renovar) { _, _ -> renovar(email, campoSenha.text.toString()) }
+            .setPositiveButton(R.string.sessao_renovar, null)
             .setNegativeButton(R.string.comum_cancelar) { _, _ ->
                 Log.i(TAG, "Operador cancelou a renovação da sessão com o cadastro da etiqueta $epc aberto: o formulário continua na tela")
                 cadastroEsperandoSessao = null
@@ -492,40 +500,75 @@ class CadastroTagActivity : AppCompatActivity() {
             }
             .create()
         dialogoSenha = dialogo
-        CampoDialogo.mostrar(dialogo, campoSenha)
+
+        // Concluir do teclado (ou Enter do teclado físico) = Renovar, só com o botão habilitado (não durante o login)
+        CampoDialogo.confirmarPeloTeclado(dialogo, campoSenha)
+        dialogo.setOnShowListener {
+            CampoDialogo.focarComTeclado(dialogo, campoSenha)
+            dialogo.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { renovar(email, campoSenha, dialogo) }
+        }
+        dialogo.show()
     }
 
-    private fun renovar(email: String, senha: String) {
-        if (senha.isEmpty()) return pedirSenha(getString(R.string.sessao_informe_senha))
+    private fun renovar(email: String, campoSenha: EditText, dialogo: AlertDialog) {
+        val senha = campoSenha.text.toString()
+        if (senha.isEmpty()) {
+            erroNoCampo(campoSenha, getString(R.string.sessao_informe_senha))
+            return
+        }
+
+        val botao = dialogo.getButton(AlertDialog.BUTTON_POSITIVE)
+        erroNoCampo(campoSenha, null)
+        botao.isEnabled = false
+        botao.setText(R.string.sessao_renovando)
+        campoSenha.isEnabled = false
 
         Log.i(TAG, "Renovando a sessão de ${MascaraSensivel.email(email)} na tela de cadastro")
         TagService(this).entrar(email, senha) { resposta ->
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
+                botao.isEnabled = true
+                botao.setText(R.string.sessao_renovar)
+                campoSenha.isEnabled = true
+
                 when (resposta) {
                     is RespostaServidor.Sucesso -> {
                         val nova = resposta.valor
+                        dialogo.dismiss()
                         AppConfig.saveSessao(this, nova)
                         Log.i(TAG, "Sessão de ${MascaraSensivel.email(nova.email)} renovada no cadastro: vale até ${AvisoSessao.horario(nova.expiraEm)}")
                         Toast.makeText(this, getString(R.string.sessao_renovada, AvisoSessao.horario(nova.expiraEm)), Toast.LENGTH_LONG).show()
                         aoRenovarSessao(nova)
                     }
 
+                    // O diálogo continua aberto, com o motivo no campo, para tentar de novo
                     is RespostaServidor.Falha -> {
                         Log.w(TAG, "Renovação da sessão de ${MascaraSensivel.email(email)} recusada no cadastro: ${resposta.mensagem}")
-                        pedirSenha(resposta.mensagem)
+                        campoSenha.text = null
+                        erroNoCampo(campoSenha, resposta.mensagem)
                     }
 
-                    RespostaServidor.NaoEncontrado -> pedirSenha(getString(R.string.comum_servidor_nao_reconheceu_login))
+                    RespostaServidor.NaoEncontrado -> erroNoCampo(campoSenha, getString(R.string.comum_servidor_nao_reconheceu_login))
                 }
             }
         }
     }
 
+    /** Mostra (ou tira, com null) o erro no TextInputLayout em volta do [campo] (no próprio campo, se não houver). */
+    private fun erroNoCampo(campo: EditText, erro: String?) {
+        var pai = campo.parent
+        while (pai != null && pai !is TextInputLayout) pai = pai.parent
+        val layout = pai as? TextInputLayout
+        if (layout != null) layout.error = erro else campo.error = erro
+        if (erro != null) campo.requestFocus()
+    }
+
     /** Sessão renovada (aqui ou pelo AvisoSessao): volta a acompanhar e salva o cadastro que estava esperando. */
     private fun aoRenovarSessao(nova: SessaoOperador) {
         emailOperador = nova.email
-        acompanharSessao(nova)
+        // Só com a tela na frente: em pausa (ex.: a resposta do login chegou com outra tela por cima) o AvisoSessao e o
+        // relógio da sessão ficariam rodando escondidos; o onResume volta a acompanhar a sessão nova
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) acompanharSessao(nova)
 
         val pendente = cadastroEsperandoSessao ?: return
         cadastroEsperandoSessao = null

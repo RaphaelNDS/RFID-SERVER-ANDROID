@@ -220,9 +220,10 @@ class TagServiceTest {
     }
 
     @Test
-    fun `413 425 e 429 sao passageiros e a leitura fica na fila`() {
-        // 408 também, mas o próprio OkHttp já repete a requisição uma vez antes de devolver
-        listOf(413, 425, 429).forEach { codigo ->
+    fun `413 e 425 sao passageiros e a leitura fica na fila`() {
+        // 408 também, mas o próprio OkHttp já repete a requisição uma vez antes de devolver.
+        // 429 tem motivo próprio (MUITAS_TENTATIVAS): ver o teste do 429
+        listOf(413, 425).forEach { codigo ->
             servidor.enqueue(json(codigo, "{}"))
             assertEquals("HTTP $codigo", MotivoFalha.ERRO_SERVIDOR, motivo(service.buscarTagAgora("E200XYZ")))
         }
@@ -745,6 +746,28 @@ class TagServiceTest {
     }
 
     @Test
+    fun `mensagens longas do 401 da sessao do 403 e do item recusado do lote sao cortadas em 300 caracteres`() {
+        val longa = "b".repeat(1000)
+        servidor.enqueue(json(401, """{"status":401,"codigo":"SESSAO_OPERADOR","mensagem":"$longa","motivo":"EXPIRADA"}"""))
+        servidor.enqueue(json(403, """{"status":403,"mensagem":"$longa"}"""))
+
+        val sessao = service.enviarLeituraAgora("E1", 0L, "sessao") as RespostaServidor.Falha
+        assertEquals(MotivoFalha.SESSAO_INVALIDA, sessao.motivo)
+        assertEquals("EXPIRADA", sessao.motivoSessao)
+        assertEquals(TagService.MAX_MENSAGEM_SERVIDOR, sessao.mensagem.length)
+        assertTrue(sessao.mensagem.endsWith("…"))
+
+        val permissao = service.buscarTagAgora("E1", Autoria("sessao", 0L)) as RespostaServidor.Falha
+        assertEquals(MotivoFalha.REQUISICAO_RECUSADA, permissao.motivo)
+        assertEquals(TagService.MAX_MENSAGEM_SERVIDOR, permissao.mensagem.length)
+
+        val item = resultadosDoLote("""{"resultados":[{"indice":0,"status":"RECUSADA","mensagem":"$longa"}]}""", 1).single()
+        assertEquals(StatusLote.RECUSADA, item.status)
+        assertEquals(TagService.MAX_MENSAGEM_SERVIDOR, item.mensagem!!.length)
+        assertTrue(item.mensagem!!.endsWith("…"))
+    }
+
+    @Test
     fun `operador sem permissao e recusa da acao com a mensagem do servidor`() {
         servidor.enqueue(json(403, """{"status":403,"mensagem":"Seu usuário não tem permissão para esta ação"}"""))
 
@@ -856,14 +879,14 @@ class TagServiceTest {
     }
 
     @Test
-    fun `429 traz a mensagem do servidor e continua passageiro`() {
+    fun `429 traz a mensagem do servidor e tem motivo proprio de muitas tentativas`() {
         val texto = "Muitas tentativas com chave inválida. Aguarde alguns minutos."
         servidor.enqueue(json(429, """{"status":429,"mensagem":"$texto"}"""))
         servidor.enqueue(json(429, "{}"))
 
-        assertEquals(RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, texto), service.enviarNaoCadastradaAgora("E1"))
+        assertEquals(RespostaServidor.Falha(MotivoFalha.MUITAS_TENTATIVAS, texto), service.enviarNaoCadastradaAgora("E1"))
         val semMensagem = service.enviarNaoCadastradaAgora("E2") as RespostaServidor.Falha
-        assertEquals(MotivoFalha.ERRO_SERVIDOR, semMensagem.motivo)
+        assertEquals(MotivoFalha.MUITAS_TENTATIVAS, semMensagem.motivo)
         assertTrue(semMensagem.mensagem, semMensagem.mensagem.contains("aguarde alguns minutos"))
     }
 

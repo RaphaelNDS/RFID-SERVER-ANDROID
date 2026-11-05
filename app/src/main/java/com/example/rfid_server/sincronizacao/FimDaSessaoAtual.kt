@@ -29,6 +29,19 @@ class FimDaSessaoAtual(
      * 1.6.1, o token puro. Devolve true se a sessão atual foi encerrada. Nunca lança: um problema aqui não pode
      * interromper a sincronização.
      */
+    /**
+     * [sessao] (referência ou token puro, como gravado no registro) é a sessão atual do aparelho? false sem ninguém
+     * logado. Nunca lança (false se não der para conferir). Usado também pela sincronização para escolher o estado
+     * dos registros retidos (ver Sincronizador.falhaDeRetencao).
+     */
+    fun ehAtual(sessao: String): Boolean = try {
+        val token = tokenAtual()
+        token != null && (sessao == token || sessao == referenciaDe(token))
+    } catch (e: Exception) {
+        Log.e(TAG, "Não foi possível conferir se a sessão é a atual", e)
+        false
+    }
+
     fun aoRecusar(sessao: String, motivoSessao: String?, mensagem: String): Boolean = try {
         if (!MotivoSessao.encerraSessaoAtual(motivoSessao)) {
             false

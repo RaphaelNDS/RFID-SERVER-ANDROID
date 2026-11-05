@@ -19,6 +19,8 @@
     <string name="comum_versao_app" translatable="false">%1$s · %2$s</string>
 
     <!-- Login -->
+    <!-- Fim de sessão pelo servidor: de quem era a sessão (email mascarado, ex.: r***@empresa.com) e o motivo abaixo -->
+    <string name="login_sessao_de_encerrada">A sessão de %1$s foi encerrada: %2$s</string>
     <string name="login_entrando">Entrando…</string>
     <!-- Sessão encerrada porque o servidor a recusou na sincronização (motivo do servidor) -->
     <string name="login_sessao_usuario_desativado">Seu usuário foi desativado. Fale com o administrador.</string>
@@ -45,6 +47,8 @@
     <string name="login_pedido_nao_reconhecido">Servidor não reconheceu o pedido de nova senha</string>
 
     <!-- Aviso de fim de sessão -->
+    <!-- Botão do pedido de senha enquanto o servidor confere (até 15 s) -->
+    <string name="sessao_renovando">Renovando…</string>
     <string name="sessao_acabando">Sua sessão está acabando</string>
     <string name="sessao_termina_em_breve">Sessão termina em breve</string>
     <string name="sessao_aviso_mensagem">Sua sessão termina às %1$s (em %2$s). Depois disso o app volta para a tela de login.\n\nRenove agora com a sua senha: o que está na tela e o que ainda não foi enviado continuam.</string>

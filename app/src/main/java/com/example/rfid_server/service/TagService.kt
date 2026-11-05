@@ -57,7 +57,18 @@ enum class MotivoFalha {
     /** A sessão do operador não vale para esta ação (expirada, encerrada, de outro coletor, usuário excluído). */
     SESSAO_INVALIDA,
     /** O certificado HTTPS do servidor não foi confirmado neste coletor, ou é diferente do confirmado. */
-    CERTIFICADO
+    CERTIFICADO,
+    /**
+     * HTTP 429: o servidor bloqueou o coletor por muitas tentativas com a chave inválida. Repetir só mantém o bloqueio:
+     * quem resolve é o responsável (chave certa nas Configurações), e a sincronização para até lá.
+     */
+    MUITAS_TENTATIVAS,
+    /**
+     * Só da sincronização (não vem do servidor): registros retidos porque o servidor recusou a sessão, mas nenhuma das
+     * sessões retidas é a sessão atual do aparelho (sessões anteriores ou de outro operador). Entrar de novo não muda
+     * nada: eles esperam o prazo de 24 h ou o servidor voltar a aceitar.
+     */
+    SESSAO_ANTERIOR_RETIDA
 }
 
 /**
@@ -273,7 +284,9 @@ class TagService internal constructor(
 
         // Dados da tag que não são um objeto: a leitura é aceita sem eles (a tela os busca depois)
         val dados = item.optJSONObject("dados")?.let { tagDoJson(item.optStringOrNull("tag").orEmpty(), it) }
-        return ResultadoLote(indice, status, dados, item.optStringOrNull("mensagem"), item.optStringOrNull("motivo"))
+        // A mensagem do item recusado vai para a tela (Leituras recusadas): mesmo corte das outras mensagens do servidor
+        val mensagem = item.optStringOrNull("mensagem")?.trim()?.takeIf { it.isNotEmpty() }?.let { limitarMensagem(it) }
+        return ResultadoLote(indice, status, dados, mensagem, item.optStringOrNull("motivo"))
     }
 
     /**
@@ -774,7 +787,8 @@ class TagService internal constructor(
         return when (codigo) {
             // O servidor diferencia: 401 da chave do coletor (sem "codigo") e 401 da sessão do operador
             401 -> if (erro?.optString("codigo") == "SESSAO_OPERADOR") {
-                val mensagem = erro.optString("mensagem").ifBlank { "Sessão do operador inválida" }
+                // Mesmo corte de 300 caracteres das outras mensagens do servidor (vai para a tela)
+                val mensagem = mensagemServidor ?: "Sessão do operador inválida"
                 // Servidor mais novo diz o porquê (DESCONHECIDA, DESATIVADO, EXPIRADA...); o antigo não manda
                 val motivoSessao = erro.optStringOrNull("motivo")
                 Log.w(TAG, "Sessão do operador recusada ao $descricao: $mensagem" + (motivoSessao?.let { " (motivo $it)" } ?: ""))
@@ -786,17 +800,17 @@ class TagService internal constructor(
 
             // Na API do coletor, 403 é falta de permissão do OPERADOR para esta ação (a chave errada dá 401)
             403 -> {
-                val mensagem = erro?.optString("mensagem")?.takeIf { it.isNotBlank() } ?: "Seu usuário não tem permissão para esta ação"
+                val mensagem = mensagemServidor ?: "Seu usuário não tem permissão para esta ação"
                 Log.w(TAG, "Operador sem permissão ao $descricao: $mensagem")
                 RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, mensagem)
             }
 
-            // Muitas tentativas com chave inválida: o servidor bloqueia o coletor por alguns minutos. Continua
-            // passageiro (a fila tenta de novo depois), mas o operador precisa ler o motivo, não "servidor ocupado"
+            // Muitas tentativas com chave inválida: o servidor bloqueia o coletor. Motivo próprio: a sincronização para
+            // (insistir mantém o bloqueio) e a tela pede o responsável, em vez de "Erro no servidor" com "Enviar agora"
             429 -> {
                 val mensagem = mensagemServidor ?: "Muitas tentativas recusadas pelo servidor: aguarde alguns minutos (HTTP 429)"
-                Log.w(TAG, "Servidor pediu para aguardar ao $descricao (HTTP 429): $mensagem")
-                RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, mensagem)
+                Log.w(TAG, "Servidor bloqueou o coletor por muitas tentativas ao $descricao (HTTP 429): $mensagem")
+                RespostaServidor.Falha(MotivoFalha.MUITAS_TENTATIVAS, mensagem)
             }
 
             // Passageiros: tempo esgotado (408), cedo demais (425) e lote grande demais para um proxy no caminho
