@@ -102,6 +102,13 @@ interface LeituraDao {
     fun aguardandoDaSessao(): LiveData<List<LeituraEntity>>
 
     /**
+     * Aba de leitura: cadastradas e aguardando numa consulta só. Com duas consultas separadas, uma etiqueta que
+     * passava de aguardando para cadastrada aparecia duas vezes ou sumia por um instante (a lista piscava).
+     */
+    @Query("SELECT * FROM leituras WHERE arquivada = 0 AND situacao IN ('CADASTRADA', 'PENDENTE') ORDER BY id DESC")
+    fun abaLeituraDaSessao(): LiveData<List<LeituraEntity>>
+
+    /**
      * Recusadas de vez ainda guardadas no aparelho (desta sessão e das anteriores, até serem apagadas 30 dias
      * depois), da mais nova para a mais antiga. Só as fora da fila: a que voltou para a fila não é mais recusada.
      */

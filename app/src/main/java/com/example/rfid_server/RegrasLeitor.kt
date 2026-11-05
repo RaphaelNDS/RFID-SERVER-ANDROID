@@ -186,7 +186,8 @@ object FaixaLeitor {
  */
 class AgrupadorFalhas(
     private val intervaloMs: Long = 60_000L,
-    private val relogio: () -> Long = System::currentTimeMillis
+    // Relógio monotônico: com o relógio do aparelho voltando (hora acertada), o intervalo travaria os registros
+    private val relogio: () -> Long = { System.nanoTime() / 1_000_000 }
 ) {
     private var ultimo = Long.MIN_VALUE
     private var omitidas = 0

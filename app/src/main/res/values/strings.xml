@@ -68,7 +68,7 @@
     <string name="main_nova_leitura_mensagem">As %1$d tag(s) lidas vão sair da tela, e a mesma tag poderá ser lida de novo.</string>
     <string name="main_nova_leitura_pendentes">%1$d leitura(s) ainda não chegaram ao servidor: elas continuam guardadas no coletor e serão enviadas assim que possível.</string>
     <string name="leitura_titulo">Etiquetas lidas</string>
-    <string name="leitura_vazia">Nenhuma etiqueta lida. Aperte o gatilho.</string>
+    <string name="leitura_vazia">Nenhuma etiqueta cadastrada lida nesta leitura. Aperte o gatilho; as não cadastradas ficam na outra aba.</string>
     <string name="leitura_aguardando_servidor">EPC %1$s · aguardando o servidor identificar</string>
     <string name="nao_cadastradas_titulo">Etiquetas não cadastradas · toque para cadastrar</string>
     <string name="nao_cadastradas_vazia">Nenhuma etiqueta não cadastrada lida. Aperte o gatilho.</string>
@@ -76,7 +76,7 @@
     <string name="main_recusadas_toque">"  (toque para ver as recusadas)"</string>
 
     <!-- Leituras recusadas pelo servidor (toque no contador da tela principal) -->
-    <string name="recusadas_titulo">Recusadas pelo servidor (%1$d)</string>
+    <string name="recusadas_titulo">Recusadas pelo servidor nos últimos 30 dias (%1$d)</string>
     <string name="recusadas_item">%1$s\n   %2$s</string>
     <string name="recusadas_sem_motivo">motivo não informado</string>
     <string name="recusadas_rodape">O servidor recusou estas leituras e o coletor parou de enviá-las. Se o problema já foi resolvido, toque em \"Tentar de novo\".</string>

@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MediatorLiveData
+import androidx.lifecycle.map
+import com.example.rfid_server.dados.Situacao
 import com.example.rfid_server.adapter.ItemLeitura
 import com.example.rfid_server.dados.ContagemSessao
 import com.example.rfid_server.dados.ItemNaoCadastrada
@@ -23,12 +25,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repositorio = RepositorioLeituras.get(application)
 
     /** Aba "Leitura": cadastradas e as que ainda esperam o servidor identificar (sem rede). */
-    val leituras: LiveData<List<ItemLeitura>> = MediatorLiveData<List<ItemLeitura>>().apply {
-        val cadastradas = repositorio.cadastradas
-        val aguardando = repositorio.aguardando
-        val montar = { _: Any? -> value = ItemLeitura.montar(cadastradas.value.orEmpty(), aguardando.value.orEmpty()) }
-        addSource(cadastradas, montar)
-        addSource(aguardando, montar)
+    val leituras: LiveData<List<ItemLeitura>> = repositorio.abaLeitura.map { lista ->
+        ItemLeitura.montar(
+            lista.filter { it.situacao == Situacao.CADASTRADA },
+            lista.filter { it.situacao == Situacao.PENDENTE }
+        )
     }
 
     private val cadastros = RepositorioCadastros.get(application)

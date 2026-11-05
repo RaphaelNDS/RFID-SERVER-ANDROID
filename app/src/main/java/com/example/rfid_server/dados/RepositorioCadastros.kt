@@ -50,8 +50,14 @@ class RepositorioCadastros internal constructor(
                 sessaoOperador = sessao
             )
 
-            val anterior = dao.porEpc(novo.epc)
-            dao.salvar(novo)
+            val anterior = try {
+                dao.porEpc(novo.epc).also { dao.salvar(novo) }
+            } catch (e: Exception) {
+                // Ex.: memória cheia. A tela está esperando a resposta com o botão Salvar desligado: responde antes de
+                // repassar o erro (o executor protegido registra e avisa o operador)
+                aoTerminar(false)
+                throw e
+            }
 
             Log.i(
                 TAG,

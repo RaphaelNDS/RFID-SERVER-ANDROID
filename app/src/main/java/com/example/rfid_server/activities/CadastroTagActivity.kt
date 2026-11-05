@@ -187,8 +187,18 @@ class CadastroTagActivity : AppCompatActivity() {
     )
 
     private fun atualizarAlteracoes() {
-        confirmarDescarte.isEnabled = formularioAtual().alteradoEmRelacaoA(formularioSalvo)
+        // Tipo/marca/modelo guardados que não existem no catálogo do coletor (ex.: modelo removido) não podem ser
+        // selecionados e a lista fica em "não informado": isso não é alteração do operador
+        val salvo = formularioSalvo.copy(
+            tipoId = formularioSalvo.tipoId?.takeIf { temOpcao(spnTipo, it) },
+            marcaId = formularioSalvo.marcaId?.takeIf { temOpcao(spnMarca, it) },
+            modeloId = formularioSalvo.modeloId?.takeIf { temOpcao(spnModelo, it) }
+        )
+        confirmarDescarte.isEnabled = formularioAtual().alteradoEmRelacaoA(salvo)
     }
+
+    private fun temOpcao(spinner: Spinner, id: Long): Boolean =
+        (0 until spinner.count).any { (spinner.getItemAtPosition(it) as? Opcao)?.id == id }
 
     private fun perguntarDescarte() {
         AlertDialog.Builder(this)
@@ -307,7 +317,10 @@ class CadastroTagActivity : AppCompatActivity() {
                     btnSalvar.setText(R.string.cadastro_enviando)
                     aguardarEnvio(cadastro.epc.trim(), SystemClock.elapsedRealtime())
                 } else {
-                    exigirSessao() // a sessão acabou enquanto o formulário estava aberto
+                    // A sessão acabou enquanto o formulário estava aberto (vai para o login) ou não deu para gravar
+                    // (ex.: memória cheia, já avisado): libera o botão para tentar de novo
+                    btnSalvar.isEnabled = true
+                    exigirSessao()
                 }
             }
         }

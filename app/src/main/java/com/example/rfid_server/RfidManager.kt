@@ -331,6 +331,8 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
 
     private fun liberarSdk() {
         pararDeAcompanharBateriaDoAparelho()
+        // Próxima conexão (pode ser outro leitor) volta a aceitar a bateria do aparelho até o SDK mandar o evento
+        bateriaPeloSdk = false
         try {
             reader?.Events?.removeEventsListener(this)
             if (reader?.isConnected == true) reader?.disconnect()

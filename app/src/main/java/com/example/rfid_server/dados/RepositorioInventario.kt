@@ -104,9 +104,11 @@ class RepositorioInventario internal constructor(
                 Log.d(TAG, "Tag $epc lida sem inventário aberto: ignorada")
                 return@execute
             }
-            if (!epcsLidos.add(epc)) return@execute
+            if (epc in epcsLidos) return@execute
 
+            // Marca como lida só depois de gravar: se a gravação falhar (memória cheia), a próxima leitura tenta de novo
             dao.inserirItem(InventarioItemEntity(inventarioId = id, epc = epc, lidoEm = lidoEm, sessaoOperador = sessao))
+            epcsLidos.add(epc)
             Log.d(TAG, "Tag $epc registrada no inventário (${epcsLidos.size} no total)")
             aoNova?.invoke()
 
@@ -118,7 +120,12 @@ class RepositorioInventario internal constructor(
      * Finaliza o inventário aberto. [aoTerminar] recebe quantas etiquetas foram lidas, ou null se não havia
      * inventário aberto ou ninguém está logado (a tela manda entrar de novo).
      */
-    fun finalizar(aoTerminar: (Int?) -> Unit = {}) {
+    /**
+     * [etiquetas], se informado, recebe as etiquetas gravadas no inventário na hora da finalização (antes de
+     * [aoTerminar]): o resumo final usa exatamente o que foi gravado, inclusive as lidas enquanto a pergunta de
+     * finalizar estava aberta.
+     */
+    fun finalizar(etiquetas: ((List<String>) -> Unit)? = null, aoTerminar: (Int?) -> Unit = {}) {
         val finalizadoEm = relogio()
 
         executor.execute {
@@ -140,6 +147,7 @@ class RepositorioInventario internal constructor(
 
             dao.finalizar(id, finalizadoEm, sessao)
             val total = dao.contarItensAgora(id)
+            etiquetas?.invoke(dao.epcs(id))
             abertoId = null
             epcsLidos.clear()
 

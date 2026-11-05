@@ -44,7 +44,11 @@ object RegistroErros {
         }
     }
 
-    /** Envia ao servidor os erros guardados (bloqueante: chame fora da thread principal). */
+    /**
+     * Envia ao servidor os erros guardados (bloqueante: chame fora da thread principal). Synchronized: o Worker e a
+     * passada do app podem enviar ao mesmo tempo, e o mesmo lote iria duas vezes.
+     */
+    @Synchronized
     fun enviarPendentes(context: Context) {
         try {
             val servico = TagService(context)

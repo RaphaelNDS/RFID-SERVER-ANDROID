@@ -124,7 +124,10 @@ class Sincronizador internal constructor(
 
             // Erro do servidor (5xx, resposta inválida): vai para a tela de erros do coletor no servidor.
             // Sem conexão, chave, endereço ou certificado não: são do ambiente e já aparecem na tela do coletor
-            if (falha?.motivo == MotivoFalha.ERRO_SERVIDOR) registrarErro(TipoErro.ERRO_SERVIDOR, "Sincronização interrompida: ${falha.mensagem}")
+            // De qualquer etapa: a primeira falha pode ser de outro tipo (ex.: cadastros retidos pela sessão)
+            falhas.firstOrNull { it.motivo == MotivoFalha.ERRO_SERVIDOR }?.let {
+                registrarErro(TipoErro.ERRO_SERVIDOR, "Sincronização interrompida: ${it.mensagem}")
+            }
         } finally {
             // Uma vez por passada, mesmo se a passada terminar com exceção (ex.: banco local cheio): os erros guardados
             // vão ao servidor sempre que ele pode estar respondendo. Falha do ambiente (sem rede, chave, endereço,
@@ -179,8 +182,18 @@ class Sincronizador internal constructor(
     }
 
     private fun enviarLeituras(): RespostaServidor.Falha? {
-        val pendentes = dao.pendentes()
-        recusasDeSessao.manterSomente(pendentes.mapNotNull { it.sessaoOperador }.toSet())
+        val naFila = dao.pendentes()
+        recusasDeSessao.manterSomente(naFila.mapNotNull { it.sessaoOperador }.toSet())
+
+        // Etiqueta com cadastro ainda na fila: a leitura dela espera o cadastro passar (senão iria como
+        // "não cadastrada" e depois de novo como cadastrada). As já classificadas como cadastradas seguem
+        val emCadastro = cadastros?.epcsAguardando().orEmpty()
+        val pendentes = if (emCadastro.isEmpty()) naFila else naFila.filterNot {
+            it.epc in emCadastro && it.situacao != Situacao.CADASTRADA
+        }
+        if (pendentes.size < naFila.size) {
+            Log.i(TAG, "${naFila.size - pendentes.size} leitura(s) esperando o cadastro da etiqueta ser aceito pelo servidor")
+        }
         if (pendentes.isEmpty()) return null
 
         Log.i(TAG, "Sincronização iniciada: ${pendentes.size} leitura(s) pendente(s)")
@@ -247,6 +260,7 @@ class Sincronizador internal constructor(
                 continue
             }
 
+            val retidasAntes = leiturasRetidas
             val falha = processar(leitura)
 
             if (falha != null) {
@@ -261,6 +275,9 @@ class Sincronizador internal constructor(
                 errosNoServidor++
                 continue
             }
+
+            // Retida pela sessão recusada: ficou na fila, não foi enviada (não zera os erros seguidos nem conta como enviada)
+            if (leiturasRetidas != retidasAntes) continue
 
             contador.deuCerto()
             enviadasUmaPorVez++

@@ -115,6 +115,12 @@ class SincronizadorCadastros(
         )
     }
 
+    /**
+     * Etiquetas com cadastro ainda na fila (erro do servidor ou sessão retida). As leituras delas esperam: enviadas
+     * agora iriam como "não cadastrada" e, quando o cadastro passasse, de novo como cadastrada (registro a mais).
+     */
+    fun epcsAguardando(): Set<String> = cadastros.pendentes().map { it.epc.trim() }.toSet()
+
     private fun deveReter(cadastro: CadastroEntity, falha: RespostaServidor.Falha): Boolean {
         val sessao = cadastro.sessaoOperador ?: return false
         return falha.motivo == MotivoFalha.SESSAO_INVALIDA && MotivoSessao.podeVoltar(falha.motivoSessao) && dentroDoPrazo(sessao)

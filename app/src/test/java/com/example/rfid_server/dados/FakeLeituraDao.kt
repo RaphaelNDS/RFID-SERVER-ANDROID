@@ -19,6 +19,7 @@ class FakeLeituraDao(vararg iniciais: LeituraEntity) : LeituraDao {
     private val cadastradas = MutableLiveData<List<LeituraEntity>>()
     private val naoCadastradas = MutableLiveData<List<LeituraEntity>>()
     private val aguardando = MutableLiveData<List<LeituraEntity>>()
+    private val abaLeitura = MutableLiveData<List<LeituraEntity>>()
     private val pendentesCount = MutableLiveData<Int>()
     private val contagemSessao = MutableLiveData<ContagemSessao>()
 
@@ -40,6 +41,8 @@ class FakeLeituraDao(vararg iniciais: LeituraEntity) : LeituraDao {
         cadastradas.value = leituras.filter { !it.arquivada && it.situacao == Situacao.CADASTRADA }.sortedByDescending { it.id }
         naoCadastradas.value = leituras.filter { !it.arquivada && it.situacao == Situacao.NAO_CADASTRADA }.sortedByDescending { it.id }
         aguardando.value = leituras.filter { !it.arquivada && it.situacao == Situacao.PENDENTE }.sortedByDescending { it.id }
+        abaLeitura.value = leituras.filter { !it.arquivada && (it.situacao == Situacao.CADASTRADA || it.situacao == Situacao.PENDENTE) }
+            .sortedByDescending { it.id }
         pendentesCount.value = leituras.count(::ehPendente)
 
         val sessao = leituras.filter { !it.arquivada }
@@ -149,6 +152,8 @@ class FakeLeituraDao(vararg iniciais: LeituraEntity) : LeituraDao {
     override fun naoCadastradasDaSessao(): LiveData<List<LeituraEntity>> = naoCadastradas.also { publicar() }
 
     override fun aguardandoDaSessao(): LiveData<List<LeituraEntity>> = aguardando.also { publicar() }
+
+    override fun abaLeituraDaSessao(): LiveData<List<LeituraEntity>> = abaLeitura.also { publicar() }
 
     override fun recusadasAgora(): List<LeituraEntity> =
         leituras.filter { it.recusada && it.envioConcluido }.sortedByDescending { it.id }

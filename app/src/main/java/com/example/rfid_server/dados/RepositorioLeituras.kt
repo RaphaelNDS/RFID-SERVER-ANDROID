@@ -36,6 +36,9 @@ class RepositorioLeituras internal constructor(
     val naoCadastradas: LiveData<List<LeituraEntity>> = dao.naoCadastradasDaSessao()
     /** Lidas na sessão e ainda sem resposta do servidor (sem rede): aba de leitura, como "aguardando". */
     val aguardando: LiveData<List<LeituraEntity>> = dao.aguardandoDaSessao()
+
+    /** Aba de leitura (cadastradas e aguardando) numa consulta só: não pisca quando uma muda de situação. */
+    val abaLeitura: LiveData<List<LeituraEntity>> = dao.abaLeituraDaSessao()
     val pendentes: LiveData<Int> = dao.contarPendentes()
     val contagemSessao: LiveData<ContagemSessao> = dao.contarSessao()
 

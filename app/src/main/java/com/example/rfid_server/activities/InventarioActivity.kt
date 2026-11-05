@@ -73,6 +73,7 @@ class InventarioActivity : AppCompatActivity() {
     private lateinit var campoFiltro: View
     private lateinit var edtFiltro: EditText
     private lateinit var linhaEnvio: View
+    private lateinit var btnEnviarAgora: Button
     private lateinit var txtAguardando: TextView
     private lateinit var txtChameResponsavel: TextView
 
@@ -168,7 +169,8 @@ class InventarioActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnIniciar).setOnClickListener { iniciar() }
         findViewById<Button>(R.id.btnFinalizar).setOnClickListener { confirmarFinalizacao() }
         findViewById<Button>(R.id.btnCancelarInventario).setOnClickListener { confirmarCancelamento() }
-        findViewById<Button>(R.id.btnEnviarAgora).setOnClickListener { enviarAgora() }
+        btnEnviarAgora = findViewById(R.id.btnEnviarAgora)
+        btnEnviarAgora.setOnClickListener { enviarAgora() }
 
         // Filtro só em memória: refaz a lista no próximo cálculo (agrupado como as leituras)
         edtFiltro.doAfterTextChanged {
@@ -388,11 +390,13 @@ class InventarioActivity : AppCompatActivity() {
             }
         }
 
-        // Aguardando envio: com o botão "Enviar agora" ao lado (inventário recusado não vai mais ao servidor)
+        // Aguardando envio: com o botão "Enviar agora" ao lado (inventário recusado não vai mais ao servidor).
+        // Mesma regra da tela principal: com chave, endereço ou certificado errados, repetir o envio não adianta,
+        // então no lugar do botão vai "Chame o responsável"
+        val acoes = RegrasFaixaSincronizacao.acoes(if (recusado == null) naoEnviadas else 0, estadoSincronizacao)
         linhaEnvio.isVisible = recusado == null && naoEnviadas > 0
+        btnEnviarAgora.isVisible = acoes.enviarAgora
         txtAguardando.text = getString(R.string.inventario_resumo_aguardando, naoEnviadas)
-
-        // Chave, endereço ou certificado: o operador não resolve sozinho e repetir o envio não adianta
         txtChameResponsavel.isVisible = recusado == null && estadoSincronizacao?.dependeDasConfiguracoes == true
     }
 
@@ -569,23 +573,32 @@ class InventarioActivity : AppCompatActivity() {
             if (c != null && c.faltando.isNotEmpty()) {
                 append("\n\n").append(getString(R.string.inventario_finalizar_faltam, c.faltando.size, c.esperados))
             }
-            if (naoEnviadas > 0) append("\n\n").append(getString(R.string.inventario_finalizar_nao_enviadas, naoEnviadas))
+            // Inventário recusado de vez não é mais enviado: não prometer que "serão enviadas"
+            if (naoEnviadas > 0 && inventario.recusadoEm == null) {
+                append("\n\n").append(getString(R.string.inventario_finalizar_nao_enviadas, naoEnviadas))
+            }
         }
 
         AlertDialog.Builder(this)
             .setTitle(R.string.inventario_finalizar_titulo)
             .setMessage(mensagem)
             .setPositiveButton(R.string.inventario_finalizar_confirmar) { _, _ ->
-                // O resumo é montado ANTES de finalizar: depois a tela limpa as listas (o inventário sai de cena).
-                // De novo aqui: o gatilho continua lendo enquanto a pergunta está aberta
-                val final = compararAgora()
-                val lidasAgora = epcsLidos.size
+                // O resumo usa as etiquetas GRAVADAS na finalização (e não a lista da tela): o gatilho pode ter lido
+                // mais enquanto a pergunta estava aberta, e o total e "o que faltou" precisam bater
+                val esperadoAgora = esperado
                 val finalizadoEm = System.currentTimeMillis()
                 val operador = SessaoAtual.get(this)?.nome
+                var final: ComparacaoInventario? = null
 
-                Log.i(TAG, "Operador finalizou o inventário de ${inventario.local} com $lidasAgora etiqueta(s)" +
-                    if (final != null) " (${final.encontradas} de ${final.esperados} esperada(s), faltando ${final.faltando.size}, ${final.foraDaLista} fora da lista)" else "")
-                repositorio.finalizar { total ->
+                repositorio.finalizar(
+                    etiquetas = { gravadas ->
+                        final = esperadoAgora?.takeIf { it.temReferencia }?.let { ComparacaoInventario.comparar(it, gravadas.toSet()) }
+                    }
+                ) { total ->
+                    final?.let { f ->
+                        Log.i(TAG, "Operador finalizou o inventário de ${inventario.local} com $total etiqueta(s) " +
+                            "(${f.encontradas} de ${f.esperados} esperada(s), faltando ${f.faltando.size}, ${f.foraDaLista} fora da lista)")
+                    } ?: Log.i(TAG, "Operador finalizou o inventário de ${inventario.local} com $total etiqueta(s)")
                     runOnUiThread {
                         if (total != null) {
                             mostrarResumoFinal(ResumoFinalizacao(inventario.local, finalizadoEm, operador, total, final))
