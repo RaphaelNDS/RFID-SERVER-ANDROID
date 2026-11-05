@@ -11,6 +11,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
+    <!-- Inventário ou etiquetas que o coletor desistiu de enviar (some no "Ciente") -->
+    <include layout="@layout/include_aviso_recusa"/>
+
     <!-- Antes de começar: escolher o local -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/painelInicio"
@@ -112,6 +115,15 @@
                 android:text="@string/inventario_finalizar"
                 android:layout_marginTop="12dp"
                 android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+
+            <!-- Só enquanto nada foi enviado ao servidor (a tela confere e explica se já foi) -->
+            <Button
+                android:id="@+id/btnCancelarInventario"
+                style="@style/Widget.RFID.Botao.Texto"
+                android:text="@string/inventario_cancelar"
+                android:layout_gravity="center_horizontal"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"/>
         </LinearLayout>
 

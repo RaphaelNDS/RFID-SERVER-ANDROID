@@ -34,6 +34,8 @@ class RepositorioLeituras internal constructor(
 
     val cadastradas: LiveData<List<LeituraEntity>> = dao.cadastradasDaSessao()
     val naoCadastradas: LiveData<List<LeituraEntity>> = dao.naoCadastradasDaSessao()
+    /** Lidas na sessão e ainda sem resposta do servidor (sem rede): aba de leitura, como "aguardando". */
+    val aguardando: LiveData<List<LeituraEntity>> = dao.aguardandoDaSessao()
     val pendentes: LiveData<Int> = dao.contarPendentes()
     val contagemSessao: LiveData<ContagemSessao> = dao.contarSessao()
 
@@ -78,8 +80,32 @@ class RepositorioLeituras internal constructor(
         }
     }
 
+    /**
+     * Leituras recusadas de vez ainda guardadas (da sessão e arquivadas, até 30 dias), com o motivo em ultimoErro.
+     * [aoTerminar] roda na thread do repositório.
+     */
+    fun recusadas(aoTerminar: (List<LeituraEntity>) -> Unit) {
+        executor.execute { aoTerminar(dao.recusadasAgora()) }
+    }
+
+    /**
+     * "Tentar de novo": as recusadas [ids] voltam para a fila (ex.: o problema era do cadastro, já corrigido no
+     * servidor) e a sincronização é pedida. [aoTerminar] recebe quantas voltaram (na thread do repositório).
+     */
+    fun tentarDeNovo(ids: List<Long>, aoTerminar: (Int) -> Unit = {}) {
+        if (ids.isEmpty()) return aoTerminar(0)
+        executor.execute {
+            // Em partes: o SQLite limita quantos valores cabem num IN (...)
+            ids.chunked(LOTE_IDS).forEach { dao.desfazerRecusas(it) }
+            Log.i(TAG, "Operador pediu para tentar de novo ${ids.size} leitura(s) recusada(s): voltaram para a fila")
+            solicitarSincronizacao()
+            aoTerminar(ids.size)
+        }
+    }
+
     companion object {
         private const val TAG = "LEITURAS"
+        private const val LOTE_IDS = 500
 
         @Volatile
         private var instancia: RepositorioLeituras? = null

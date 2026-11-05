@@ -26,6 +26,7 @@ import com.example.rfid_server.SessaoAtual
 import com.example.rfid_server.service.TagService
 import com.example.rfid_server.adapter.MainPagerAdapter
 import com.example.rfid_server.dados.ContagemSessao
+import com.example.rfid_server.dados.RepositorioInventario
 import com.example.rfid_server.dados.RepositorioLeituras
 import com.example.rfid_server.sincronizacao.EstadoSincronizacao
 import com.example.rfid_server.sincronizacao.SincronizacaoWorker
@@ -116,7 +117,43 @@ class MainActivity : AppCompatActivity() {
 
         viewModel.pendentes.observe(this) { atualizarAvisoSincronizacao() }
         viewModel.estadoSincronizacao.observe(this) { atualizarAvisoSincronizacao() }
-        viewModel.contagem.observe(this) { txtContadores.text = it.resumo() }
+        viewModel.contagem.observe(this) {
+            txtContadores.text = if (it.recusadas > 0) it.resumo() + getString(R.string.main_recusadas_toque) else it.resumo()
+        }
+        // Recusadas aparecem só como número: tocar nos contadores mostra quais são, o motivo e "Tentar de novo"
+        txtContadores.setOnClickListener { mostrarRecusadas() }
+
+        FaixaRecusa.ligar(this, RepositorioInventario.get(this))
+    }
+
+    /** Lista das leituras recusadas de vez ainda guardadas (da sessão e de sessões anteriores, até 30 dias). */
+    private fun mostrarRecusadas() {
+        repositorio.recusadas { recusadas ->
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (recusadas.isEmpty()) {
+                    Toast.makeText(this, R.string.recusadas_nenhuma, Toast.LENGTH_SHORT).show()
+                    return@runOnUiThread
+                }
+
+                val semMotivo = getString(R.string.recusadas_sem_motivo)
+                val mensagem = buildString {
+                    recusadas.forEach { append(getString(R.string.recusadas_item, it.epc, it.ultimoErro ?: semMotivo)).append("\n\n") }
+                    append(getString(R.string.recusadas_rodape))
+                }
+
+                AlertDialog.Builder(this)
+                    .setTitle(getString(R.string.recusadas_titulo, recusadas.size))
+                    .setMessage(mensagem)
+                    .setPositiveButton(R.string.recusadas_tentar_de_novo) { _, _ ->
+                        repositorio.tentarDeNovo(recusadas.map { it.id }) { total ->
+                            runOnUiThread { Toast.makeText(this, getString(R.string.recusadas_voltaram, total), Toast.LENGTH_LONG).show() }
+                        }
+                    }
+                    .setNegativeButton(R.string.recusadas_fechar, null)
+                    .show()
+            }
+        }
     }
 
     private fun mostrarOperador(sessao: com.example.rfid_server.SessaoOperador) {

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Etiqueta lida que ainda espera o servidor identificar (TagAdapter): discreta, sem cartão, em cinza -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/text1"
+    android:typeface="monospace"
+    android:textColor="@color/texto_terciario"
+    android:textSize="13sp"
+    android:textStyle="italic"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:paddingTop="8dp"
+    android:paddingBottom="8dp"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"/>

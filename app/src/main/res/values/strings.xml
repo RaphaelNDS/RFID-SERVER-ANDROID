@@ -65,9 +65,30 @@
     <string name="main_nova_leitura_titulo">Começar nova leitura?</string>
     <string name="main_nova_leitura_mensagem">As %1$d tag(s) lidas vão sair da tela, e a mesma tag poderá ser lida de novo.</string>
     <string name="main_nova_leitura_pendentes">%1$d leitura(s) ainda não chegaram ao servidor: elas continuam guardadas no coletor e serão enviadas assim que possível.</string>
-    <string name="leitura_titulo">Etiquetas cadastradas lidas</string>
+    <string name="leitura_titulo">Etiquetas lidas</string>
+    <string name="leitura_vazia">Nenhuma etiqueta lida. Aperte o gatilho.</string>
+    <string name="leitura_aguardando_servidor">EPC %1$s · aguardando o servidor identificar</string>
     <string name="nao_cadastradas_titulo">Etiquetas não cadastradas · toque para cadastrar</string>
+    <string name="nao_cadastradas_vazia">Nenhuma etiqueta não cadastrada lida. Aperte o gatilho.</string>
     <string name="nao_cadastradas_seta" translatable="false">›</string>
+    <string name="main_recusadas_toque">"  (toque para ver as recusadas)"</string>
+
+    <!-- Leituras recusadas pelo servidor (toque no contador da tela principal) -->
+    <string name="recusadas_titulo">Recusadas pelo servidor (%1$d)</string>
+    <string name="recusadas_item">%1$s\n   %2$s</string>
+    <string name="recusadas_sem_motivo">motivo não informado</string>
+    <string name="recusadas_rodape">O servidor recusou estas leituras e o coletor parou de enviá-las. Se o problema já foi resolvido, toque em \"Tentar de novo\".</string>
+    <string name="recusadas_nenhuma">Nenhuma leitura recusada guardada no coletor</string>
+    <string name="recusadas_tentar_de_novo">Tentar de novo</string>
+    <string name="recusadas_fechar">Fechar</string>
+    <string name="recusadas_voltaram">%1$d leitura(s) voltaram para a fila de envio</string>
+
+    <!-- Faixa de recusa do servidor (tela principal e inventário) -->
+    <string name="aviso_recusa_inventario">Inventário de %1$s recusado pelo servidor: %2$s. Avise o responsável.</string>
+    <string name="aviso_recusa_etiquetas">%1$d etiqueta(s) do inventário de %2$s recusada(s) pelo servidor: %3$s. Avise o responsável.</string>
+    <string name="aviso_recusa_sem_motivo">motivo não informado</string>
+    <string name="aviso_recusa_outros">(mais %1$d aviso(s))</string>
+    <string name="aviso_recusa_ciente">Ciente</string>
 
     <!-- Item da lista de etiquetas cadastradas -->
     <string name="tag_codigo">Código: %1$s</string>
@@ -146,6 +167,18 @@
     <string name="inventario_finalizar_confirmar">Finalizar</string>
     <string name="inventario_continuar_lendo">Continuar lendo</string>
     <string name="inventario_finalizado">Inventário de %1$s finalizado: %2$d etiqueta(s)</string>
+    <string name="inventario_local_novo_titulo">Local novo</string>
+    <string name="inventario_local_novo_mensagem">\"%1$s\" não está na lista de locais. Iniciar mesmo assim?</string>
+    <string name="inventario_iniciar_mesmo_assim">Iniciar mesmo assim</string>
+    <string name="inventario_corrigir_local">Corrigir</string>
+    <string name="inventario_cancelar">Cancelar inventário</string>
+    <string name="inventario_cancelar_titulo">Cancelar inventário?</string>
+    <string name="inventario_cancelar_mensagem">O inventário de %1$s e as %2$d etiqueta(s) lida(s) serão apagados do coletor. Nada será enviado ao servidor.</string>
+    <string name="inventario_cancelar_confirmar">Cancelar inventário</string>
+    <string name="inventario_cancelar_voltar">Voltar</string>
+    <string name="inventario_cancelado">Inventário de %1$s cancelado</string>
+    <string name="inventario_nao_cancelavel_titulo">Não dá para cancelar</string>
+    <string name="inventario_nao_cancelavel_mensagem">Este inventário já foi enviado ao servidor. Para encerrá-lo, finalize o inventário.</string>
 
     <!-- Item esperado no inventário (o que falta) -->
     <string name="esperado_patrimonio">Patrimônio %1$s</string>

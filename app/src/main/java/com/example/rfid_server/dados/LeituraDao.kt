@@ -94,6 +94,20 @@ interface LeituraDao {
     @Query("SELECT * FROM leituras WHERE arquivada = 0 AND situacao = 'NAO_CADASTRADA' ORDER BY id DESC")
     fun naoCadastradasDaSessao(): LiveData<List<LeituraEntity>>
 
+    /**
+     * Lidas nesta sessão e ainda sem resposta do servidor (ex.: coletor sem rede): aparecem na aba de leitura como
+     * "aguardando o servidor identificar"; antes sumiam da tela até a rede voltar.
+     */
+    @Query("SELECT * FROM leituras WHERE arquivada = 0 AND situacao = 'PENDENTE' ORDER BY id DESC")
+    fun aguardandoDaSessao(): LiveData<List<LeituraEntity>>
+
+    /**
+     * Recusadas de vez ainda guardadas no aparelho (desta sessão e das anteriores, até serem apagadas 30 dias
+     * depois), da mais nova para a mais antiga. Só as fora da fila: a que voltou para a fila não é mais recusada.
+     */
+    @Query("SELECT * FROM leituras WHERE recusada = 1 AND envioConcluido = 1 ORDER BY id DESC")
+    fun recusadasAgora(): List<LeituraEntity>
+
     @Query("SELECT COUNT(*) FROM leituras WHERE situacao = 'PENDENTE' OR envioConcluido = 0")
     fun contarPendentes(): LiveData<Int>
 

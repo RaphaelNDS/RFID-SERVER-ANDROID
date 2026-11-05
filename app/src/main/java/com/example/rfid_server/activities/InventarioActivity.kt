@@ -30,6 +30,8 @@ import com.example.rfid_server.dados.RepositorioInventario
 import com.example.rfid_server.service.RespostaServidor
 import com.example.rfid_server.service.TagService
 import com.google.android.material.tabs.TabLayout
+import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 
 /**
  * Inventário por local: o operador escolhe o local, inicia, lê as etiquetas com o gatilho e finaliza.
@@ -72,6 +74,10 @@ class InventarioActivity : AppCompatActivity() {
     private var avisouCompleto = false
 
     private lateinit var aviso: AvisoLeitura
+
+    // Lê e grava a lista do esperado guardada no coletor fora da thread principal: com milhares de etiquetas,
+    // ou com a memória cheia (a gravação falha), a tela travava ou fechava
+    private val arquivos = Executors.newSingleThreadExecutor()
 
     // Etiqueta nova no inventário: bip/vibração
     private val ouvinte = RfidManager.OuvinteLeitura { epc, _ -> repositorio.registrar(epc) { aviso.tagNova() } }
@@ -122,11 +128,13 @@ class InventarioActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btnIniciar).setOnClickListener { iniciar() }
         findViewById<Button>(R.id.btnFinalizar).setOnClickListener { confirmarFinalizacao() }
+        findViewById<Button>(R.id.btnCancelarInventario).setOnClickListener { confirmarCancelamento() }
 
         mostrarEstadoLeitor(rfidManager)
         carregarLocais()
 
         repositorio.inventarioAberto.observe(this) { mostrar(it) }
+        FaixaRecusa.ligar(this, repositorio)
     }
 
     // Um inventário passou a aparecer na tela (ver mostrar). No onResume quem liga é a TelaDeLeitura.
@@ -138,6 +146,7 @@ class InventarioActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         if (::aviso.isInitialized) aviso.liberar()
+        arquivos.shutdown()
     }
 
     // ================= TELA =================
@@ -262,25 +271,34 @@ class InventarioActivity : AppCompatActivity() {
 
     /** Usa na hora a lista guardada no coletor (vale sem rede) e atualiza com a do servidor quando ele responder. */
     private fun carregarEsperado(local: String) {
-        val guardado = AppConfig.getEsperadoJson(this, local)?.let { json ->
-            try {
-                EsperadoLocal.deJson(json)
+        txtReferencia.setText(R.string.inventario_buscando_esperado)
+
+        // Leitura e parse do arquivo fora da thread principal; o servidor só é consultado depois, para a lista
+        // guardada (mais velha) nunca chegar depois da do servidor e tomar o lugar dela
+        emSegundoPlano {
+            val guardado = try {
+                AppConfig.getEsperadoJson(this, local)?.let { EsperadoLocal.deJson(it) }
             } catch (e: Exception) {
                 Log.w(TAG, "Lista do esperado guardada para '$local' ilegível: ignorada", e)
                 null
             }
+            runOnUiThread {
+                if (isDestroyed || inventarioAtual?.local != local) return@runOnUiThread
+                guardado?.let { aplicarEsperado(it, doServidor = false) }
+                buscarEsperadoNoServidor(local, guardado)
+            }
         }
-        guardado?.let { aplicarEsperado(it, doServidor = false) }
-            ?: run { txtReferencia.setText(R.string.inventario_buscando_esperado) }
+    }
 
+    private fun buscarEsperadoNoServidor(local: String, guardado: EsperadoLocal?) {
         tagService.buscarEsperado(local) { resposta ->
             runOnUiThread {
                 // O inventário pode ter sido finalizado (ou trocado) enquanto o servidor respondia
-                if (inventarioAtual?.local != local) return@runOnUiThread
+                if (isDestroyed || inventarioAtual?.local != local) return@runOnUiThread
 
                 when (resposta) {
                     is RespostaServidor.Sucesso -> {
-                        AppConfig.saveEsperadoJson(this, local, resposta.valor.paraJson())
+                        guardarEsperado(local, resposta.valor)
                         aplicarEsperado(resposta.valor, doServidor = true)
                     }
 
@@ -297,6 +315,29 @@ class InventarioActivity : AppCompatActivity() {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Guarda a lista do servidor no coletor (vale sem rede da próxima vez), fora da thread principal. Se a gravação
+     * falhar (ex.: memória cheia), só registra no log: a tela segue com a lista em memória.
+     */
+    private fun guardarEsperado(local: String, esperado: EsperadoLocal) {
+        emSegundoPlano {
+            try {
+                AppConfig.saveEsperadoJson(this, local, esperado.paraJson())
+            } catch (e: Exception) {
+                Log.w(TAG, "Não foi possível guardar no coletor a lista do esperado de '$local' (memória cheia?): " +
+                    "o inventário segue com a lista em memória", e)
+            }
+        }
+    }
+
+    private fun emSegundoPlano(tarefa: () -> Unit) {
+        try {
+            arquivos.execute(tarefa)
+        } catch (e: RejectedExecutionException) {
+            Log.d(TAG, "Tela de inventário já fechada: tarefa de arquivo ignorada")
         }
     }
 
@@ -339,6 +380,25 @@ class InventarioActivity : AppCompatActivity() {
             return
         }
 
+        // Local fora da lista costuma ser erro de digitação ("Sala 11" no lugar de "Sala 101"): o inventário
+        // ficaria num local que não existe e sem a comparação com o último inventário
+        if (RepositorioInventario.localNovo(local, AppConfig.getLocais(this))) {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.inventario_local_novo_titulo)
+                .setMessage(getString(R.string.inventario_local_novo_mensagem, local))
+                .setPositiveButton(R.string.inventario_iniciar_mesmo_assim) { _, _ ->
+                    Log.i(TAG, "Operador confirmou o local novo '$local' (não está na lista de locais)")
+                    abrir(local)
+                }
+                .setNegativeButton(R.string.inventario_corrigir_local, null)
+                .show()
+            return
+        }
+
+        abrir(local)
+    }
+
+    private fun abrir(local: String) {
         repositorio.abrir(local) { ok ->
             runOnUiThread {
                 if (ok) {
@@ -382,6 +442,45 @@ class InventarioActivity : AppCompatActivity() {
                 }
             }
             .setNegativeButton(R.string.inventario_continuar_lendo, null)
+            .show()
+    }
+
+    /**
+     * Cancelar: só enquanto nada foi enviado ao servidor (ex.: iniciado no local errado, sem rede). Depois disso
+     * o servidor já tem o inventário e o caminho é finalizar. O repositório confere de novo na hora de apagar.
+     */
+    private fun confirmarCancelamento() {
+        val inventario = inventarioAtual ?: return
+        if (!RepositorioInventario.podeCancelar(inventario, etiquetasEnviadas = 0)) {
+            mostrarNaoCancelavel()
+            return
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.inventario_cancelar_titulo)
+            .setMessage(getString(R.string.inventario_cancelar_mensagem, inventario.local, epcsLidos.size))
+            .setPositiveButton(R.string.inventario_cancelar_confirmar) { _, _ ->
+                repositorio.cancelar { resultado ->
+                    runOnUiThread {
+                        if (isDestroyed) return@runOnUiThread
+                        when (resultado) {
+                            RepositorioInventario.ResultadoCancelamento.CANCELADO ->
+                                Toast.makeText(this, getString(R.string.inventario_cancelado, inventario.local), Toast.LENGTH_LONG).show()
+                            RepositorioInventario.ResultadoCancelamento.JA_ENVIADO -> mostrarNaoCancelavel()
+                            RepositorioInventario.ResultadoCancelamento.SEM_INVENTARIO -> Unit
+                        }
+                    }
+                }
+            }
+            .setNegativeButton(R.string.inventario_cancelar_voltar, null)
+            .show()
+    }
+
+    private fun mostrarNaoCancelavel() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.inventario_nao_cancelavel_titulo)
+            .setMessage(R.string.inventario_nao_cancelavel_mensagem)
+            .setPositiveButton(R.string.comum_ok, null)
             .show()
     }
 
