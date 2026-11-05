@@ -12,6 +12,9 @@
 
     <include layout="@layout/include_estado_leitor"/>
 
+    <!-- Inventário ou etiquetas que o coletor desistiu de enviar (some no "Ciente") -->
+    <include layout="@layout/include_aviso_recusa"/>
+
     <!-- Operador, sessão e contadores da leitura atual -->
     <LinearLayout
         android:orientation="vertical"
@@ -30,9 +33,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
 
-        <!-- Contadores da leitura atual (zeram no botão "Nova leitura") -->
+        <!-- Contadores da leitura atual (zeram no botão "Nova leitura"). Tocar mostra as leituras recusadas -->
         <TextView
             android:id="@+id/txtContadores"
+            android:background="?attr/selectableItemBackground"
             android:textColor="@color/marinho"
             android:textSize="15sp"
             android:textStyle="bold"

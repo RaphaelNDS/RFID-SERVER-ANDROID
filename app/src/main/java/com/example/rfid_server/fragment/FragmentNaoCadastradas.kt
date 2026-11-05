@@ -3,6 +3,7 @@ package com.example.rfid_server.fragment
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -29,6 +30,10 @@ class FragmentNaoCadastradas : Fragment(R.layout.frag_nao_cadastradas) {
         recycler.adapter = adapter
 
         val viewModel = ViewModelProvider(requireActivity()).get(MainViewModel::class.java)
-        viewModel.naoCadastradas.observe(viewLifecycleOwner) { adapter.atualizar(it) }
+        val vazio = v.findViewById<View>(R.id.txtVazioNao)
+        viewModel.naoCadastradas.observe(viewLifecycleOwner) {
+            adapter.atualizar(it)
+            vazio.isVisible = it.isEmpty()
+        }
     }
 }

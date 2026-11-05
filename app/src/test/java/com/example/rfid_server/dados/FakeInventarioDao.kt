@@ -12,12 +12,15 @@ class FakeInventarioDao : InventarioDao {
 
     private val aberto = MutableLiveData<InventarioEntity?>()
     private val naoEnviados = MutableLiveData<Int>()
+    private val recusasPublicadas = MutableLiveData<List<RecusaInventario>>()
+    private var desdeRecusas: Long? = null
 
     fun inventario(id: String) = inventarios.single { it.id == id }
 
     private fun publicar() {
         aberto.value = inventarioAbertoAgora()
         naoEnviados.value = itens.count { item -> !item.enviado && inventarios.none { it.id == item.inventarioId && it.recusadoEm != null } }
+        desdeRecusas?.let { recusasPublicadas.value = calcularRecusas(it) }
     }
 
     private fun alterar(id: String, mudanca: (InventarioEntity) -> InventarioEntity) {
@@ -135,6 +138,25 @@ class FakeInventarioDao : InventarioDao {
 
     override fun contarItensNaoEnviados(inventarioId: String): LiveData<Int> =
         MutableLiveData(itens.count { it.inventarioId == inventarioId && !it.enviado })
+
+    override fun contarItensEnviadosAgora(inventarioId: String): Int =
+        itens.count { it.inventarioId == inventarioId && it.enviado }
+
+    override fun recusas(desde: Long): LiveData<List<RecusaInventario>> {
+        desdeRecusas = desde
+        return recusasPublicadas.also { publicar() }
+    }
+
+    private fun calcularRecusas(desde: Long): List<RecusaInventario> {
+        val inteiros = inventarios.filter { it.recusadoEm != null && it.recusadoEm >= desde }
+            .map { RecusaInventario(it.id, it.local, it.ultimoErro, 0) }
+        val etiquetas = inventarios.filter { it.recusadoEm == null }.mapNotNull { inv ->
+            val desistidas = itens.filter { it.inventarioId == inv.id && it.enviado && it.primeiraRecusaEm != null }
+            if (desistidas.isEmpty()) null
+            else RecusaInventario(inv.id, inv.local, desistidas.mapNotNull { it.ultimoErro }.maxOrNull(), desistidas.size)
+        }
+        return (inteiros + etiquetas).sortedWith(compareBy({ it.local }, { it.inventarioId }))
+    }
 
     override fun idsConcluidos(): List<String> =
         inventarios.filter { inv ->

@@ -1,6 +1,10 @@
 package com.example.rfid_server.dados
 
 import android.content.Context
+import android.os.Looper
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.Observer
+import org.robolectric.Shadows.shadowOf
 import androidx.room.Room
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
@@ -218,5 +222,100 @@ class BancoLocalRealTest {
         assertNull(item.primeiraRecusaEm)
         assertNull(item.ultimoErro)
         assertNotNull(dao.inventarioAgora("inv-1"))
+    }
+
+    // ---------- Consultas das telas (LiveData) ----------
+
+    /** Valor atual de um LiveData do Room: observa e deixa a consulta (em outra thread) e o looper principal rodarem. */
+    private fun <T> valor(dados: LiveData<T>): T {
+        val observador = Observer<T> { }
+        dados.observeForever(observador)
+        try {
+            val limite = System.currentTimeMillis() + 5_000
+            while (System.currentTimeMillis() < limite) {
+                shadowOf(Looper.getMainLooper()).idle()
+                dados.value?.let { return it }
+                Thread.sleep(10)
+            }
+            throw AssertionError("LiveData sem valor depois de 5 s")
+        } finally {
+            dados.removeObserver(observador)
+        }
+    }
+
+    @Test
+    fun `aba de leitura mostra as que aguardam o servidor so da sessao atual`() {
+        val dao = emMemoria().leituraDao()
+        dao.inserir(LeituraEntity(epc = "ANTIGA", lidoEm = 1_000, arquivada = true))
+        val cadastrada = dao.inserir(LeituraEntity(epc = "CAD", lidoEm = 1_000))
+        dao.marcarCadastrada(cadastrada, "CI", null, null, null, "PAT", "SN")
+        dao.inserir(LeituraEntity(epc = "P1", lidoEm = 1_000))
+        dao.inserir(LeituraEntity(epc = "P2", lidoEm = 1_000))
+
+        assertEquals("Mais nova primeiro, sem a arquivada nem a cadastrada", listOf("P2", "P1"), valor(dao.aguardandoDaSessao()).map { it.epc })
+    }
+
+    @Test
+    fun `recusadas incluem as arquivadas e nao as que voltaram para a fila`() {
+        val dao = emMemoria().leituraDao()
+        val antiga = dao.inserir(LeituraEntity(epc = "ANTIGA", lidoEm = 1_000, arquivada = true))
+        val atual = dao.inserir(LeituraEntity(epc = "ATUAL", lidoEm = 2_000))
+        val devolvida = dao.inserir(LeituraEntity(epc = "DEVOLVIDA", lidoEm = 2_000))
+        dao.inserir(LeituraEntity(epc = "NORMAL", lidoEm = 2_000))
+        listOf(antiga, atual, devolvida).forEach { dao.marcarRecusada(it, "Sessão inválida") }
+
+        dao.desfazerRecusas(listOf(devolvida))
+
+        val recusadas = dao.recusadasAgora()
+        assertEquals(listOf("ATUAL", "ANTIGA"), recusadas.map { it.epc })
+        assertEquals("Sessão inválida", recusadas.first().ultimoErro)
+        assertEquals("Devolvida volta a ser consultada", Situacao.PENDENTE, dao.pendentes().single { it.epc == "DEVOLVIDA" }.situacao)
+    }
+
+    @Test
+    fun `avisos de recusa trazem inventarios recusados recentes e etiquetas desistidas`() {
+        val dao = emMemoria().inventarioDao()
+        // Recusado inteiro, recente
+        dao.inserirInventario(InventarioEntity("recusado", "Sala 101", 1_000))
+        dao.registrarRecusa("recusado", "Local inativo", agora = 2_000)
+        dao.desistir("recusado", agora = 50_000)
+        // Recusado inteiro, antes do período do aviso
+        dao.inserirInventario(InventarioEntity("velho", "Sala 102", 1_000))
+        dao.desistir("velho", agora = 5_000)
+        // Inventário aceito, com 2 etiquetas desistidas, 1 recusada ainda na fila e 1 aceita
+        dao.inserirInventario(InventarioEntity("parcial", "Almoxarifado", 1_000, aberturaEnviada = true))
+        val ids = listOf("D1", "D2", "NA-FILA", "ACEITA").map { dao.inserirItem(InventarioItemEntity(inventarioId = "parcial", epc = it, lidoEm = 1_500)) }
+        dao.registrarRecusaItens(ids.take(3), "Sessão do operador desativada", agora = 100)
+        assertEquals(2, dao.desistirItens(ids.take(2), 1, antesDe = 100))
+        dao.marcarItensEnviados(listOf(ids[3]))
+        // Etiquetas desistidas de um inventário recusado inteiro: já entram no aviso dele
+        dao.inserirItem(InventarioItemEntity(inventarioId = "recusado", epc = "X", lidoEm = 1_500, enviado = true, recusas = 1, primeiraRecusaEm = 100))
+
+        val avisos = valor(dao.recusas(desde = 10_000))
+
+        assertEquals(
+            listOf(
+                RecusaInventario("parcial", "Almoxarifado", "Sessão do operador desativada", 2),
+                RecusaInventario("recusado", "Sala 101", "Local inativo", 0)
+            ),
+            avisos
+        )
+    }
+
+    @Test
+    fun `cancelar apaga o inventario e as etiquetas, e conta as ja enviadas`() {
+        val dao = emMemoria().inventarioDao()
+        val ids = inventarioComItens(dao, "E1", "E2")
+        dao.inserirInventario(InventarioEntity("outro", "Sala 2", 1_000))
+        dao.inserirItem(InventarioItemEntity(inventarioId = "outro", epc = "E1", lidoEm = 1_500))
+        assertEquals(0, dao.contarItensEnviadosAgora("inv-1"))
+        dao.marcarItensEnviados(listOf(ids[0]))
+        assertEquals(1, dao.contarItensEnviadosAgora("inv-1"))
+
+        dao.apagarInventario("inv-1")
+
+        assertNull(dao.inventarioAgora("inv-1"))
+        assertEquals(0, dao.contarItensAgora("inv-1"))
+        assertEquals("O outro inventário fica", 1, dao.contarItensAgora("outro"))
     }
 }

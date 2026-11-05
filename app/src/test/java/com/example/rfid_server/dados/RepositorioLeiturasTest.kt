@@ -190,4 +190,42 @@ class RepositorioLeiturasTest {
 
         assertEquals(TagView("E1", "", null, null, null, "", ""), leitura.paraTagView())
     }
+
+    @Test
+    fun `recusadas incluem as de sessoes anteriores e tentar de novo devolve para a fila e pede sincronizacao`() {
+        val dao = FakeLeituraDao(
+            LeituraEntity(epc = "ANTIGA", lidoEm = 1, arquivada = true),
+            LeituraEntity(epc = "ATUAL", lidoEm = 2),
+            LeituraEntity(epc = "OK", lidoEm = 3)
+        )
+        dao.marcarRecusada(dao.porEpc("ANTIGA").id, "Sessão inválida")
+        dao.marcarRecusada(dao.porEpc("ATUAL").id, "Etiqueta inválida")
+        dao.marcarNaoCadastrada(dao.porEpc("OK").id)
+        dao.marcarEnviada(dao.porEpc("OK").id)
+        val repositorio = repositorio(dao)
+
+        var recusadas: List<LeituraEntity> = emptyList()
+        repositorio.recusadas { recusadas = it }
+        assertEquals(listOf("ATUAL", "ANTIGA"), recusadas.map { it.epc })
+        assertEquals("Etiqueta inválida", recusadas.first().ultimoErro)
+
+        var voltaram = -1
+        repositorio.tentarDeNovo(recusadas.map { it.id }) { voltaram = it }
+
+        assertEquals(2, voltaram)
+        assertEquals(1, sincronizacoesPedidas)
+        assertEquals(setOf("ANTIGA", "ATUAL"), dao.pendentes().map { it.epc }.toSet())
+        assertTrue(dao.pendentes().all { it.situacao == Situacao.PENDENTE && !it.recusada })
+        repositorio.recusadas { recusadas = it }
+        assertTrue(recusadas.isEmpty())
+    }
+
+    @Test
+    fun `tentar de novo sem nada nao pede sincronizacao`() {
+        var voltaram = -1
+        repositorio(FakeLeituraDao()).tentarDeNovo(emptyList()) { voltaram = it }
+
+        assertEquals(0, voltaram)
+        assertEquals(0, sincronizacoesPedidas)
+    }
 }
