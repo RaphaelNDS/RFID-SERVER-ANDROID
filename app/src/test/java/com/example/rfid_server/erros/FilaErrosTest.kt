@@ -90,6 +90,80 @@ class FilaErrosTest {
     }
 
     @Test
+    fun `dois erros alternados num loop continuam agrupados cada um no seu registro`() {
+        val fila = fila()
+        repeat(50) {
+            fila.registrar(TipoErro.FALHA_GERAL, "NullPointerException", "java.lang.NullPointerException\n\tat A.a(A.kt:1)")
+            fila.registrar(TipoErro.FALHA_GERAL, "IllegalStateException", "java.lang.IllegalStateException\n\tat B.b(B.kt:2)")
+            agora += 1_000
+        }
+
+        val pendentes = fila.pendentes()
+        assertEquals(2, pendentes.length())
+        assertEquals("NullPointerException", pendentes.getJSONObject(0).getString("mensagem"))
+        assertEquals(50, pendentes.getJSONObject(0).getInt("ocorrencias"))
+        assertEquals(50, pendentes.getJSONObject(1).getInt("ocorrencias"))
+    }
+
+    @Test
+    fun `no corte a causa original fica e saem primeiro as repeticoes mais novas`() {
+        val fila = fila()
+        // A causa original, depois um loop longo (fora da janela) de dois erros que se repetem
+        fila.registrar(TipoErro.FALHA_GERAL, "causa original", "java.lang.RuntimeException\n\tat C.c(C.kt:3)")
+        repeat(FilaErros.MAXIMO_GUARDADOS + 50) {
+            agora += FilaErros.JANELA_AGRUPAMENTO_MS + 1
+            fila.registrar(TipoErro.ERRO_SERVIDOR, "HTTP 500 ${it % 2}")
+        }
+
+        assertEquals(FilaErros.MAXIMO_GUARDADOS, fila.quantidade())
+        val todos = fila.pendentes(FilaErros.MAXIMO_GUARDADOS)
+        assertEquals("A causa original não some", "causa original", todos.getJSONObject(0).getString("mensagem"))
+        assertEquals("HTTP 500 0", todos.getJSONObject(1).getString("mensagem"))
+        assertEquals("HTTP 500 1", todos.getJSONObject(2).getString("mensagem"))
+        // Nenhuma ocorrência perdida: as das repetições descartadas somam na primeira de cada uma
+        val total = (0 until todos.length()).sumOf { todos.getJSONObject(it).getInt("ocorrencias") }
+        assertEquals(1 + FilaErros.MAXIMO_GUARDADOS + 50, total)
+    }
+
+    @Test
+    fun `fila grande demais perde primeiro o stack dos mais antigos`() {
+        val fila = fila()
+        val stackGrande = "java.lang.RuntimeException\n" + "\tat X.y(X.kt:1)\n".repeat(480) // ~7,7 KB (o limite é 8000)
+        repeat(100) {
+            fila.registrar(TipoErro.FALHA_GERAL, "falha $it", stackGrande.replace("X.y", "X$it.y"))
+        }
+
+        assertTrue("Arquivo dentro do limite: ${arquivo.length()}", arquivo.length() <= FilaErros.MAXIMO_BYTES)
+        assertEquals("Nenhum registro descartado: só os detalhes", 100, fila.quantidade())
+        val todos = fila.pendentes(100)
+        assertTrue("O mais antigo perdeu o stack", todos.getJSONObject(0).isNull("detalhe"))
+        assertFalse("O mais novo mantém o stack", todos.getJSONObject(99).isNull("detalhe"))
+    }
+
+    @Test
+    fun `envio que falhou nao e repetido logo em seguida se nada mudou`() {
+        val fila = fila()
+        fila.registrar(TipoErro.ENVIO_RECUSADO, "recusa")
+        var envios = 0
+        val falha = { _: org.json.JSONArray ->
+            envios++
+            com.example.rfid_server.service.RespostaServidor.Falha(com.example.rfid_server.service.MotivoFalha.ERRO_SERVIDOR, "HTTP 503")
+        }
+
+        RegistroErros.enviarPendentes(fila, falha)
+        RegistroErros.enviarPendentes(fila, falha)
+        assertEquals("Mesma passada, mesma fila: não repete", 1, envios)
+
+        fila.registrar(TipoErro.FALHA_GERAL, "erro novo")
+        RegistroErros.enviarPendentes(fila, falha)
+        assertEquals("Erro novo na fila: tenta de novo", 2, envios)
+
+        agora += FilaErros.JANELA_REENVIO_MS
+        RegistroErros.enviarPendentes(fila, falha)
+        assertEquals("Passou o tempo: tenta de novo", 3, envios)
+    }
+
+    @Test
     fun `arquivo corrompido nao trava o app`() {
         arquivo.writeText("{isto não é json")
 

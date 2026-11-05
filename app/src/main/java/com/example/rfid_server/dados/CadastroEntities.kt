@@ -74,4 +74,11 @@ interface CadastroDao {
 
     @Query("DELETE FROM cadastros WHERE id = :id")
     fun apagar(id: Long)
+
+    /**
+     * Referências de sessão (CofreSessoes.PREFIXO) usadas nos cadastros guardados: o cofre não apaga esses tokens.
+     * Os recusados entram também (o operador pode corrigir e reenviar).
+     */
+    @Query("SELECT DISTINCT sessaoOperador FROM cadastros WHERE sessaoOperador LIKE 'sessao1:%'")
+    fun sessoesEmUso(): List<String>
 }

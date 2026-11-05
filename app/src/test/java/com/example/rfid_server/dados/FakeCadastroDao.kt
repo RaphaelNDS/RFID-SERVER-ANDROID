@@ -51,4 +51,7 @@ class FakeCadastroDao : CadastroDao {
         cadastros.removeAll { it.id == id }
         publicar()
     }
+
+    override fun sessoesEmUso(): List<String> =
+        cadastros.mapNotNull { it.sessaoOperador }.filter { it.startsWith("sessao1:") }.distinct()
 }
