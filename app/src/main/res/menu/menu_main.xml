@@ -1,16 +1,11 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
+    <!-- Na barra, três ícones cabem mesmo numa tela de ~320dp (com o título): o que o operador usa no dia a dia -->
     <item
         android:id="@+id/menu_nova_leitura"
         android:title="@string/main_nova_leitura"
-        android:icon="@android:drawable/ic_menu_revert"
-        app:showAsAction="always" />
-
-    <item
-        android:id="@+id/menu_settings"
-        android:title="@string/main_configuracoes"
-        android:icon="@android:drawable/ic_menu_manage"
+        android:icon="@drawable/ic_nova_leitura"
         app:showAsAction="always" />
 
     <item
@@ -19,12 +14,18 @@
         android:icon="@android:drawable/ic_menu_search"
         app:showAsAction="always" />
 
-    <!-- Na barra se couber; senão, no menu de três pontos -->
     <item
         android:id="@+id/menu_inventario"
         android:title="@string/main_inventario"
         android:icon="@android:drawable/ic_menu_agenda"
-        app:showAsAction="ifRoom" />
+        app:showAsAction="always" />
+
+    <!-- Protegidas por PIN (uso do responsável): ficam no menu de três pontos -->
+    <item
+        android:id="@+id/menu_settings"
+        android:title="@string/main_configuracoes"
+        android:icon="@android:drawable/ic_menu_manage"
+        app:showAsAction="never" />
 
     <!-- Sempre no menu de três pontos, para não ser tocado sem querer -->
     <item

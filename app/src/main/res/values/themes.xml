@@ -103,7 +103,7 @@
 
     <!-- Título de seção dentro das telas (ex.: SERVIDOR, LEITOR) -->
     <style name="Texto.RFID.Secao" parent="">
-        <item name="android:textSize">12sp</item>
+        <item name="android:textSize">13sp</item>
         <item name="android:textStyle">bold</item>
         <item name="android:textAllCaps">true</item>
         <item name="android:letterSpacing">0.08</item>
@@ -111,7 +111,7 @@
     </style>
 
     <style name="Texto.RFID.Secundario" parent="">
-        <item name="android:textSize">13sp</item>
+        <item name="android:textSize">15sp</item>
         <item name="android:textColor">@color/texto_secundario</item>
     </style>
 

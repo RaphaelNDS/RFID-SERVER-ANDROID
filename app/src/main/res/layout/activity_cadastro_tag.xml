@@ -6,7 +6,7 @@
 
     <com.google.android.material.appbar.MaterialToolbar
         style="@style/Widget.RFID.Barra"
-        app:title="Cadastrar etiqueta"
+        app:title="@string/cadastro_titulo"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
