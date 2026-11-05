@@ -116,3 +116,29 @@ data class ComparacaoInventario(
         }
     }
 }
+
+/** Uma etiqueta lida no inventário, como aparece na aba Lidas. */
+data class LidaInventario(
+    val epc: String,
+    /** Patrimônio, quando a etiqueta está na lista do esperado. */
+    val patrimonio: String?,
+    /** Lida mas não esperada no local (só quando há lista do esperado para comparar). */
+    val foraDaLista: Boolean
+) {
+    companion object {
+        /**
+         * Monta a aba Lidas: com lista do esperado ([patrimoniosEsperados] = EPC → patrimônio), as fora da lista
+         * vêm primeiro (são as que pedem atenção), cada grupo na ordem de leitura. Sem lista (null), nenhuma
+         * fica marcada como fora da lista e a ordem é a de leitura.
+         */
+        fun classificar(lidas: List<String>, patrimoniosEsperados: Map<String, String?>?): List<LidaInventario> {
+            if (patrimoniosEsperados == null) return lidas.map { LidaInventario(it, null, foraDaLista = false) }
+
+            val todas = lidas.map { epc ->
+                LidaInventario(epc, patrimoniosEsperados[epc], foraDaLista = !patrimoniosEsperados.containsKey(epc))
+            }
+            val (fora, esperadas) = todas.partition { it.foraDaLista }
+            return fora + esperadas
+        }
+    }
+}

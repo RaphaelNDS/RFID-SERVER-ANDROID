@@ -133,6 +133,20 @@
     <string name="cadastro_guardado">Cadastro guardado: será enviado ao servidor</string>
 
     <!-- Inventário -->
+    <string name="inventario_lida_fora_da_lista">Fora da lista: não era esperada neste local. Toque para localizar.</string>
+    <string name="inventario_filtro_hint">Filtrar por patrimônio ou EPC</string>
+    <string name="inventario_enviar_agora">Enviar agora</string>
+    <string name="inventario_enviando">Enviando ao servidor...</string>
+    <string name="inventario_chame_responsavel">Chame o responsável pelo coletor</string>
+    <string name="inventario_resumo_lidas_dialogo">Etiquetas lidas: %1$d</string>
+    <string name="inventario_resumo_encontradas_dialogo">Encontradas: %1$d de %2$d esperada(s)</string>
+    <string name="inventario_resumo_faltando_dialogo">Faltando: %1$d</string>
+    <string name="inventario_resumo_fora_dialogo">Fora da lista: %1$d</string>
+    <string name="inventario_resumo_sem_comparacao">Sem lista do esperado para comparar.</string>
+    <string name="inventario_compartilhar">Compartilhar</string>
+    <string name="inventario_compartilhar_escolha">Compartilhar o resumo do inventário</string>
+    <string name="inventario_compartilhar_assunto">Inventário de %1$s</string>
+    <string name="inventario_compartilhar_indisponivel">Nenhum app para compartilhar neste coletor</string>
     <string name="inventario_local_titulo">Local do inventário</string>
     <string name="inventario_local_hint">Local</string>
     <string name="inventario_iniciar">Iniciar inventário</string>

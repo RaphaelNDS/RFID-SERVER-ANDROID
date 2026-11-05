@@ -1,17 +1,24 @@
 package com.example.rfid_server.activities
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.Button
+import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.isVisible
+import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.LiveData
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -19,16 +26,20 @@ import com.example.rfid_server.AppConfig
 import com.example.rfid_server.AvisoLeitura
 import com.example.rfid_server.R
 import com.example.rfid_server.RfidManager
+import com.example.rfid_server.SessaoAtual
 import com.example.rfid_server.adapter.EsperadoAdapter
-import com.example.rfid_server.adapter.TagNaoAdapter
+import com.example.rfid_server.adapter.LidaInventarioAdapter
 import com.example.rfid_server.dados.ComparacaoInventario
 import com.example.rfid_server.dados.EsperadoLocal
 import com.example.rfid_server.dados.InventarioEntity
 import com.example.rfid_server.dados.InventarioItemEntity
 import com.example.rfid_server.dados.ItemEsperado
+import com.example.rfid_server.dados.LidaInventario
 import com.example.rfid_server.dados.RepositorioInventario
 import com.example.rfid_server.service.RespostaServidor
 import com.example.rfid_server.service.TagService
+import com.example.rfid_server.sincronizacao.EstadoSincronizacao
+import com.example.rfid_server.sincronizacao.Sincronizador
 import com.google.android.material.tabs.TabLayout
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
@@ -57,27 +68,49 @@ class InventarioActivity : AppCompatActivity() {
     private lateinit var txtStatus: TextView
     private lateinit var tabs: TabLayout
     private lateinit var recycler: RecyclerView
-    private lateinit var adapterLidas: TagNaoAdapter
+    private lateinit var adapterLidas: LidaInventarioAdapter
     private lateinit var adapterFaltando: EsperadoAdapter
+    private lateinit var campoFiltro: View
+    private lateinit var edtFiltro: EditText
+    private lateinit var linhaEnvio: View
+    private lateinit var txtAguardando: TextView
+    private lateinit var txtChameResponsavel: TextView
 
     private var inventarioAtual: InventarioEntity? = null
     private var itensObservados: LiveData<List<InventarioItemEntity>>? = null
     private var naoEnviadosObservados: LiveData<Int>? = null
     private var epcsLidos: List<String> = emptyList()
     private var naoEnviadas = 0
+    private var estadoSincronizacao: EstadoSincronizacao? = null
 
     private var esperado: EsperadoLocal? = null
 
     // EPC → patrimônio do esperado: montado uma vez quando a lista chega, e não a cada etiqueta lida
     private var patrimoniosEsperados: Map<String, String?> = emptyMap()
-    private var comparacao: ComparacaoInventario? = null
+
+    // Último cálculo aplicado na tela (comparação e listas já filtradas)
+    private var situacao: SituacaoTelaInventario? = null
+    private val comparacao: ComparacaoInventario? get() = situacao?.comparacao
+    private var termoFiltro = ""
     private var avisouCompleto = false
 
     private lateinit var aviso: AvisoLeitura
 
     // Lê e grava a lista do esperado guardada no coletor fora da thread principal: com milhares de etiquetas,
-    // ou com a memória cheia (a gravação falha), a tela travava ou fechava
+    // ou com a memória cheia (a gravação falha), a tela travava ou fechava. Também calcula a comparação
     private val arquivos = Executors.newSingleThreadExecutor()
+
+    // Comparação agrupada: no máximo um cálculo a cada RitmoComparacao.INTERVALO_MS, e um de cada vez.
+    // Só a thread principal mexe nestes campos
+    private val principal = Handler(Looper.getMainLooper())
+    private val rodarComparacao = Runnable { calcularComparacao() }
+    private var calculoAgendado = false
+    private var calculando = false
+    private var recalcularDepois = false
+    private var ultimoCalculo: Long? = null
+
+    // Muda quando o inventário sai da tela: cálculo que termina depois disso é descartado
+    private var geracao = 0
 
     // Etiqueta nova no inventário: bip/vibração
     private val ouvinte = RfidManager.OuvinteLeitura { epc, _ -> repositorio.registrar(epc) { aviso.tagNova() } }
@@ -108,8 +141,13 @@ class InventarioActivity : AppCompatActivity() {
         txtReferencia = findViewById(R.id.txtReferencia)
         txtStatus = findViewById(R.id.txtStatus)
         tabs = findViewById(R.id.tabsInventario)
+        campoFiltro = findViewById(R.id.campoFiltro)
+        edtFiltro = findViewById(R.id.edtFiltro)
+        linhaEnvio = findViewById(R.id.linhaEnvio)
+        txtAguardando = findViewById(R.id.txtAguardando)
+        txtChameResponsavel = findViewById(R.id.txtChameResponsavel)
 
-        adapterLidas = TagNaoAdapter()
+        adapterLidas = LidaInventarioAdapter { localizarForaDaLista(it) }
         adapterFaltando = EsperadoAdapter { localizar(it) }
         recycler = findViewById<RecyclerView>(R.id.recyclerItens).apply {
             layoutManager = LinearLayoutManager(this@InventarioActivity)
@@ -121,6 +159,7 @@ class InventarioActivity : AppCompatActivity() {
         tabs.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
                 recycler.adapter = if (tab.position == ABA_FALTANDO) adapterFaltando else adapterLidas
+                atualizarCampoFiltro()
             }
             override fun onTabUnselected(tab: TabLayout.Tab) = Unit
             override fun onTabReselected(tab: TabLayout.Tab) = Unit
@@ -129,11 +168,22 @@ class InventarioActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnIniciar).setOnClickListener { iniciar() }
         findViewById<Button>(R.id.btnFinalizar).setOnClickListener { confirmarFinalizacao() }
         findViewById<Button>(R.id.btnCancelarInventario).setOnClickListener { confirmarCancelamento() }
+        findViewById<Button>(R.id.btnEnviarAgora).setOnClickListener { enviarAgora() }
+
+        // Filtro só em memória: refaz a lista no próximo cálculo (agrupado como as leituras)
+        edtFiltro.doAfterTextChanged {
+            termoFiltro = it?.toString().orEmpty()
+            pedirComparacao()
+        }
 
         mostrarEstadoLeitor(rfidManager)
         carregarLocais()
 
         repositorio.inventarioAberto.observe(this) { mostrar(it) }
+        Sincronizador.get(this).estado.observe(this) {
+            estadoSincronizacao = it
+            atualizarResumo()
+        }
         FaixaRecusa.ligar(this, repositorio)
     }
 
@@ -146,6 +196,7 @@ class InventarioActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         if (::aviso.isInitialized) aviso.liberar()
+        principal.removeCallbacks(rodarComparacao)
         arquivos.shutdown()
     }
 
@@ -181,7 +232,7 @@ class InventarioActivity : AppCompatActivity() {
         itensObservados = repositorio.itens(inventarioId).also { liveData ->
             liveData.observe(this) { itens ->
                 epcsLidos = itens.map { it.epc }
-                atualizarComparacao()
+                pedirComparacao()
             }
         }
         naoEnviadosObservados = repositorio.itensNaoEnviados(inventarioId).also { liveData ->
@@ -193,6 +244,10 @@ class InventarioActivity : AppCompatActivity() {
     }
 
     private fun pararDeObservarItens() {
+        // Antes de tudo: limpar o campo dispara o pedido de cálculo, que é cancelado logo abaixo
+        edtFiltro.text?.clear()
+        termoFiltro = ""
+
         itensObservados?.removeObservers(this)
         naoEnviadosObservados?.removeObservers(this)
         itensObservados = null
@@ -201,25 +256,82 @@ class InventarioActivity : AppCompatActivity() {
         naoEnviadas = 0
         esperado = null
         patrimoniosEsperados = emptyMap()
-        comparacao = null
+        situacao = null
         avisouCompleto = false
+
+        // Cálculo agendado é cancelado; o que já está rodando termina, mas é descartado (outra geração)
+        geracao++
+        principal.removeCallbacks(rodarComparacao)
+        calculoAgendado = false
+        recalcularDepois = false
+
         adapterLidas.atualizar(emptyList())
         adapterFaltando.atualizar(emptyList())
         tabs.visibility = View.GONE
+        campoFiltro.isVisible = false
         txtReferencia.text = ""
     }
 
-    /** Recalcula o que falta a cada etiqueta lida (ou quando chega a lista do esperado). */
-    private fun atualizarComparacao() {
-        val atual = esperado?.takeIf { it.temReferencia }
-        val nova = atual?.let { ComparacaoInventario.comparar(it, epcsLidos) }
-        comparacao = nova
+    /**
+     * Pede o recálculo do que falta (a cada etiqueta lida, quando chega a lista do esperado ou quando o filtro muda).
+     * Com milhares de etiquetas, recalcular a cada leitura na thread principal travava a tela: os pedidos são
+     * agrupados (no máximo um cálculo a cada RitmoComparacao.INTERVALO_MS) e o cálculo roda em segundo plano.
+     */
+    private fun pedirComparacao() {
+        if (calculando) {
+            recalcularDepois = true
+            return
+        }
+        if (calculoAgendado) return
 
-        // Lidas: com o patrimônio, quando a etiqueta está na lista do esperado
-        val patrimonios = if (atual != null) patrimoniosEsperados else emptyMap()
-        adapterLidas.atualizar(epcsLidos.map { epc -> patrimonios[epc]?.let { getString(R.string.inventario_lida_com_patrimonio, it, epc) } ?: epc })
-        adapterFaltando.atualizar(nova?.faltando.orEmpty())
+        calculoAgendado = true
+        principal.postDelayed(rodarComparacao, RitmoComparacao.espera(SystemClock.elapsedRealtime(), ultimoCalculo))
+    }
 
+    private fun calcularComparacao() {
+        calculoAgendado = false
+        calculando = true
+        ultimoCalculo = SystemClock.elapsedRealtime()
+
+        // Fotografia do que a thread principal tem agora (listas e mapa não são alterados depois de montados)
+        val geracaoDoCalculo = geracao
+        val esperadoAgora = esperado
+        val patrimonios = patrimoniosEsperados
+        val lidos = epcsLidos
+        val termo = termoFiltro
+
+        val aceito = emSegundoPlano {
+            val nova = try {
+                SituacaoTelaInventario.calcular(esperadoAgora, patrimonios, lidos, termo)
+            } catch (e: Exception) {
+                Log.e(TAG, "Falha ao comparar o inventário com o esperado (${lidos.size} etiqueta(s) lida(s))", e)
+                null
+            }
+            runOnUiThread {
+                calculando = false
+                if (isDestroyed) return@runOnUiThread
+                if (nova != null && geracaoDoCalculo == geracao) aplicarSituacao(nova)
+                if (recalcularDepois) {
+                    recalcularDepois = false
+                    pedirComparacao()
+                }
+            }
+        }
+        if (!aceito) calculando = false
+    }
+
+    /** Aplica na tela o resultado do cálculo (thread principal). */
+    private fun aplicarSituacao(nova: SituacaoTelaInventario) {
+        situacao = nova
+        adapterLidas.atualizar(nova.lidas)
+        adapterFaltando.atualizar(nova.faltando)
+        atualizarAbas(nova)
+        atualizarCampoFiltro()
+        atualizarResumo()
+    }
+
+    private fun atualizarAbas(situacaoAtual: SituacaoTelaInventario) {
+        val nova = situacaoAtual.comparacao
         if (nova == null) {
             tabs.visibility = View.GONE
             recycler.adapter = adapterLidas
@@ -230,11 +342,20 @@ class InventarioActivity : AppCompatActivity() {
                 recycler.adapter = adapterFaltando
             }
             tabs.getTabAt(ABA_FALTANDO)?.text = getString(R.string.inventario_aba_faltando_qtd, nova.faltando.size)
-            tabs.getTabAt(ABA_LIDAS)?.text = getString(R.string.inventario_aba_lidas_qtd, epcsLidos.size)
+            tabs.getTabAt(ABA_LIDAS)?.text = getString(R.string.inventario_aba_lidas_qtd, situacaoAtual.totalLidas)
             avisarSeCompleto(nova)
         }
+    }
 
-        atualizarResumo()
+    /** Campo de filtro: só com lista grande na aba aberta (ou com texto digitado). */
+    private fun atualizarCampoFiltro() {
+        val s = situacao
+        val tamanho = when {
+            s == null -> 0
+            recycler.adapter === adapterFaltando -> s.comparacao?.faltando?.size ?: 0
+            else -> s.totalLidas
+        }
+        campoFiltro.isVisible = FiltroInventario.mostrarCampo(tamanho, termoFiltro)
     }
 
     private fun avisarSeCompleto(nova: ComparacaoInventario) {
@@ -248,23 +369,37 @@ class InventarioActivity : AppCompatActivity() {
 
     private fun atualizarResumo() {
         val c = comparacao
+        // Contagem do mesmo cálculo da comparação, para os números baterem entre si
+        val totalLidas = situacao?.totalLidas ?: epcsLidos.size
+        val recusado = inventarioAtual?.takeIf { it.recusadoEm != null }
+
         txtResumo.text = buildString {
-            append(getString(R.string.inventario_resumo_lidas, epcsLidos.size))
+            append(getString(R.string.inventario_resumo_lidas, totalLidas))
             if (c != null) {
                 append(SEPARADOR).append(getString(R.string.inventario_resumo_esperadas, c.encontradas, c.esperados))
                 if (c.faltando.isNotEmpty()) append(SEPARADOR).append(getString(R.string.inventario_resumo_faltam, c.faltando.size))
                 if (c.foraDaLista > 0) append(SEPARADOR).append(getString(R.string.inventario_resumo_fora_da_lista, c.foraDaLista))
             }
-            val recusado = inventarioAtual?.takeIf { it.recusadoEm != null }
             if (recusado != null) {
                 append("\n\n").append(
                     recusado.ultimoErro?.let { getString(R.string.inventario_recusado_motivo, it) }
                         ?: getString(R.string.inventario_recusado)
                 )
-            } else if (naoEnviadas > 0) {
-                append(SEPARADOR).append(getString(R.string.inventario_resumo_aguardando, naoEnviadas))
             }
         }
+
+        // Aguardando envio: com o botão "Enviar agora" ao lado (inventário recusado não vai mais ao servidor)
+        linhaEnvio.isVisible = recusado == null && naoEnviadas > 0
+        txtAguardando.text = getString(R.string.inventario_resumo_aguardando, naoEnviadas)
+
+        // Chave, endereço ou certificado: o operador não resolve sozinho e repetir o envio não adianta
+        txtChameResponsavel.isVisible = recusado == null && estadoSincronizacao?.dependeDasConfiguracoes == true
+    }
+
+    private fun enviarAgora() {
+        Log.i(TAG, "Operador pediu o envio agora ($naoEnviadas etiqueta(s) do inventário de ${inventarioAtual?.local} aguardando)")
+        Sincronizador.get(this).solicitar()
+        Toast.makeText(this, R.string.inventario_enviando, Toast.LENGTH_SHORT).show()
     }
 
     // ================= ESPERADO =================
@@ -333,13 +468,15 @@ class InventarioActivity : AppCompatActivity() {
         }
     }
 
-    private fun emSegundoPlano(tarefa: () -> Unit) {
+    /** Devolve false se a tela já fechou (a tarefa não vai rodar). */
+    private fun emSegundoPlano(tarefa: () -> Unit): Boolean =
         try {
             arquivos.execute(tarefa)
+            true
         } catch (e: RejectedExecutionException) {
-            Log.d(TAG, "Tela de inventário já fechada: tarefa de arquivo ignorada")
+            Log.d(TAG, "Tela de inventário já fechada: tarefa em segundo plano ignorada")
+            false
         }
-    }
 
     private fun aplicarEsperado(novo: EsperadoLocal, doServidor: Boolean) {
         esperado = novo
@@ -354,7 +491,7 @@ class InventarioActivity : AppCompatActivity() {
             Log.i(TAG, "Local '${novo.local}' sem inventário finalizado ($origem): primeiro inventário, sem lista do esperado")
         }
 
-        atualizarComparacao()
+        pedirComparacao()
     }
 
     /**
@@ -363,10 +500,20 @@ class InventarioActivity : AppCompatActivity() {
      */
     private fun localizar(item: ItemEsperado) {
         Log.i(TAG, "Operador foi localizar a etiqueta ${item.epc} (patrimônio ${item.patrimonio ?: "não cadastrado"}), que falta em ${inventarioAtual?.local}")
+        abrirLocalizar(item.epc, item.patrimonio)
+    }
+
+    /** Lida fora da lista: o operador vai achar a etiqueta para ver o que ela é e por que está ali. */
+    private fun localizarForaDaLista(lida: LidaInventario) {
+        Log.i(TAG, "Operador foi localizar a etiqueta ${lida.epc}, lida fora da lista em ${inventarioAtual?.local}")
+        abrirLocalizar(lida.epc, lida.patrimonio)
+    }
+
+    private fun abrirLocalizar(epc: String, patrimonio: String?) {
         startActivity(
             Intent(this, LocalizarActivity::class.java)
-                .putExtra(LocalizarActivity.EXTRA_EPC, item.epc)
-                .putExtra(LocalizarActivity.EXTRA_PATRIMONIO, item.patrimonio)
+                .putExtra(LocalizarActivity.EXTRA_EPC, epc)
+                .putExtra(LocalizarActivity.EXTRA_PATRIMONIO, patrimonio)
         )
     }
 
@@ -414,7 +561,8 @@ class InventarioActivity : AppCompatActivity() {
     private fun confirmarFinalizacao() {
         val inventario = inventarioAtual ?: return
         val totalLidas = epcsLidos.size
-        val c = comparacao
+        // Calculada na hora (uma vez só): a da tela pode estar até RitmoComparacao.INTERVALO_MS atrasada
+        val c = compararAgora()
 
         val mensagem = buildString {
             append(getString(R.string.inventario_finalizar_mensagem, totalLidas, inventario.local))
@@ -428,12 +576,19 @@ class InventarioActivity : AppCompatActivity() {
             .setTitle(R.string.inventario_finalizar_titulo)
             .setMessage(mensagem)
             .setPositiveButton(R.string.inventario_finalizar_confirmar) { _, _ ->
-                Log.i(TAG, "Operador finalizou o inventário de ${inventario.local} com $totalLidas etiqueta(s)" +
-                    if (c != null) " (${c.encontradas} de ${c.esperados} esperada(s), faltando ${c.faltando.size}, ${c.foraDaLista} fora da lista)" else "")
+                // O resumo é montado ANTES de finalizar: depois a tela limpa as listas (o inventário sai de cena).
+                // De novo aqui: o gatilho continua lendo enquanto a pergunta está aberta
+                val final = compararAgora()
+                val lidasAgora = epcsLidos.size
+                val finalizadoEm = System.currentTimeMillis()
+                val operador = SessaoAtual.get(this)?.nome
+
+                Log.i(TAG, "Operador finalizou o inventário de ${inventario.local} com $lidasAgora etiqueta(s)" +
+                    if (final != null) " (${final.encontradas} de ${final.esperados} esperada(s), faltando ${final.faltando.size}, ${final.foraDaLista} fora da lista)" else "")
                 repositorio.finalizar { total ->
                     runOnUiThread {
                         if (total != null) {
-                            Toast.makeText(this, getString(R.string.inventario_finalizado, inventario.local, total), Toast.LENGTH_LONG).show()
+                            mostrarResumoFinal(ResumoFinalizacao(inventario.local, finalizadoEm, operador, total, final))
                         } else {
                             // Não finalizou porque a sessão terminou: manda para o login ("entre de novo para continuar")
                             exigirSessao()
@@ -443,6 +598,48 @@ class InventarioActivity : AppCompatActivity() {
             }
             .setNegativeButton(R.string.inventario_continuar_lendo, null)
             .show()
+    }
+
+    private fun compararAgora(): ComparacaoInventario? =
+        esperado?.takeIf { it.temReferencia }?.let { ComparacaoInventario.comparar(it, epcsLidos) }
+
+    /** Depois de finalizar: o resumo fica na tela até o operador fechar, e pode ser compartilhado. */
+    private fun mostrarResumoFinal(resumo: ResumoFinalizacao) {
+        if (isFinishing || isDestroyed) return
+        val c = resumo.comparacao
+
+        val mensagem = buildString {
+            append(getString(R.string.inventario_resumo_lidas_dialogo, resumo.lidas))
+            if (c == null) {
+                append("\n").append(getString(R.string.inventario_resumo_sem_comparacao))
+            } else {
+                append("\n").append(getString(R.string.inventario_resumo_encontradas_dialogo, c.encontradas, c.esperados))
+                append("\n").append(getString(R.string.inventario_resumo_faltando_dialogo, c.faltando.size))
+                append("\n").append(getString(R.string.inventario_resumo_fora_dialogo, c.foraDaLista))
+            }
+        }
+
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.inventario_finalizado, resumo.local, resumo.lidas))
+            .setMessage(mensagem)
+            .setPositiveButton(R.string.inventario_compartilhar) { _, _ -> compartilhar(resumo) }
+            .setNegativeButton(R.string.comum_ok, null)
+            .show()
+    }
+
+    private fun compartilhar(resumo: ResumoFinalizacao) {
+        val envio = Intent(Intent.ACTION_SEND)
+            .setType("text/plain")
+            .putExtra(Intent.EXTRA_SUBJECT, getString(R.string.inventario_compartilhar_assunto, resumo.local))
+            .putExtra(Intent.EXTRA_TEXT, resumo.textoCompartilhar())
+
+        try {
+            startActivity(Intent.createChooser(envio, getString(R.string.inventario_compartilhar_escolha)))
+            Log.i(TAG, "Operador compartilhou o resumo do inventário de ${resumo.local}")
+        } catch (e: ActivityNotFoundException) {
+            Log.w(TAG, "Nenhum app para compartilhar o resumo do inventário de ${resumo.local}", e)
+            Toast.makeText(this, R.string.inventario_compartilhar_indisponivel, Toast.LENGTH_LONG).show()
+        }
     }
 
     /**

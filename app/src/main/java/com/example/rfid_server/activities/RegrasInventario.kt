@@ -1,0 +1,127 @@
+package com.example.rfid_server.activities
+
+import com.example.rfid_server.dados.ComparacaoInventario
+import com.example.rfid_server.dados.EsperadoLocal
+import com.example.rfid_server.dados.ItemEsperado
+import com.example.rfid_server.dados.LidaInventario
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+
+/**
+ * Filtro das abas Faltando e Lidas do inventário: só em memória (o banco não muda). Sem dependência do Android,
+ * para poder ser testado no computador.
+ */
+object FiltroInventario {
+
+    /** Abaixo disso a lista cabe na tela e o campo de filtro só ocuparia espaço. */
+    const val MINIMO_PARA_FILTRAR = 20
+
+    /** O campo aparece com lista grande, e não some enquanto houver texto digitado (senão o filtro ficaria escondido). */
+    fun mostrarCampo(tamanhoDaLista: Int, termo: String): Boolean =
+        tamanhoDaLista >= MINIMO_PARA_FILTRAR || termo.isNotBlank()
+
+    fun faltando(itens: List<ItemEsperado>, termo: String): List<ItemEsperado> =
+        filtrar(itens, termo) { listOf(it.patrimonio, it.epc) }
+
+    fun lidas(itens: List<LidaInventario>, termo: String): List<LidaInventario> =
+        filtrar(itens, termo) { listOf(it.patrimonio, it.epc) }
+
+    /** Mantém os itens em que o patrimônio ou o EPC contém o [termo] (sem diferença de maiúsculas e minúsculas). */
+    private fun <T> filtrar(itens: List<T>, termo: String, textos: (T) -> List<String?>): List<T> {
+        val procurado = termo.trim()
+        if (procurado.isEmpty()) return itens
+        return itens.filter { item -> textos(item).any { it?.contains(procurado, ignoreCase = true) == true } }
+    }
+}
+
+/**
+ * Agrupa as atualizações da tela de inventário: com milhares de etiquetas, recalcular a cada leitura pesava.
+ * Devolve quanto esperar (ms) para o próximo cálculo, de forma que ele rode no máximo uma vez a cada [intervaloMs].
+ */
+object RitmoComparacao {
+
+    const val INTERVALO_MS = 300L
+
+    fun espera(agora: Long, ultimoCalculo: Long?, intervaloMs: Long = INTERVALO_MS): Long {
+        if (ultimoCalculo == null) return 0
+        return (ultimoCalculo + intervaloMs - agora).coerceIn(0, intervaloMs)
+    }
+}
+
+/** O que aparece na tela de inventário depois de cada cálculo (feito fora da thread principal). */
+data class SituacaoTelaInventario(
+    /** Null: sem lista do esperado para comparar (primeiro inventário, servidor sem a lista, ainda buscando). */
+    val comparacao: ComparacaoInventario?,
+    val totalLidas: Int,
+    /** Já filtradas pelo termo. */
+    val lidas: List<LidaInventario>,
+    /** Já filtradas pelo termo. */
+    val faltando: List<ItemEsperado>
+) {
+    companion object {
+        fun calcular(
+            esperado: EsperadoLocal?,
+            patrimoniosEsperados: Map<String, String?>,
+            epcsLidos: List<String>,
+            termo: String
+        ): SituacaoTelaInventario {
+            val referencia = esperado?.takeIf { it.temReferencia }
+            val comparacao = referencia?.let { ComparacaoInventario.comparar(it, epcsLidos) }
+            val lidas = LidaInventario.classificar(epcsLidos, if (referencia != null) patrimoniosEsperados else null)
+
+            return SituacaoTelaInventario(
+                comparacao = comparacao,
+                totalLidas = epcsLidos.size,
+                lidas = FiltroInventario.lidas(lidas, termo),
+                faltando = FiltroInventario.faltando(comparacao?.faltando.orEmpty(), termo)
+            )
+        }
+    }
+}
+
+/** Resumo do inventário finalizado: aparece num diálogo e pode ser compartilhado (texto simples). */
+data class ResumoFinalizacao(
+    val local: String,
+    val finalizadoEm: Long,
+    val operador: String?,
+    val lidas: Int,
+    /** Null: sem lista do esperado para comparar. */
+    val comparacao: ComparacaoInventario?
+) {
+    /** Texto para compartilhar (WhatsApp, e-mail...): local, data/hora, operador, contagens e o que faltou. */
+    fun textoCompartilhar(fuso: ZoneId = ZoneId.systemDefault()): String = buildString {
+        val data = FORMATO_DATA.format(Instant.ofEpochMilli(finalizadoEm).atZone(fuso))
+
+        appendLine("Inventário de $local")
+        appendLine("Finalizado em: $data")
+        appendLine("Operador: ${operador ?: "não identificado"}")
+        appendLine("Etiquetas lidas: $lidas")
+
+        val c = comparacao
+        if (c == null) {
+            append("Sem lista do esperado para comparar (primeiro inventário do local ou lista indisponível)")
+            return@buildString
+        }
+
+        appendLine("Encontradas: ${c.encontradas} de ${c.esperados} esperada(s)")
+        appendLine("Faltando: ${c.faltando.size}")
+        append("Fora da lista: ${c.foraDaLista}")
+
+        if (c.faltando.isNotEmpty()) {
+            appendLine().appendLine().append("O que faltou:")
+            c.faltando.forEach { appendLine().append("- ").append(descreverFaltante(it)) }
+        }
+    }
+
+    companion object {
+        private val FORMATO_DATA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
+
+        /** "Patrimônio 123 - Notebook · Dell" ou, sem patrimônio, "EPC E200... - Notebook". */
+        fun descreverFaltante(item: ItemEsperado): String {
+            val identificacao = item.patrimonio?.let { "Patrimônio $it" } ?: "EPC ${item.epc}"
+            val descricao = item.descricao()
+            return if (descricao.isEmpty()) identificacao else "$identificacao - $descricao"
+        }
+    }
+}
