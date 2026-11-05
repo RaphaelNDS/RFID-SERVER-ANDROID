@@ -3,10 +3,13 @@ package com.example.rfid_server.activities
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
-import android.widget.ProgressBar
+import android.view.View
+import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle
 import com.example.rfid_server.AvisoLeitura
 import com.example.rfid_server.EstadoLeitor
@@ -18,6 +21,8 @@ import com.example.rfid_server.RitmoAviso
 import com.example.rfid_server.VigiaSinal
 import com.example.rfid_server.service.RespostaServidor
 import com.example.rfid_server.service.TagService
+import com.google.android.material.appbar.MaterialToolbar
+import com.google.android.material.progressindicator.LinearProgressIndicator
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -28,6 +33,8 @@ class LocalizarActivity : AppCompatActivity() {
     // Leitor compartilhado com a tela principal (uma conexão só). Esta tela não desconecta
     private lateinit var rfidManager: RfidManager
     private var epcLocalizando: String? = null
+    // Patrimônio da etiqueta localizada (só para a linha "Procurando: …"); null quando o item não tem
+    private var patrimonioLocalizando: String? = null
     // Número da busca mais recente: a resposta de uma busca anterior (cliques seguidos em "Buscar") é descartada
     private var ultimaBusca = 0
     // Sem etiqueta definida (busca ainda não voltou do servidor) o leitor entrega qualquer etiqueta:
@@ -43,9 +50,14 @@ class LocalizarActivity : AppCompatActivity() {
         }
     }
     private lateinit var txtStatus: TextView
-    private lateinit var progress: ProgressBar
+    private lateinit var progress: LinearProgressIndicator
     private lateinit var edtPatrimonio: EditText
     private lateinit var btnBuscar: Button
+    private lateinit var cartaoBusca: View
+    private lateinit var linhaProcurando: View
+    private lateinit var txtProcurando: TextView
+    // Última faixa pintada na barra: só troca a cor quando muda de faixa
+    private var faixaPintada: Proximidade.Faixa? = null
 
     private lateinit var tagService: TagService
 
@@ -70,12 +82,22 @@ class LocalizarActivity : AppCompatActivity() {
         setContentView(R.layout.activity_localizar)
         // Tela recriada (ex.: girou): continua localizando a mesma etiqueta (onResume reinicia a localização)
         epcLocalizando = savedInstanceState?.getString(ESTADO_EPC)
+        patrimonioLocalizando = savedInstanceState?.getString(ESTADO_PATRIMONIO)
+
+        findViewById<MaterialToolbar>(R.id.barraLocalizar).setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
 
         txtStatus = findViewById(R.id.txtStatus)
         progress = findViewById(R.id.progressDistancia)
         edtPatrimonio = findViewById(R.id.edtPatrimonio)
         btnBuscar = findViewById(R.id.btnBuscar)
-        if (epcLocalizando != null) txtStatus.setText(R.string.localizar_aperte_gatilho)
+        cartaoBusca = findViewById(R.id.cartaoBusca)
+        linhaProcurando = findViewById(R.id.linhaProcurando)
+        txtProcurando = findViewById(R.id.txtProcurando)
+        findViewById<Button>(R.id.btnAlterarBusca).setOnClickListener { alterarBusca() }
+        epcLocalizando?.let {
+            txtStatus.setText(R.string.localizar_aperte_gatilho)
+            mostrarProcurando(it, patrimonioLocalizando)
+        }
 
         tagService = TagService(this)
         rfidManager = RfidManager.get(this)
@@ -118,6 +140,8 @@ class LocalizarActivity : AppCompatActivity() {
             return
         }
 
+        // O teclado cobria o cartão de proximidade
+        fecharTeclado()
         txtStatus.setText(R.string.localizar_buscando)
         buscarEIniciar(patrimonio)
     }
@@ -125,12 +149,11 @@ class LocalizarActivity : AppCompatActivity() {
     private fun iniciarPeloPedido(epc: String?, patrimonio: String?) {
         when (val inicio = RegrasLocalizar.inicio(epc, patrimonio)) {
             // O EPC já veio pronto: localiza sem perguntar ao servidor (funciona sem rede e com item sem patrimônio).
-            // O patrimônio, se houver, fica no campo só para o operador ver o que procura
+            // O patrimônio, se houver, fica no campo e na linha "Procurando: …"; sem ele, a linha mostra o EPC
             is RegrasLocalizar.Inicio.PorEpc -> {
                 Log.i(TAG, "Localização da etiqueta ${inicio.epc} aberta por outra tela (patrimônio ${patrimonio ?: "não cadastrado"})")
                 if (!patrimonio.isNullOrBlank()) edtPatrimonio.setText(patrimonio)
-                else toast(getString(R.string.localizar_item_sem_patrimonio))
-                iniciarRFID(inicio.epc)
+                iniciarRFID(inicio.epc, patrimonio)
             }
 
             is RegrasLocalizar.Inicio.PorPatrimonio -> {
@@ -151,6 +174,7 @@ class LocalizarActivity : AppCompatActivity() {
         // guiando até o item antigo) e qualquer resposta de uma busca anterior passa a ser descartada
         val busca = ++ultimaBusca
         epcLocalizando = null
+        patrimonioLocalizando = null
         rfidManager.pararLocalizacao()
         vigiaSinal.parar()
         progress.progress = 0
@@ -172,7 +196,7 @@ class LocalizarActivity : AppCompatActivity() {
                     is RespostaServidor.Sucesso -> {
                         Log.i(TAG, "Patrimônio $patrimonio → tag ${resposta.valor}")
                         txtStatus.setText(R.string.localizar_localizando)
-                        iniciarRFID(resposta.valor)
+                        iniciarRFID(resposta.valor, patrimonio)
                     }
 
                     RespostaServidor.NaoEncontrado -> {
@@ -191,9 +215,13 @@ class LocalizarActivity : AppCompatActivity() {
 
     // ================= RFID =================
 
-    private fun iniciarRFID(epc: String) {
+    private fun iniciarRFID(epc: String, patrimonio: String?) {
 
         epcLocalizando = epc
+        patrimonioLocalizando = patrimonio?.takeIf { it.isNotBlank() }
+        // Teclado fora da frente e cartão de busca recolhido: a tela fica para a proximidade
+        fecharTeclado()
+        mostrarProcurando(epc, patrimonioLocalizando)
         // Só liga no leitor com a tela em primeiro plano (dona das leituras). Se ela estiver em pausa
         // (ex.: outra tela por cima), o onResume liga com o epcLocalizando guardado acima
         if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) rfidManager.iniciarLocalizacao(this, epc)
@@ -228,12 +256,52 @@ class LocalizarActivity : AppCompatActivity() {
     private fun atualizarFeedback(nivel: Int) {
 
         progress.progress = nivel
+        pintarBarra(Proximidade.faixa(nivel))
         txtStatus.text = Proximidade.descricao(nivel)
 
         // Quanto mais perto, mais rápido o bip e mais forte a vibração
         if (ritmoBip.liberar(Proximidade.intervaloFeedbackMs(nivel))) {
             aviso.bip(DURACAO_BIP_MS, Proximidade.duracaoVibracaoMs(nivel))
         }
+    }
+
+    /** Cor da barra pela faixa de proximidade: cinza longe, âmbar aproximando, verde muito perto. */
+    private fun pintarBarra(faixa: Proximidade.Faixa) {
+        if (faixa == faixaPintada) return
+        faixaPintada = faixa
+        val cor = when (faixa) {
+            Proximidade.Faixa.LONGE -> R.color.texto_terciario
+            Proximidade.Faixa.APROXIMANDO -> R.color.atencao
+            Proximidade.Faixa.MUITO_PERTO -> R.color.sucesso
+        }
+        progress.setIndicatorColor(ContextCompat.getColor(this, cor))
+    }
+
+    // ================= BUSCA RECOLHIDA =================
+
+    /** Recolhe o cartão de busca e mostra "Procurando: Patrimônio X" (ou o EPC, para item sem patrimônio). */
+    private fun mostrarProcurando(epc: String, patrimonio: String?) {
+        txtProcurando.text = when (val alvo = RegrasLocalizar.alvo(epc, patrimonio)) {
+            is RegrasLocalizar.Alvo.Patrimonio -> getString(R.string.localizar_procurando_patrimonio, alvo.patrimonio)
+            is RegrasLocalizar.Alvo.Epc -> getString(R.string.localizar_procurando_epc, alvo.epc)
+        }
+        cartaoBusca.isVisible = false
+        linhaProcurando.isVisible = true
+    }
+
+    /** "Alterar": volta o cartão de busca com o campo pronto para digitar (a localização atual segue até buscar outro). */
+    private fun alterarBusca() {
+        linhaProcurando.isVisible = false
+        cartaoBusca.isVisible = true
+        edtPatrimonio.requestFocus()
+        edtPatrimonio.text?.let { edtPatrimonio.setSelection(it.length) }
+        getSystemService(InputMethodManager::class.java)?.showSoftInput(edtPatrimonio, InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    /** Tira o teclado da frente do cartão de proximidade e solta o foco do campo. */
+    private fun fecharTeclado() {
+        getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(edtPatrimonio.windowToken, 0)
+        edtPatrimonio.clearFocus()
     }
 
     private fun toast(msg: String) {
@@ -243,6 +311,7 @@ class LocalizarActivity : AppCompatActivity() {
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         epcLocalizando?.let { outState.putString(ESTADO_EPC, it) }
+        patrimonioLocalizando?.let { outState.putString(ESTADO_PATRIMONIO, it) }
     }
 
     override fun onDestroy() {
@@ -264,6 +333,7 @@ class LocalizarActivity : AppCompatActivity() {
         /** EPC já conhecido (usado pelo inventário): localiza direto, sem consultar o servidor. */
         const val EXTRA_EPC = "epc"
         private const val ESTADO_EPC = "epc_localizando"
+        private const val ESTADO_PATRIMONIO = "patrimonio_localizando"
         private const val DURACAO_BIP_MS = 80
     }
 }

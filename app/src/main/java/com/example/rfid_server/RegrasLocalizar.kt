@@ -27,6 +27,18 @@ object RegrasLocalizar {
         else -> Inicio.Nada
     }
 
+    /**
+     * O que aparece na linha "Procurando: …" enquanto localiza (com o cartão de busca recolhido): o patrimônio,
+     * quando conhecido; senão o EPC (item sem patrimônio aberto pelo inventário).
+     */
+    sealed class Alvo {
+        data class Patrimonio(val patrimonio: String) : Alvo()
+        data class Epc(val epc: String) : Alvo()
+    }
+
+    fun alvo(epc: String, patrimonio: String?): Alvo =
+        if (!patrimonio.isNullOrBlank()) Alvo.Patrimonio(patrimonio.trim()) else Alvo.Epc(epc)
+
     enum class AcaoTecla {
         /** Dispara a busca (mesma ação do botão Buscar). */
         BUSCAR,
@@ -41,8 +53,14 @@ object RegrasLocalizar {
      * de barras (DataWedge) e o teclado físico mandam Enter, que chega duas vezes (apertado e solto):
      * busca só no apertado, senão a busca sairia duplicada.
      */
-    fun acaoTecla(actionId: Int, keyCode: Int?, keyAction: Int?): AcaoTecla = when {
-        actionId == EditorInfo.IME_ACTION_SEARCH -> AcaoTecla.BUSCAR
+    fun acaoTecla(
+        actionId: Int,
+        keyCode: Int?,
+        keyAction: Int?,
+        /** Ação do teclado virtual que dispara (o inventário usa IME_ACTION_GO no campo do local). */
+        acaoDoTeclado: Int = EditorInfo.IME_ACTION_SEARCH
+    ): AcaoTecla = when {
+        actionId == acaoDoTeclado -> AcaoTecla.BUSCAR
         keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER ->
             if (keyAction == KeyEvent.ACTION_DOWN) AcaoTecla.BUSCAR else AcaoTecla.CONSUMIR
         else -> AcaoTecla.IGNORAR

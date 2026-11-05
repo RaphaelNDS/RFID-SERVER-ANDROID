@@ -78,4 +78,26 @@ class ProximidadeTest {
         assertEquals(0, Proximidade.nivelDaDistancia(-5))
         assertEquals(100, Proximidade.nivelDaDistancia(140))
     }
+
+    @Test
+    fun `cor da barra por faixa - cinza longe, ambar aproximando, verde muito perto`() {
+        assertEquals(Proximidade.Faixa.LONGE, Proximidade.faixa(0))
+        assertEquals(Proximidade.Faixa.LONGE, Proximidade.faixa(49))
+        assertEquals(Proximidade.Faixa.APROXIMANDO, Proximidade.faixa(50))
+        assertEquals(Proximidade.Faixa.APROXIMANDO, Proximidade.faixa(69))
+        assertEquals(Proximidade.Faixa.MUITO_PERTO, Proximidade.faixa(70))
+        assertEquals(Proximidade.Faixa.MUITO_PERTO, Proximidade.faixa(100))
+    }
+
+    @Test
+    fun `faixa de cor acompanha o texto e nunca diminui quando chega mais perto`() {
+        // Mesmos cortes do texto: "Aproximando" é âmbar e "Muito perto" em diante é verde
+        assertEquals("Aproximando", Proximidade.descricao(50))
+        assertEquals(Proximidade.Faixa.APROXIMANDO, Proximidade.faixa(50))
+        assertEquals("Muito perto", Proximidade.descricao(70))
+        assertEquals(Proximidade.Faixa.MUITO_PERTO, Proximidade.faixa(70))
+        for (nivel in 0 until 100) {
+            assertTrue("nível $nivel", Proximidade.faixa(nivel + 1).ordinal >= Proximidade.faixa(nivel).ordinal)
+        }
+    }
 }

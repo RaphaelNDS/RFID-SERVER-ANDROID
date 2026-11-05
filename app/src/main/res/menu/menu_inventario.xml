@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Barra do inventário (InventarioActivity). Só aparece com inventário em andamento -->
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- Ação destrutiva: no menu de três pontos (não fica ao alcance de um toque sem querer) e em vermelho
+         (a tela pinta o texto). Mantém a confirmação e a regra de só cancelar o que não foi enviado -->
+    <item
+        android:id="@+id/menu_cancelar_inventario"
+        android:title="@string/inventario_cancelar"
+        android:visible="false"
+        app:showAsAction="never" />
+
+</menu>
