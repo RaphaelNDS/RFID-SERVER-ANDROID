@@ -49,6 +49,7 @@ import com.example.rfid_server.sincronizacao.EstadoSincronizacao
 import com.example.rfid_server.sincronizacao.Sincronizador
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.tabs.TabLayout
+import com.google.android.material.textfield.TextInputLayout
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
 
@@ -70,6 +71,8 @@ class InventarioActivity : AppCompatActivity() {
     private lateinit var painelInicio: View
     private lateinit var painelAndamento: LinearLayout
     private lateinit var edtLocal: AutoCompleteTextView
+    // Moldura do campo do local: mostra o erro de local grande embaixo do campo
+    private lateinit var campoLocal: TextInputLayout
     // Barra do topo: seta de voltar, local no subtítulo e "Cancelar inventário" no menu
     private lateinit var barra: MaterialToolbar
     private lateinit var txtResumo: TextView
@@ -147,6 +150,7 @@ class InventarioActivity : AppCompatActivity() {
         painelInicio = findViewById(R.id.painelInicio)
         painelAndamento = findViewById(R.id.painelAndamento)
         edtLocal = findViewById(R.id.edtLocal)
+        campoLocal = findViewById(R.id.campoLocal)
         txtResumo = findViewById(R.id.txtResumo)
         txtReferencia = findViewById(R.id.txtReferencia)
         txtRecusado = findViewById(R.id.txtRecusado)
@@ -193,6 +197,8 @@ class InventarioActivity : AppCompatActivity() {
         }
         // Escolheu uma sugestão: o local está pronto, o teclado sai da frente do botão
         edtLocal.setOnItemClickListener { _, _, _, _ -> fecharTeclado(edtLocal) }
+        // O aviso de local grande some quando o operador mexe no nome (volta o exemplo embaixo do campo)
+        edtLocal.doAfterTextChanged { if (campoLocal.error != null) campoLocal.error = null }
 
         // Filtro só em memória: refaz a lista no próximo cálculo (agrupado como as leituras)
         edtFiltro.doAfterTextChanged {
@@ -598,9 +604,11 @@ class InventarioActivity : AppCompatActivity() {
         }
         if (!LocalInventario.dentroDoLimite(local)) {
             Log.w(TAG, "Inventário não iniciado: local com ${local.length} caracteres (máximo ${LocalInventario.MAXIMO})")
-            edtLocal.error = getString(R.string.inventario_local_grande, LocalInventario.MAXIMO, local.length)
+            // No TextInputLayout: a mensagem fica embaixo do campo (no lugar do exemplo), sem o balão do EditText
+            campoLocal.error = getString(R.string.inventario_local_grande, LocalInventario.MAXIMO, local.length)
             return
         }
+        campoLocal.error = null
 
         // Local válido: teclado e sugestões saem da frente (da pergunta do local novo e, depois, da lista)
         edtLocal.dismissDropDown()

@@ -133,7 +133,8 @@ class LocalizarActivity : AppCompatActivity() {
     }
 
     private fun buscarDoCampo() {
-        val patrimonio = edtPatrimonio.text.toString().trim()
+        // O cadastro grava o patrimônio em MAIÚSCULAS: "ab12" digitado (ou lido pelo código de barras) acha o "AB12"
+        val patrimonio = RegrasLocalizar.normalizarPatrimonio(edtPatrimonio.text.toString())
 
         if (patrimonio.isEmpty()) {
             toast(getString(R.string.localizar_digite_patrimonio))

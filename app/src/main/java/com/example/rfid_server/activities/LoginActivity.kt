@@ -4,8 +4,8 @@ import com.example.rfid_server.erros.MascaraSensivel
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import android.view.KeyEvent
 import android.view.View
-import android.view.inputmethod.EditorInfo
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -56,18 +56,30 @@ class LoginActivity : AppCompatActivity() {
         edtEmail.setText(AppConfig.getUltimoEmail(this))
         if (edtEmail.text.isNotEmpty()) edtSenha.requestFocus()
 
-        // Sessão encerrada porque o servidor a recusou (ex.: usuário desativado): mostra o porquê uma vez (é apagado ao
-        // ler). Ao recriar a tela (rotação), volta o aviso que estava na tela
-        val motivoServidor = if (savedInstanceState == null) AppConfig.tirarMotivoFimSessao(this) else null
-        if (motivoServidor != null) Log.i(TAG, "Sessão anterior encerrada pelo servidor ($motivoServidor): operador avisado na tela de login")
+        // Sessão encerrada porque o servidor a recusou (ex.: usuário desativado): mostra de quem era e o porquê, uma vez
+        // (é apagado ao ler; com mais de 12 h é descartado). Ao recriar a tela (rotação), volta o aviso que estava na tela
+        val fimSessao = if (savedInstanceState == null) AppConfig.tirarMotivoFimSessao(this) else null
+        if (fimSessao != null) {
+            Log.i(TAG, "Sessão de ${MascaraSensivel.email(fimSessao.email)} encerrada pelo servidor (${fimSessao.motivoServidor}): aviso na tela de login")
+        }
         val aviso = savedInstanceState?.getString(ESTADO_AVISO)
-            ?: motivoServidor?.let { getString(mensagemFimSessao(it)) }
+            ?: fimSessao?.let { avisoFimSessao(it) }
             ?: intent.getStringExtra(EXTRA_MOTIVO)
         aviso?.let { mostrarErro(it) }
 
         btnEntrar.setOnClickListener { entrar() }
-        edtSenha.setOnEditorActionListener { _, acao, _ ->
-            if (acao == EditorInfo.IME_ACTION_DONE) { entrar(); true } else false
+        // Concluir do teclado na tela ou Enter do teclado físico do MC3300x (chega como IME_NULL com KEYCODE_ENTER):
+        // entra. Mesma regra dos campos dos diálogos (o Enter solto depois é só consumido)
+        edtSenha.setOnEditorActionListener { _, acao, evento ->
+            val enter = evento?.keyCode == KeyEvent.KEYCODE_ENTER
+            when (CampoDialogo.respostaTeclado(acao, enter, evento?.action == KeyEvent.ACTION_DOWN)) {
+                CampoDialogo.RespostaTeclado.CONFIRMAR -> {
+                    if (btnEntrar.isEnabled) entrar()
+                    true
+                }
+                CampoDialogo.RespostaTeclado.CONSUMIR -> true
+                CampoDialogo.RespostaTeclado.IGNORAR -> false
+            }
         }
         findViewById<Button>(R.id.btnEsqueciSenha).setOnClickListener { esqueciSenha() }
         findViewById<Button>(R.id.btnConfiguracoes).setOnClickListener {
@@ -213,6 +225,12 @@ class LoginActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /** "A sessão de r***@empresa.com foi encerrada: <motivo>" (sem email guardado, só o motivo). */
+    private fun avisoFimSessao(fim: AppConfig.FimSessao): String {
+        val motivo = getString(mensagemFimSessao(fim.motivoServidor))
+        return if (fim.email.isBlank()) motivo else getString(R.string.login_sessao_de_encerrada, MascaraSensivel.email(fim.email), motivo)
     }
 
     private fun mostrarErro(mensagem: String) {

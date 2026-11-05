@@ -53,6 +53,26 @@ class RegrasLocalizarTest {
     }
 
     @Test
+    fun `patrimonio pedido por outra tela vai em maiusculas, como o cadastro grava`() {
+        assertEquals(Inicio.PorPatrimonio("AB-12C"), RegrasLocalizar.inicio(null, " ab-12c "))
+    }
+
+    @Test
+    fun `busca do campo tira os espacos das pontas e converte para maiusculas`() {
+        assertEquals("AB12", RegrasLocalizar.normalizarPatrimonio("  ab12 "))
+        assertEquals("12345", RegrasLocalizar.normalizarPatrimonio("12345"))
+        assertEquals("", RegrasLocalizar.normalizarPatrimonio("   "))
+        // Locale.ROOT: o "i" vira "I" mesmo com o aparelho em turco (lá viraria "İ")
+        val antes = java.util.Locale.getDefault()
+        try {
+            java.util.Locale.setDefault(java.util.Locale.forLanguageTag("tr-TR"))
+            assertEquals("PI-01", RegrasLocalizar.normalizarPatrimonio("pi-01"))
+        } finally {
+            java.util.Locale.setDefault(antes)
+        }
+    }
+
+    @Test
     fun `sem nada nao comeca`() {
         assertEquals(Inicio.Nada, RegrasLocalizar.inicio(null, null))
         assertEquals(Inicio.Nada, RegrasLocalizar.inicio("", " "))

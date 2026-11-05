@@ -19,8 +19,10 @@ internal object RegraFalhas {
 
     fun paraTudo(falha: RespostaServidor.Falha): Boolean = falha.motivo in AMBIENTE
 
+    // MUITAS_TENTATIVAS (429): o servidor bloqueou o coletor inteiro; cada requisição a mais só mantém o bloqueio
     private val AMBIENTE = setOf(
-        MotivoFalha.SEM_CONEXAO, MotivoFalha.CHAVE_INVALIDA, MotivoFalha.ENDERECO_INVALIDO, MotivoFalha.CERTIFICADO
+        MotivoFalha.SEM_CONEXAO, MotivoFalha.CHAVE_INVALIDA, MotivoFalha.ENDERECO_INVALIDO, MotivoFalha.CERTIFICADO,
+        MotivoFalha.MUITAS_TENTATIVAS
     )
 
     /** Conta os erros seguidos de uma etapa e guarda o primeiro, para devolver no fim. */

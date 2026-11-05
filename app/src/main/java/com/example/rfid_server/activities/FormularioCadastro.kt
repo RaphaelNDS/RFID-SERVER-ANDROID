@@ -1,9 +1,11 @@
 package com.example.rfid_server.activities
 
+import java.util.Locale
+
 /**
  * Valores do formulário de cadastro de etiqueta (lógica pura, testável sem Android).
  * Usado para saber se o operador mudou algo que ainda não salvou, e perguntar antes de descartar.
- * Textos comparados sem espaços nas pontas (o salvar também usa trim).
+ * Textos comparados como são salvos ([normalizarCodigo]: sem espaços nas pontas e em maiúsculas).
  */
 data class FormularioCadastro(
     val codigoInterno: String = "",
@@ -14,13 +16,22 @@ data class FormularioCadastro(
     val modeloId: Long? = null
 ) {
     private fun normalizado() = copy(
-        codigoInterno = codigoInterno.trim(),
-        patrimonio = patrimonio.trim(),
-        numeroSerie = numeroSerie.trim()
+        codigoInterno = normalizarCodigo(codigoInterno),
+        patrimonio = normalizarCodigo(patrimonio),
+        numeroSerie = normalizarCodigo(numeroSerie)
     )
 
     /** true quando há diferença em relação ao que estava salvo (ou ao formulário vazio, num cadastro novo). */
     fun alteradoEmRelacaoA(base: FormularioCadastro): Boolean = normalizado() != base.normalizado()
+
+    companion object {
+        /**
+         * Patrimônio, código interno e número de série como são guardados e enviados: sem espaços nas pontas e em
+         * MAIÚSCULAS. O servidor compara o patrimônio com igualdade exata ("pat-1" ≠ "PAT-1"), e o DataWedge e o
+         * teclado físico gravam como vier, mesmo com o campo em textCapCharacters.
+         */
+        fun normalizarCodigo(texto: String): String = texto.trim().uppercase(Locale.ROOT)
+    }
 }
 
 /**
