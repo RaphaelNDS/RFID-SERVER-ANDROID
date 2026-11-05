@@ -135,6 +135,13 @@ interface InventarioDao {
     )
     fun contarItensNaoEnviados(): LiveData<Int>
 
+    /** Como [contarItensNaoEnviados], mas na hora (bloqueante): estado da fila mandado ao servidor nos cabeçalhos. */
+    @Query(
+        """SELECT COUNT(*) FROM inventario_itens WHERE enviado = 0
+           AND inventarioId NOT IN (SELECT id FROM inventarios WHERE recusadoEm IS NOT NULL)"""
+    )
+    fun contarItensNaoEnviadosAgora(): Int
+
     @Query("SELECT COUNT(*) FROM inventario_itens WHERE inventarioId = :inventarioId AND enviado = 0")
     fun contarItensNaoEnviados(inventarioId: String): LiveData<Int>
 

@@ -46,6 +46,28 @@ class RepositorioInventarioTest {
     }
 
     @Test
+    fun `abrir e finalizar leem a sessao na thread do repositorio`() {
+        // Executor que só roda quando o teste manda: a tela não pode tocar no cofre (cifrar e gravar)
+        val tarefas = ArrayDeque<Runnable>()
+        var lidas = 0
+        val repositorio = RepositorioInventario(dao, { tarefas.addLast(it) }, {}, { agora }, { "inv-x" },
+            sessaoAtual = { lidas++; sessao })
+        while (tarefas.isNotEmpty()) tarefas.removeFirst().run()   // retomada e avisos do init
+        var aberto: Boolean? = null
+        var total: Int? = -1
+
+        repositorio.abrir("Sala") { aberto = it }
+        repositorio.finalizar { total = it }
+        assertEquals("Nada na thread de quem chamou", 0, lidas)
+
+        while (tarefas.isNotEmpty()) tarefas.removeFirst().run()
+        assertEquals(2, lidas)
+        assertEquals(true, aberto)
+        assertEquals(0, total)
+        assertEquals("sessao-ana", dao.inventario("inv-x").sessaoFinalizacao)
+    }
+
+    @Test
     fun `nao abre um segundo inventario nem com local vazio`() {
         val repositorio = repositorio()
         val resultados = mutableListOf<Boolean>()

@@ -62,9 +62,10 @@ class RepositorioInventario internal constructor(
     fun abrir(local: String, aoTerminar: (Boolean) -> Unit = {}) {
         val nome = local.trim().replace(Regex("\\s+"), " ")
         val iniciadoEm = relogio()
-        val sessao = sessaoAtual()
 
         executor.execute {
+            // Na thread do repositório: na primeira vez a referência cifra o token e grava (commit) no CofreSessoes
+            val sessao = sessaoAtual()
             if (sessao == null) {
                 Log.w(TAG, "Inventário não aberto: nenhum operador logado")
                 aoTerminar(false)
@@ -119,9 +120,10 @@ class RepositorioInventario internal constructor(
      */
     fun finalizar(aoTerminar: (Int?) -> Unit = {}) {
         val finalizadoEm = relogio()
-        val sessao = sessaoAtual()
 
         executor.execute {
+            // Na thread do repositório, como no abrir (o CofreSessoes pode cifrar e gravar)
+            val sessao = sessaoAtual()
             // Como no abrir: sem sessão a finalização iria ao servidor sem operador e seria recusada.
             // O inventário continua aberto, e o operador finaliza depois de entrar de novo
             if (sessao == null) {

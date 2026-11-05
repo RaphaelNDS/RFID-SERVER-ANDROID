@@ -28,24 +28,28 @@ class RepositorioCadastros internal constructor(
 
     /** [aoTerminar] recebe false se não havia operador logado (nada é guardado). */
     fun salvar(cadastro: CadastroEntity, aoTerminar: (Boolean) -> Unit = {}) {
-        val sessao = sessaoAtual() ?: run {
-            Log.w(TAG, "Cadastro da etiqueta ${cadastro.epc} não guardado: nenhum operador logado")
-            aoTerminar(false)
-            return
-        }
-        val novo = cadastro.copy(
-            id = 0,
-            epc = cadastro.epc.trim(),
-            codigoInterno = cadastro.codigoInterno.trim(),
-            patrimonio = cadastro.patrimonio.trim(),
-            numeroSerie = cadastro.numeroSerie.trim(),
-            criadoEm = relogio(),
-            situacao = SituacaoCadastro.PENDENTE,
-            erro = null,
-            sessaoOperador = sessao
-        )
+        val criadoEm = relogio()
 
         executor.execute {
+            // Na thread do repositório: na primeira vez a referência cifra o token e grava (commit) no CofreSessoes.
+            // Sem operador logado nada é guardado e [aoTerminar] recebe false (a tela já volta para a thread principal)
+            val sessao = sessaoAtual() ?: run {
+                Log.w(TAG, "Cadastro da etiqueta ${cadastro.epc} não guardado: nenhum operador logado")
+                aoTerminar(false)
+                return@execute
+            }
+            val novo = cadastro.copy(
+                id = 0,
+                epc = cadastro.epc.trim(),
+                codigoInterno = cadastro.codigoInterno.trim(),
+                patrimonio = cadastro.patrimonio.trim(),
+                numeroSerie = cadastro.numeroSerie.trim(),
+                criadoEm = criadoEm,
+                situacao = SituacaoCadastro.PENDENTE,
+                erro = null,
+                sessaoOperador = sessao
+            )
+
             val anterior = dao.porEpc(novo.epc)
             dao.salvar(novo)
 

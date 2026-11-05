@@ -24,6 +24,32 @@ class RfidApp : Application() {
             }
             padrao?.uncaughtException(thread, erro)
         }
+
+        aquecerSegredos()
+    }
+
+    /**
+     * Abre o Keystore fora da thread principal: decifrar a sessão e a chave do coletor (e, no primeiro uso, criar a
+     * chave do Keystore e regravar cifrado o texto puro antigo) leva dezenas de milissegundos. Depois disso os valores
+     * ficam no cache do AppConfig e a primeira tela não espera. O CofreSessoes já fica pronto para a primeira leitura.
+     * Se falhar aqui, nada muda: cada um tenta de novo quando for usado.
+     */
+    private fun aquecerSegredos() {
+        // Nos testes (Robolectric cria este Application em cada teste) não há Keystore, e a thread mexeria no cache
+        // do AppConfig e no CofreSessoes enquanto os próprios testes usam os falsos
+        if (android.os.Build.FINGERPRINT == "robolectric") return
+        val app = this
+        Thread({
+            try {
+                val inicio = android.os.SystemClock.elapsedRealtime()
+                AppConfig.getSessao(app)
+                AppConfig.getChaveDispositivo(app)
+                CofreSessoes.get(app)
+                Log.d(TAG, "Segredos preparados em segundo plano em ${android.os.SystemClock.elapsedRealtime() - inicio} ms")
+            } catch (e: Exception) {
+                Log.w(TAG, "Não foi possível preparar os segredos em segundo plano: serão lidos quando forem usados", e)
+            }
+        }, "aquecer-segredos").start()
     }
 
     companion object {

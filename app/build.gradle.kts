@@ -213,6 +213,7 @@ dependencies {
     testImplementation(libs.androidx.arch.core.testing)    // LiveData síncrono nos testes do ViewModel
     testImplementation(libs.robolectric)                   // Android simulado no computador: banco local (Room) num SQLite de verdade
     testImplementation(libs.androidx.test.core)            // contexto do app nos testes com Robolectric
+    testImplementation(libs.work.testing)                  // roda o SincronizacaoWorker nos testes (TestListenableWorkerBuilder)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     implementation(libs.lifecycle.viewmodel.ktx)

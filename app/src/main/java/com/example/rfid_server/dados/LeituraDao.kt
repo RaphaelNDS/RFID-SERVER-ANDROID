@@ -111,6 +111,14 @@ interface LeituraDao {
     @Query("SELECT COUNT(*) FROM leituras WHERE situacao = 'PENDENTE' OR envioConcluido = 0")
     fun contarPendentes(): LiveData<Int>
 
+    /** Como [contarPendentes], mas na hora (bloqueante): estado da fila mandado ao servidor nos cabeçalhos. */
+    @Query("SELECT COUNT(*) FROM leituras WHERE situacao = 'PENDENTE' OR envioConcluido = 0")
+    fun contarPendentesAgora(): Int
+
+    /** Hora da leitura (epoch ms) da pendente mais antiga, ou null com a fila vazia. */
+    @Query("SELECT MIN(lidoEm) FROM leituras WHERE situacao = 'PENDENTE' OR envioConcluido = 0")
+    fun lidoEmPendenteMaisAntiga(): Long?
+
     /** Referências de sessão (CofreSessoes) ainda gravadas nas leituras: o token delas não pode sair do cofre. */
     @Query("SELECT DISTINCT sessaoOperador FROM leituras WHERE sessaoOperador LIKE 'sessao1:%'")
     fun sessoesEmUso(): List<String>
