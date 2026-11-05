@@ -66,7 +66,11 @@
 
         <activity android:name=".activities.InventarioActivity" android:screenOrientation="portrait" />
 
-        <activity android:name=".activities.CadastroTagActivity" android:screenOrientation="portrait" />
+        <!-- adjustResize: com o teclado aberto, a barra do "Salvar cadastro" sobe junto e fica à vista -->
+        <activity
+            android:name=".activities.CadastroTagActivity"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
 
         <!-- Entrega ao instalador do Android o APK baixado (fica no cache do app, pasta atualizacao/) -->
         <provider

@@ -23,7 +23,8 @@
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/edtChavePin"
-            android:inputType="textPassword"
+            android:inputType="textPassword|textNoSuggestions"
+            android:imeOptions="actionDone"
             android:importantForAutofill="no"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>

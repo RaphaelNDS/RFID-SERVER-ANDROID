@@ -4,15 +4,22 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- Seta de voltar: passa pelo "Descartar o cadastro?" quando há alteração não salva -->
     <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/barraCadastro"
         style="@style/Widget.RFID.Barra"
         app:title="@string/cadastro_titulo"
+        app:navigationIcon="@drawable/ic_voltar"
+        app:navigationIconTint="@color/white"
+        app:navigationContentDescription="@string/cadastro_voltar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
+    <!-- O formulário rola; o Salvar fica na barra fixa do rodapé (sobe junto com o teclado: adjustResize) -->
     <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="0dp"
+        android:layout_weight="1">
 
         <LinearLayout
             android:orientation="vertical"
@@ -68,7 +75,9 @@
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/edtCodigoInterno"
-                            android:inputType="text"
+                            android:inputType="text|textNoSuggestions|textCapCharacters"
+                            android:imeOptions="actionNext"
+                            android:importantForAutofill="no"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"/>
                     </com.google.android.material.textfield.TextInputLayout>
@@ -80,7 +89,9 @@
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/edtPatrimonio"
-                            android:inputType="text"
+                            android:inputType="text|textNoSuggestions|textCapCharacters"
+                            android:imeOptions="actionNext"
+                            android:importantForAutofill="no"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"/>
                     </com.google.android.material.textfield.TextInputLayout>
@@ -92,7 +103,9 @@
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/edtNumeroSerie"
-                            android:inputType="text"
+                            android:inputType="text|textNoSuggestions|textCapCharacters"
+                            android:imeOptions="actionDone"
+                            android:importantForAutofill="no"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"/>
                     </com.google.android.material.textfield.TextInputLayout>
@@ -150,13 +163,30 @@
                         android:layout_height="wrap_content"/>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
-
-            <Button
-                android:id="@+id/btnSalvar"
-                android:text="@string/cadastro_salvar"
-                android:layout_marginTop="16dp"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"/>
         </LinearLayout>
     </ScrollView>
+
+    <!-- Barra fixa do rodapé: o Salvar sempre à vista, sem rolar o formulário -->
+    <View
+        android:background="@color/borda"
+        android:layout_width="match_parent"
+        android:layout_height="1dp"/>
+
+    <FrameLayout
+        android:background="@color/superficie"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <Button
+            android:id="@+id/btnSalvar"
+            android:text="@string/cadastro_salvar"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"/>
+    </FrameLayout>
 </LinearLayout>

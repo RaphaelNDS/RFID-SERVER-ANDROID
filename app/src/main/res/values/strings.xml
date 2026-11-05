@@ -19,6 +19,7 @@
     <string name="comum_versao_app" translatable="false">%1$s · %2$s</string>
 
     <!-- Login -->
+    <string name="login_entrando">Entrando…</string>
     <!-- Sessão encerrada porque o servidor a recusou na sincronização (motivo do servidor) -->
     <string name="login_sessao_usuario_desativado">Seu usuário foi desativado. Fale com o administrador.</string>
     <string name="login_sessao_usuario_excluido">Seu usuário não existe mais no servidor. Fale com o administrador.</string>
@@ -112,6 +113,7 @@
     <string name="estado_leitor_reconectar">Reconectar</string>
 
     <!-- Cadastro de etiqueta -->
+    <string name="cadastro_voltar">Voltar</string>
     <string name="cadastro_sessao_terminou">Sua sessão terminou com o cadastro aberto. Digite a sua senha para continuar: o que foi preenchido não se perde.</string>
     <string name="cadastro_sessao_nao_renovada">Cadastro ainda não salvo. Toque em Salvar cadastro para digitar a senha e salvar.</string>
     <string name="cadastro_titulo">Cadastrar etiqueta</string>
@@ -232,6 +234,7 @@
     <string name="localizar_aguardando_leitor">Aguardando o leitor RFID conectar para localizar</string>
 
     <!-- Configurações -->
+    <string name="config_voltar">Voltar</string>
     <string name="config_servidor">Servidor</string>
     <string name="config_servidor_verificando">Servidor: verificando...</string>
     <string name="config_ip_hint">IP do servidor</string>

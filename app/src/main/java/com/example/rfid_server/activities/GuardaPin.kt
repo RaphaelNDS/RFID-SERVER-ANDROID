@@ -4,6 +4,7 @@ import com.example.rfid_server.erros.MascaraSensivel
 import android.os.SystemClock
 import android.util.Log
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -64,8 +65,12 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
             .setNeutralButton(R.string.pin_esqueci, null)
             .create()
 
+        // Abre com o teclado numérico na tela; o Concluir do teclado confere o PIN como o botão
+        CampoDialogo.confirmarPeloTeclado(dialogo, edtPin)
+
         // Botões tratados no onShow: com o PIN errado o diálogo continua aberto, mostrando o erro
         dialogo.setOnShowListener {
+            CampoDialogo.focarComTeclado(dialogo, edtPin)
             dialogo.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val (hash, sal) = AppConfig.getPin(activity) ?: return@setOnClickListener run { dialogo.dismiss(); liberado() }
 
@@ -118,7 +123,12 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
             .setNegativeButton(R.string.comum_cancelar, null)
             .create()
 
+        // PIN novo → Próximo vai para o "Repita o PIN"; lá o Concluir cria
+        CampoDialogo.confirmarPeloTeclado(dialogo, edtConfirmar)
+        edtPin.imeOptions = EditorInfo.IME_ACTION_NEXT
+
         dialogo.setOnShowListener {
+            CampoDialogo.focarComTeclado(dialogo, edtPin)
             dialogo.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val pin = edtPin.text.toString()
                 val problema = PinColetor.problemaDoNovo(pin, edtConfirmar.text.toString())
@@ -154,7 +164,11 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
             .apply { if (temChave) setNeutralButton(R.string.pin_liberar_com_chave, null) }
             .create()
 
+        // Email → Próximo → senha; na senha o Concluir libera
+        CampoDialogo.confirmarPeloTeclado(dialogo, edtSenha)
+
         dialogo.setOnShowListener {
+            CampoDialogo.focarComTeclado(dialogo, edtEmail)
             if (temChave) {
                 dialogo.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
                     dialogo.dismiss()
@@ -213,7 +227,10 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
             .setNegativeButton(R.string.comum_cancelar, null)
             .create()
 
+        CampoDialogo.confirmarPeloTeclado(dialogo, edtChave)
+
         dialogo.setOnShowListener {
+            CampoDialogo.focarComTeclado(dialogo, edtChave)
             dialogo.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val digitada = edtChave.text.toString()
                 if (digitada.isBlank()) {
