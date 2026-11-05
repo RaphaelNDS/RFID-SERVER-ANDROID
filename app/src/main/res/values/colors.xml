@@ -16,7 +16,7 @@
     <!-- Situação (leitor, servidor, avisos): texto forte sobre fundo claro -->
     <color name="sucesso">#FF2E7D32</color>
     <color name="sucesso_fundo">#FFE8F3EA</color>
-    <color name="atencao">#FFB26A00</color>
+    <color name="atencao">#FF8A5200</color>   <!-- 5,9:1 sobre atencao_fundo (WCAG AA) -->
     <color name="atencao_fundo">#FFFFF4E0</color>
     <color name="erro">#FFC62828</color>
     <color name="erro_fundo">#FFFDECEC</color>

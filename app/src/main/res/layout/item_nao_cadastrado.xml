@@ -36,9 +36,10 @@
                 android:layout_height="wrap_content"/>
         </LinearLayout>
 
-        <!-- Indica que o item abre outra tela -->
+        <!-- Indica que o item abre outra tela (decorativa: o leitor de tela não lê a seta) -->
         <TextView
             android:text="@string/nao_cadastradas_seta"
+            android:importantForAccessibility="no"
             android:textColor="@color/texto_terciario"
             android:textSize="24sp"
             android:layout_marginStart="8dp"

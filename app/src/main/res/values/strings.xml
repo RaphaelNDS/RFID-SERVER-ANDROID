@@ -47,7 +47,9 @@
     <string name="sessao_renovada">Sessão renovada até %1$s</string>
 
     <!-- Tela principal (leitura) -->
-    <string name="main_operador">Operador: %1$s · sessão até %2$s</string>
+    <string name="main_enviar_agora">Enviar agora</string>
+    <string name="main_enviando_agora">Enviando as leituras ao servidor…</string>
+    <string name="main_chame_responsavel">Chame o responsável pelo coletor.</string>    <string name="main_operador">Operador: %1$s · sessão até %2$s</string>
     <string name="main_aba_leitura">Leitura</string>
     <string name="main_aba_nao_cadastradas">Não cadastradas</string>
     <string name="main_enviando">Enviando</string>
@@ -103,6 +105,11 @@
     <string name="estado_leitor_reconectar">Reconectar</string>
 
     <!-- Cadastro de etiqueta -->
+    <string name="cadastro_titulo">Cadastrar etiqueta</string>
+    <string name="cadastro_descartar_titulo">Descartar o cadastro?</string>
+    <string name="cadastro_descartar_mensagem">O que foi preenchido e não foi salvo será perdido.</string>
+    <string name="cadastro_descartar">Descartar</string>
+    <string name="cadastro_continuar_editando">Continuar editando</string>
     <string name="cadastro_etiqueta">Etiqueta</string>
     <string name="cadastro_identificacao">Identificação</string>
     <string name="cadastro_codigo_interno">Código interno *</string>

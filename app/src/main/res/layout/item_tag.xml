@@ -30,12 +30,16 @@
         <TextView
             android:id="@+id/txtMarca"
             android:textAppearance="@style/Texto.RFID.Secundario"
+            android:maxLines="2"
+            android:ellipsize="end"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
 
         <TextView
             android:id="@+id/txtModelo"
             android:textAppearance="@style/Texto.RFID.Secundario"
+            android:maxLines="2"
+            android:ellipsize="end"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
 
