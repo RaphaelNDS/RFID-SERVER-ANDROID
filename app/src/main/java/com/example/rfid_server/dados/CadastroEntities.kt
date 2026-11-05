@@ -66,6 +66,10 @@ interface CadastroDao {
     @Query("SELECT COUNT(*) FROM cadastros WHERE situacao = 'PENDENTE'")
     fun contarPendentes(): LiveData<Int>
 
+    /** Como [contarPendentes], mas na hora (bloqueante): estado da fila mandado ao servidor nos cabeçalhos. */
+    @Query("SELECT COUNT(*) FROM cadastros WHERE situacao = 'PENDENTE'")
+    fun contarPendentesAgora(): Int
+
     @Query("UPDATE cadastros SET situacao = 'RECUSADO', erro = :erro WHERE id = :id")
     fun marcarRecusado(id: Long, erro: String)
 

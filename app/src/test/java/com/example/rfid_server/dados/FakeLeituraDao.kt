@@ -155,6 +155,10 @@ class FakeLeituraDao(vararg iniciais: LeituraEntity) : LeituraDao {
 
     override fun contarPendentes(): LiveData<Int> = pendentesCount.also { publicar() }
 
+    override fun contarPendentesAgora(): Int = leituras.count(::ehPendente)
+
+    override fun lidoEmPendenteMaisAntiga(): Long? = leituras.filter(::ehPendente).minOfOrNull { it.lidoEm }
+
     override fun sessoesEmUso(): List<String> =
         leituras.mapNotNull { it.sessaoOperador }.filter { it.startsWith("sessao1:") }.distinct()
 

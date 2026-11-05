@@ -140,6 +140,11 @@ class FakeInventarioDao : InventarioDao {
 
     override fun contarItensNaoEnviados(): LiveData<Int> = naoEnviados.also { publicar() }
 
+    override fun contarItensNaoEnviadosAgora(): Int {
+        val recusados = inventarios.filter { it.recusadoEm != null }.map { it.id }.toSet()
+        return itens.count { !it.enviado && it.inventarioId !in recusados }
+    }
+
     override fun contarItensNaoEnviados(inventarioId: String): LiveData<Int> =
         MutableLiveData(itens.count { it.inventarioId == inventarioId && !it.enviado })
 

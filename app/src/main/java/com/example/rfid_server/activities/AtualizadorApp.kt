@@ -182,7 +182,8 @@ class AtualizadorApp(private val activity: AppCompatActivity) {
             codigoAnunciado = versao.codigo.toLong(),
             pacoteApk = doApk?.packageName,
             certificadosApk = doApk?.let(::certificados).orEmpty(),
-            codigoApk = doApk?.let { PackageInfoCompat.getLongVersionCode(it) }
+            codigoApk = doApk?.let { PackageInfoCompat.getLongVersionCode(it) },
+            historicoApk = doApk?.let(::historicoRotacao).orEmpty()
         )
     } catch (e: Exception) {
         Log.e(TAG, "Erro ao conferir o APK baixado da versão ${versao.versaoNome}", e)
@@ -203,6 +204,17 @@ class AtualizadorApp(private val activity: AppCompatActivity) {
             info.signatures
         }
         return assinaturas.orEmpty().map { ConferenciaApk.sha256Hex(it.toByteArray()) }.toSet()
+    }
+
+    /**
+     * SHA-256 (hex) da linhagem de rotação de chave (esquema v3) do pacote: o certificado atual e os anteriores.
+     * Vazio antes do Android 9 ou com vários assinantes (aí o Android não usa linhagem e a chave tem de ser a mesma).
+     */
+    private fun historicoRotacao(info: PackageInfo): Set<String> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return emptySet()
+        val assinatura = info.signingInfo ?: return emptySet()
+        if (assinatura.hasMultipleSigners()) return emptySet()
+        return assinatura.signingCertificateHistory.orEmpty().map { ConferenciaApk.sha256Hex(it.toByteArray()) }.toSet()
     }
 
     private fun recusar(versao: VersaoPublicada, apk: File, motivo: String) {
@@ -259,15 +271,30 @@ object ConferenciaApk {
         codigoAnunciado: Long,
         pacoteApk: String?,
         certificadosApk: Set<String>,
-        codigoApk: Long?
+        codigoApk: Long?,
+        /**
+         * Linhagem de rotação de chave do APK (signingCertificateHistory, Android 9+), só quando ele tem um assinante
+         * só. Vazia = sem linhagem: a chave do APK tem de ser exatamente a do app instalado.
+         */
+        historicoApk: Set<String> = emptySet()
     ): String? = when {
         pacoteApk == null || codigoApk == null -> "o arquivo baixado não é um APK válido"
         pacoteApk != pacoteInstalado -> "o APK é de outro app ($pacoteApk, esperado $pacoteInstalado)"
         certificadosInstalado.isEmpty() -> "não foi possível ler a assinatura do app instalado"
         certificadosApk.isEmpty() -> "o APK não tem assinatura legível"
-        certificadosApk != certificadosInstalado -> "o APK foi assinado com outra chave, diferente da do app instalado"
+        !mesmaChaveOuRotacao(certificadosInstalado, certificadosApk, historicoApk) ->
+            "o APK foi assinado com outra chave, diferente da do app instalado"
         codigoApk != codigoAnunciado -> "o código de versão do APK ($codigoApk) é diferente do anunciado pelo servidor ($codigoAnunciado)"
         else -> null
+    }
+
+    /**
+     * Mesma chave do app instalado, ou chave nova por rotação (esquema v3): o APK tem um assinante só e o certificado
+     * atual do app instalado está na linhagem dele. É o que o próprio Android aceita como atualização.
+     */
+    private fun mesmaChaveOuRotacao(instalado: Set<String>, apk: Set<String>, historicoApk: Set<String>): Boolean {
+        if (apk == instalado) return true
+        return apk.size == 1 && instalado.size == 1 && apk.single() in historicoApk && instalado.single() in historicoApk
     }
 
     fun sha256Hex(bytes: ByteArray): String =

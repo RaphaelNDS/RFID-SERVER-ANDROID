@@ -42,6 +42,8 @@ class FakeCadastroDao : CadastroDao {
 
     override fun contarPendentes(): LiveData<Int> = pendentesLive.also { publicar() }
 
+    override fun contarPendentesAgora(): Int = cadastros.count { it.situacao == SituacaoCadastro.PENDENTE }
+
     override fun marcarRecusado(id: Long, erro: String) =
         alterar(id) { it.copy(situacao = SituacaoCadastro.RECUSADO, erro = erro) }
 
