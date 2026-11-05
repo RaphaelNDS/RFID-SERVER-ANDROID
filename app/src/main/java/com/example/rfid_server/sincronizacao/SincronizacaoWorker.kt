@@ -12,6 +12,8 @@ import androidx.work.PeriodicWorkRequest
 import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import com.example.rfid_server.erros.RegistroErros
+import com.example.rfid_server.erros.TipoErro
 import java.util.concurrent.TimeUnit
 
 /**
@@ -25,7 +27,14 @@ class SincronizacaoWorker(context: Context, params: WorkerParameters) : Worker(c
         Log.i(TAG, "Sincronização em segundo plano iniciada (tentativa ${runAttemptCount + 1})")
 
         // Sem agendar outra tentativa lá dentro: quem pede a nova tentativa aqui é o Result.retry()
-        val estado = Sincronizador.get(applicationContext).processarPendentes(agendarSeFalhar = false)
+        val estado = try {
+            Sincronizador.get(applicationContext).processarPendentes(agendarSeFalhar = false)
+        } catch (e: Throwable) {
+            // Ex.: banco local sem espaço. Sem isto o WorkManager marcava como falha definitiva e só a periódica voltava
+            Log.e(TAG, "Sincronização em segundo plano falhou com erro no coletor: nova tentativa agendada", e)
+            RegistroErros.registrar(applicationContext, TipoErro.FALHA_GERAL, "Falha ao sincronizar em segundo plano: ${e.javaClass.simpleName}: ${e.message}", e)
+            return Result.retry()
+        }
 
         return when {
             estado == EstadoSincronizacao.SINCRONIZADO -> Result.success()

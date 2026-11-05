@@ -183,17 +183,44 @@ class SincronizadorTest {
     }
 
     @Test(timeout = 10_000)
-    fun `para na primeira falha do servidor sem tentar as outras leituras`() {
-        dao.inserir(LeituraEntity(epc = "E1", lidoEm = 0))
-        dao.inserir(LeituraEntity(epc = "E2", lidoEm = 0))
-        dao.inserir(LeituraEntity(epc = "E3", lidoEm = 0))
-        servidor.enqueue(json(503))
+    fun `servidor falhando em varias seguidas para depois do limite`() {
+        (1..5).forEach { dao.inserir(LeituraEntity(epc = "E$it", lidoEm = 0)) }
+        repeat(RegraFalhas.LIMITE_ERROS_SEGUIDOS) { servidor.enqueue(json(503)) }
 
         val estado = sincronizador().processarPendentes()
 
         assertEquals(EstadoSincronizacao.ERRO_SERVIDOR, estado)
-        assertEquals(1, servidor.requestCount)
+        assertEquals("Para no limite de erros seguidos: as outras nem são tentadas", RegraFalhas.LIMITE_ERROS_SEGUIDOS, servidor.requestCount)
         assertEquals(1, novasTentativasAgendadas)
+        assertTrue(dao.leituras.none { it.envioConcluido })
+    }
+
+    @Test(timeout = 10_000)
+    fun `erro do servidor numa leitura so nao trava as outras`() {
+        dao.inserir(LeituraEntity(epc = "RUIM", lidoEm = 0))
+        dao.inserir(LeituraEntity(epc = "E2", lidoEm = 0))
+        servidor.enqueue(json(500))   // consulta da RUIM: defeito no servidor só com ela
+        servidor.enqueue(json(404))   // E2: não cadastrada
+        servidor.enqueue(json(200))   // E2 enviada
+
+        val estado = sincronizador().processarPendentes()
+
+        assertEquals("Não está tudo enviado", EstadoSincronizacao.ERRO_SERVIDOR, estado)
+        assertTrue(dao.porEpc("E2").envioConcluido)
+        with(dao.porEpc("RUIM")) {
+            assertFalse("Fica na fila para tentar de novo", envioConcluido)
+            assertFalse(recusada)
+            assertNotNull(ultimoErro)
+        }
+        assertEquals(1, novasTentativasAgendadas)
+    }
+
+    @Test(timeout = 10_000)
+    fun `sem conexao para tudo na primeira leitura`() {
+        (1..3).forEach { dao.inserir(LeituraEntity(epc = "E$it", lidoEm = 0)) }
+        servidor.shutdown()
+
+        assertEquals(EstadoSincronizacao.SEM_CONEXAO, sincronizador().processarPendentes())
     }
 
     @Test(timeout = 10_000)

@@ -1,5 +1,6 @@
 package com.example.rfid_server.dados
 
+import com.example.rfid_server.ExecutorProtegido
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.LiveData
@@ -7,7 +8,6 @@ import com.example.rfid_server.CofreSessoes
 import com.example.rfid_server.SessaoAtual
 import com.example.rfid_server.sincronizacao.Sincronizador
 import java.util.concurrent.Executor
-import java.util.concurrent.Executors
 
 /**
  * Porta de entrada das leituras do coletor: grava no aparelho primeiro e só depois
@@ -50,9 +50,11 @@ class RepositorioLeituras internal constructor(
         }
 
         executor.execute {
-            if (!epcsDaSessao.add(epc)) return@execute
+            if (epc in epcsDaSessao) return@execute
 
+            // Marca como lida só depois de gravar: se a gravação falhar (memória cheia), a próxima leitura tenta de novo
             dao.inserir(LeituraEntity(epc = epc, lidoEm = lidoEm, sessaoOperador = sessao))
+            epcsDaSessao.add(epc)
             Log.d(TAG, "Tag $epc lida e guardada no aparelho")
             aoNova?.invoke()
 
@@ -88,7 +90,7 @@ class RepositorioLeituras internal constructor(
                     val sincronizador = Sincronizador.get(app)
                     RepositorioLeituras(
                         dao = BancoLocal.get(app).leituraDao(),
-                        executor = Executors.newSingleThreadExecutor(),
+                        executor = ExecutorProtegido.umaThread(app, "gravar as leituras"),
                         solicitarSincronizacao = sincronizador::solicitar,
                         sessaoAtual = { SessaoAtual.token(app)?.let { CofreSessoes.get(app).referencia(it) } }
                     )

@@ -7,6 +7,7 @@
     <string name="app_name">RFID-Android</string>
 
     <!-- Comum (vários diálogos e telas) -->
+    <string name="falha_gravar_coletor">Não foi possível guardar no coletor. Se a memória estiver cheia, libere espaço e avise o responsável.</string>
     <string name="comum_ok">OK</string>
     <string name="comum_cancelar">Cancelar</string>
     <string name="comum_depois">Depois</string>

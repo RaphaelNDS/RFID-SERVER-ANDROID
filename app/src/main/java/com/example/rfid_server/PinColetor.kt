@@ -88,6 +88,18 @@ object PinColetor {
         return maxOf(pelaParede, pelaLigacao)
     }
 
+    /**
+     * Bloqueio que já acabou (pelas duas medidas, com o aparelho ligado desde o começo dele): devolve o estado sem o
+     * bloqueio, mantendo a contagem de erros; null se não há o que limpar. Sem isto o bloqueio vencido ficava
+     * gravado e, no próximo reinício do aparelho, a regra "reiniciou: conta desde a ligação" bloqueava de novo,
+     * mesmo dias depois. O app chama ao abrir as telas de leitura e ao pedir o PIN.
+     */
+    fun semBloqueioVencido(estado: EstadoTentativas, agoraParede: Long, agoraDecorrido: Long): EstadoTentativas? {
+        if (estado.bloqueadoAte <= 0) return null
+        if (restanteBloqueio(estado, agoraParede, agoraDecorrido) > 0) return null
+        return estado.copy(bloqueadoAte = 0, inicioDecorrido = -1, duracao = 0)
+    }
+
     /** Estado depois de mais um PIN errado: soma o erro e, a cada [MAX_ERROS], bloqueia por um tempo maior. */
     fun aposErro(estado: EstadoTentativas, agoraParede: Long, agoraDecorrido: Long): EstadoTentativas {
         val erros = estado.erros + 1

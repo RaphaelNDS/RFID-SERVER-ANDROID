@@ -281,6 +281,18 @@ object AppConfig {
     /** PIN certo: zera os erros e o bloqueio. */
     fun limparTentativasPin(context: Context) = saveTentativasPin(context, PinColetor.EstadoTentativas())
 
+    /**
+     * Apaga o bloqueio do PIN que já acabou (ver PinColetor.semBloqueioVencido), para ele não voltar no próximo
+     * reinício do aparelho. Barato (só lê as preferências): chamado ao abrir as telas de leitura e ao pedir o PIN.
+     */
+    fun limparBloqueioPinVencido(context: Context) {
+        val limpo = PinColetor.semBloqueioVencido(
+            getTentativasPin(context), System.currentTimeMillis(), android.os.SystemClock.elapsedRealtime()
+        ) ?: return
+        saveTentativasPin(context, limpo)
+        Log.i(TAG, "Bloqueio do PIN das Configurações já tinha acabado: apagado (os erros seguem contados)")
+    }
+
     private const val KEY_PIN_HASH = "pin_hash"
     private const val KEY_PIN_SAL = "pin_sal"
     private const val KEY_PIN_ERROS = "pin_erros"

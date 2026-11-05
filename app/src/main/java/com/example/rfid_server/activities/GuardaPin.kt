@@ -34,6 +34,7 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
 
     private fun pedir(acao: String, liberado: () -> Unit) {
         // Relógio de parede e tempo desde a ligação: adiantar o relógio do Android não acaba com o bloqueio
+        AppConfig.limparBloqueioPinVencido(activity)
         val restante = PinColetor.restanteBloqueio(
             AppConfig.getTentativasPin(activity), System.currentTimeMillis(), SystemClock.elapsedRealtime()
         )

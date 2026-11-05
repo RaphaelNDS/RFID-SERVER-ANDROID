@@ -31,8 +31,13 @@ class SincronizadorInventarios(
 
         Log.i(TAG, "Sincronizando ${pendentes.size} inventário(s) guardado(s) no coletor")
 
+        val contador = RegraFalhas.Contador()
         for (inventario in pendentes) {
-            val falha = processar(inventario) ?: continue
+            val falha = processar(inventario)
+            if (falha == null) {
+                contador.deuCerto()
+                continue
+            }
 
             // Recusa definitiva deste inventário: registra e segue para os outros, sem travar a fila
             if (falha.motivo == MotivoFalha.REQUISICAO_RECUSADA || falha.motivo == MotivoFalha.SESSAO_INVALIDA) {
@@ -41,10 +46,14 @@ class SincronizadorInventarios(
             }
 
             dao.registrarErro(inventario.id, falha.mensagem)
-            return falha
+            // Sem rede/chave/certificado, ou o servidor falhando em vários seguidos: para. Erro do servidor só neste
+            // inventário: ele fica guardado e os outros seguem (ver RegraFalhas)
+            if (contador.falhou(falha)) return falha
+            Log.w(TAG, "Inventário ${inventario.id} (${inventario.local}) ficou na fila (${falha.mensagem}): seguindo com os outros")
         }
 
-        return limpar()
+        val limpeza = limpar()
+        return contador.primeira ?: limpeza
     }
 
     private fun limpar(): RespostaServidor.Falha? {

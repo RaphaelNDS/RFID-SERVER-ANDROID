@@ -26,9 +26,11 @@ class SincronizadorCadastros(
 
         Log.i(TAG, "Enviando ${pendentes.size} cadastro(s) de etiqueta feito(s) no coletor")
 
+        val contador = RegraFalhas.Contador()
         for (cadastro in pendentes) {
             when (val resposta = tagService.cadastrarTagAgora(cadastro)) {
                 is RespostaServidor.Sucesso -> {
+                    contador.deuCerto()
                     // Juntos numa transação: se o app morresse entre os dois, o cadastro iria de novo, o servidor
                     // responderia 409 (já cadastrada) e ele viraria "recusado" mesmo tendo dado certo
                     var atualizadas = 0
@@ -52,14 +54,17 @@ class SincronizadorCadastros(
                     cadastros.marcarRecusado(cadastro.id, resposta.mensagem)
                 } else {
                     cadastros.registrarErro(cadastro.id, resposta.mensagem)
-                    return resposta
+                    // Sem rede/chave/certificado, ou o servidor falhando em vários seguidos: para. Erro do servidor só
+                    // neste cadastro: ele fica guardado com o erro e os outros seguem (ver RegraFalhas)
+                    if (contador.falhou(resposta)) return resposta
+                    Log.w(TAG, "Cadastro da etiqueta ${cadastro.epc} ficou na fila (${resposta.mensagem}): seguindo com os outros")
                 }
 
                 RespostaServidor.NaoEncontrado -> Unit // cadastrarTagAgora não devolve NaoEncontrado
             }
         }
 
-        return null
+        return contador.primeira
     }
 
     companion object {

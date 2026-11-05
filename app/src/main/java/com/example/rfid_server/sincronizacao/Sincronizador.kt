@@ -1,5 +1,6 @@
 package com.example.rfid_server.sincronizacao
 
+import com.example.rfid_server.ExecutorProtegido
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.LiveData
@@ -17,7 +18,6 @@ import com.example.rfid_server.service.ResultadoLote
 import com.example.rfid_server.service.StatusLote
 import com.example.rfid_server.service.TagService
 import java.util.concurrent.Executor
-import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** [dependeDasConfiguracoes]: só resolve quando alguém mexe nas Configurações do coletor (repetir sozinho não adianta). */
@@ -96,9 +96,18 @@ class Sincronizador internal constructor(
     @Synchronized
     fun processarPendentes(agendarSeFalhar: Boolean = true): EstadoSincronizacao {
         // Ordem: cadastros (a leitura de uma etiqueta recém-cadastrada já chega como cadastrada) →
-        // leituras avulsas → inventários. Uma falha de comunicação para tudo.
+        // leituras avulsas → inventários. Uma falha do ambiente (rede, chave, endereço, certificado) para tudo;
+        // erro do servidor numa etapa não impede as seguintes (um cadastro com defeito não segura as leituras).
         // Leituras retidas por sessão recusada não impedem os inventários, mas a passada não está "sincronizada"
-        val falha = cadastros?.processar() ?: processarLeituras() ?: inventarios?.processar() ?: falhaDaRetencao()
+        disjuntor = DisjuntorRecusas()
+        val falhas = mutableListOf<RespostaServidor.Falha>()
+        for (etapa in listOf({ cadastros?.processar() }, { processarLeituras() }, { inventarios?.processar() }, { falhaDaRetencao() })) {
+            val f = etapa() ?: continue
+            falhas += f
+            // O disjuntor das leituras (servidor recusando tudo) também para: os inventários seriam recusados igual
+            if (RegraFalhas.paraTudo(f) || disjuntor.disparou) break
+        }
+        val falha = falhas.firstOrNull { RegraFalhas.paraTudo(it) } ?: falhas.firstOrNull()
 
         // Erro do servidor (5xx, resposta inválida): vai para a tela de erros do coletor no servidor.
         // Sem conexão, chave, endereço ou certificado não: são do ambiente e já aparecem na tela do coletor
@@ -171,8 +180,12 @@ class Sincronizador internal constructor(
 
             when (val resposta = tagService.enviarLoteAgora(lote.map { it.epc to it.lidoEm }, sessao)) {
                 is RespostaServidor.Sucesso -> {
-                    recusasDeSessao.esquecer(sessao)
+                    val retidasAntes = leiturasRetidas
                     errosNoServidor += aplicarResultados(lote, resposta.valor)
+                    // Lote aceito: a sessão vale e a recusa anterior dela é esquecida. Menos se algum item deste lote
+                    // foi retido pela sessão (motivo que pode voltar): aí o prazo de 24 h continua contando de onde
+                    // estava. Esquecer antes de aplicar o resultado recomeçava o prazo a cada passada, para sempre
+                    if (leiturasRetidas == retidasAntes) recusasDeSessao.esquecer(sessao)
                     lotesEnviados++
                     if (disjuntor.disparou) return dispararDisjuntor()
                 }
@@ -201,6 +214,7 @@ class Sincronizador internal constructor(
         // Ordem original da fila (a mais antiga primeiro)
         umaPorVez.sortBy { it.id }
         var enviadasUmaPorVez = 0
+        val contador = RegraFalhas.Contador()
         for (leitura in umaPorVez) {
             // Sessão recusada nesta passada e ainda no prazo: as outras leituras dela nem são tentadas agora
             if (leitura.sessaoOperador in sessoesRetidas) {
@@ -211,11 +225,19 @@ class Sincronizador internal constructor(
             val falha = processar(leitura)
 
             if (falha != null) {
-                val restantes = umaPorVez.size - enviadasUmaPorVez
-                Log.w(TAG, "Sincronização interrompida: ${falha.mensagem}. $restantes leitura(s) continuam guardadas no aparelho")
-                return falha
+                // Disjuntor (o servidor recusando tudo) e falhas do ambiente param na hora; erro do servidor só
+                // nesta leitura: ela fica na fila com o erro e as outras seguem (ver RegraFalhas)
+                if (disjuntor.disparou || contador.falhou(falha)) {
+                    val restantes = umaPorVez.size - enviadasUmaPorVez
+                    Log.w(TAG, "Sincronização interrompida: ${falha.mensagem}. $restantes leitura(s) continuam guardadas no aparelho")
+                    return falha
+                }
+                Log.w(TAG, "Leitura ${leitura.epc} ficou na fila (${falha.mensagem}): seguindo com as outras")
+                errosNoServidor++
+                continue
             }
 
+            contador.deuCerto()
             enviadasUmaPorVez++
         }
 
@@ -466,7 +488,7 @@ class Sincronizador internal constructor(
                     Sincronizador(
                         dao = banco.leituraDao(),
                         tagService = tagService,
-                        executor = Executors.newSingleThreadExecutor(),
+                        executor = ExecutorProtegido.umaThread(app, "sincronizar com o servidor"),
                         agendarNovaTentativa = { SincronizacaoWorker.agendarNovaTentativa(app) },
                         inventarios = SincronizadorInventarios(banco.inventarioDao(), tagService,
                             registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) }),

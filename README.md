@@ -94,6 +94,11 @@ Regras de erro:
 
 - **Falha de conexão:** para tudo e tenta de novo depois (nada se perde). Chave, endereço ou certificado errados
   também param, mas o app só tenta de novo quando alguém salva as Configurações (e na checagem de 15 min).
+- **Erro do servidor num item** (5xx, resposta inválida): só aquele item fica na fila, com o erro, e os outros
+  seguem (um cadastro com defeito não segura as leituras nem os inventários). 3 erros seguidos indicam problema
+  no servidor como um todo: aí a etapa para e tenta de novo depois.
+- **Memória do coletor cheia** (ou outro erro ao gravar): o app não fecha; avisa o operador e manda o erro para o
+  servidor. A etiqueta que não foi gravada é gravada na próxima vez que for lida.
 - **Recusa de um item específico** (erro 4xx): marca só aquele item e segue com o resto da fila. Se 5 itens
   recentes seguidos forem recusados pelo mesmo motivo, o app desconfia do servidor: devolve esses itens à fila e
   pausa o envio.
@@ -321,7 +326,7 @@ no coletor enquanto não há rede.
 | Leituras antigas recusadas | O coletor ficou offline mais que o prazo de sincronização do servidor (72 h por padrão). |
 | "Coletor sem permissão para cadastrar" | Inclua o nome do coletor em `RFID_COLETORES_CADASTRO` no servidor (e o operador precisa de RFID · Criar). |
 | Login pede para esperar | Bloqueio por senhas erradas: aguarde o tempo indicado. |
-| "PIN bloqueado" nas Configurações | 5 erros seguidos bloqueiam por 5 min; de novo, 15 min; depois 1 h. Mudar o relógio ou reiniciar não encurta. Um ADMIN libera pelo "Esqueci o PIN". |
+| "PIN bloqueado" nas Configurações | 5 erros seguidos bloqueiam por 5 min; de novo, 15 min; depois 1 h. Mudar o relógio ou reiniciar logo depois não encurta. Um ADMIN libera pelo "Esqueci o PIN". (Na 1.6.1 o bloqueio podia voltar depois de reiniciar o coletor; corrigido na 1.6.2.) |
 | Pede a chave do coletor de novo depois de restaurar o aparelho | A chave fica cifrada com uma chave do Android que se perde na restauração: digite a chave do coletor de novo. |
 | Leituras "aguardando" com sessão recusada | O servidor não reconheceu a sessão (banco restaurado, servidor novo, coletor com outro nome): as leituras esperam 24 h. Corrija o servidor nesse prazo. |
 | Leitor não lê | Confira se o leitor Zebra está conectado/carregado; a leitura só acontece com o gatilho e só na tela visível. Sem nenhuma tela de leitura aberta por 2 min o leitor é desconectado (economia de bateria) e reconecta sozinho ao abrir uma. |

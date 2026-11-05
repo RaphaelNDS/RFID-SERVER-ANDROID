@@ -1,5 +1,6 @@
 package com.example.rfid_server.dados
 
+import com.example.rfid_server.ExecutorProtegido
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.LiveData
@@ -7,7 +8,6 @@ import com.example.rfid_server.CofreSessoes
 import com.example.rfid_server.SessaoAtual
 import com.example.rfid_server.sincronizacao.Sincronizador
 import java.util.concurrent.Executor
-import java.util.concurrent.Executors
 
 /**
  * Cadastros de etiqueta feitos no coletor: grava no aparelho e o Sincronizador envia ao servidor
@@ -101,7 +101,7 @@ class RepositorioCadastros internal constructor(
                 instancia ?: context.applicationContext.let { app ->
                     RepositorioCadastros(
                         dao = BancoLocal.get(app).cadastroDao(),
-                        executor = Executors.newSingleThreadExecutor(),
+                        executor = ExecutorProtegido.umaThread(app, "gravar o cadastro"),
                         solicitarSincronizacao = Sincronizador.get(app)::solicitar,
                         sessaoAtual = { SessaoAtual.token(app)?.let { CofreSessoes.get(app).referencia(it) } }
                     )

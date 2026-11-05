@@ -234,10 +234,11 @@ class SincronizadorInventariosTest {
     }
 
     @Test(timeout = 10_000)
-    fun `falha nas leituras avulsas nao tenta os inventarios`() {
+    fun `erro do servidor nas leituras avulsas nao impede os inventarios`() {
         val leituras = FakeLeituraDao(LeituraEntity(epc = "AVULSA", lidoEm = 0))
         inventario("inv-1", finalizado = false)
-        servidor.enqueue(erro(503))
+        servidor.enqueue(erro(503))   // consulta da avulsa
+        servidor.enqueue(ok())        // abertura do inventário
         var tentativas = 0
 
         val estado = Sincronizador(
@@ -245,9 +246,40 @@ class SincronizadorInventariosTest {
             agendarNovaTentativa = { tentativas++ }, inventarios = sincronizador()
         ).processarPendentes()
 
-        assertEquals(EstadoSincronizacao.ERRO_SERVIDOR, estado)
-        assertEquals(1, servidor.requestCount)
+        assertEquals("A avulsa ficou na fila", EstadoSincronizacao.ERRO_SERVIDOR, estado)
+        assertEquals(2, servidor.requestCount)
+        assertTrue("O inventário seguiu", dao.inventario("inv-1").aberturaEnviada)
         assertEquals(1, tentativas)
+    }
+
+    @Test(timeout = 10_000)
+    fun `sem conexao nas leituras avulsas nao tenta os inventarios`() {
+        val leituras = FakeLeituraDao(LeituraEntity(epc = "AVULSA", lidoEm = 0))
+        inventario("inv-1", finalizado = false)
+        servidor.shutdown()
+
+        val estado = Sincronizador(
+            dao = leituras, tagService = tagService(), executor = Executor { it.run() }, agendarNovaTentativa = {},
+            inventarios = sincronizador()
+        ).processarPendentes()
+
+        assertEquals(EstadoSincronizacao.SEM_CONEXAO, estado)
+        assertFalse(dao.inventario("inv-1").aberturaEnviada)
+    }
+
+    @Test(timeout = 10_000)
+    fun `erro do servidor num inventario nao trava os outros`() {
+        inventario("ruim", finalizado = false, iniciadoEm = 1_000)
+        inventario("bom", finalizado = false, iniciadoEm = 2_000)
+        servidor.enqueue(erro(500))   // abertura do "ruim"
+        servidor.enqueue(ok())        // abertura do "bom"
+
+        val falha = sincronizador().processar()
+
+        assertEquals(MotivoFalha.ERRO_SERVIDOR, falha?.motivo)
+        assertFalse(dao.inventario("ruim").aberturaEnviada)
+        assertNotNull(dao.inventario("ruim").ultimoErro)
+        assertTrue(dao.inventario("bom").aberturaEnviada)
     }
 
     @Test(timeout = 10_000)

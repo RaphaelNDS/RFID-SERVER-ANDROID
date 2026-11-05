@@ -1,5 +1,6 @@
 package com.example.rfid_server.dados
 
+import com.example.rfid_server.ExecutorProtegido
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.LiveData
@@ -8,7 +9,6 @@ import com.example.rfid_server.SessaoAtual
 import com.example.rfid_server.sincronizacao.Sincronizador
 import java.util.UUID
 import java.util.concurrent.Executor
-import java.util.concurrent.Executors
 
 /**
  * Inventário por local no coletor: abre, registra as etiquetas lidas e finaliza.
@@ -149,7 +149,7 @@ class RepositorioInventario internal constructor(
                     val sincronizador = Sincronizador.get(app)
                     RepositorioInventario(
                         dao = BancoLocal.get(app).inventarioDao(),
-                        executor = Executors.newSingleThreadExecutor(),
+                        executor = ExecutorProtegido.umaThread(app, "gravar o inventário"),
                         solicitarSincronizacao = sincronizador::solicitar,
                         sessaoAtual = { SessaoAtual.token(app)?.let { CofreSessoes.get(app).referencia(it) } }
                     )
