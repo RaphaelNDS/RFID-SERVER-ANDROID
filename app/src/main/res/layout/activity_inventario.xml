@@ -10,7 +10,7 @@
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/barraInventario"
         style="@style/Widget.RFID.Barra"
-        app:title="Inventário por local"
+        app:title="@string/inventario_barra_titulo"
         app:navigationIcon="@drawable/ic_voltar"
         app:navigationContentDescription="@string/tela_voltar"
         android:layout_width="match_parent"
@@ -40,21 +40,22 @@
 
             <!-- Estilo de lista: dá ao campo com sugestões o mesmo espaçamento dos outros -->
             <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/campoLocal"
                 style="@style/Widget.RFID.Campo.Lista"
                 android:hint="@string/inventario_local_hint"
                 app:endIconMode="none"
-                app:helperText="Ex.: Sala 101, Almoxarifado"
+                app:helperText="@string/inventario_local_exemplo"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
 
                 <!-- "Ir" do teclado inicia o inventário (o teclado e as sugestões cobriam o botão). Sem a barra de
-                     sugestões do teclado: as sugestões que valem são as da lista de locais -->
+                     sugestões do teclado: as sugestões que valem são as da lista de locais. Sem maxLength: o limite
+                     (LocalInventario.MAXIMO) é conferido no "Iniciar", que avisa no campo em vez de cortar calado -->
                 <com.google.android.material.textfield.MaterialAutoCompleteTextView
                     android:id="@+id/edtLocal"
                     android:inputType="text|textNoSuggestions|textCapSentences"
                     android:imeOptions="actionGo"
                     android:maxLines="1"
-                    android:maxLength="120"
                     android:completionThreshold="1"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"/>

@@ -55,6 +55,7 @@
     <string name="sessao_renovada">Sessão renovada até %1$s</string>
 
     <!-- Tela principal (leitura) -->
+    <string name="main_aviso_relogio">Relógio %1$s: acerte a data e hora do Android.</string>
     <string name="main_contador_lidas">Lidas</string>
     <string name="main_contador_cadastradas">Cadastradas</string>
     <string name="main_contador_nao_cadastradas">Não cad.</string>
@@ -69,7 +70,7 @@
     <string name="tag_codigo_serie">Cód. %1$s · Série %2$s</string>
     <string name="main_enviar_agora">Enviar agora</string>
     <string name="main_enviando_agora">Enviando as leituras ao servidor…</string>
-    <string name="main_chame_responsavel">Chame o responsável pelo coletor.</string>    <string name="main_operador">Operador: %1$s · sessão até %2$s</string>
+    <string name="main_chame_responsavel">Chame o responsável pelo coletor.</string>    <string name="main_operador">%1$s · sessão até %2$s</string>
     <string name="main_aba_leitura">Leitura</string>
     <string name="main_aba_nao_cadastradas">Não cadastradas</string>
     <string name="main_enviando">Enviando</string>
@@ -153,6 +154,8 @@
     <string name="cadastro_guardado">Cadastro guardado: será enviado ao servidor</string>
 
     <!-- Inventário -->
+    <string name="inventario_barra_titulo">Inventário por local</string>
+    <string name="inventario_local_exemplo">Ex.: Sala 101, Almoxarifado</string>
     <string name="tela_voltar">Voltar</string>
     <string name="inventario_local_grande">O local pode ter no máximo %1$d caracteres (este tem %2$d). Encurte o nome.</string>
     <string name="inventario_lida_fora_da_lista">Fora da lista: não era esperada neste local. Toque para localizar.</string>
@@ -222,6 +225,7 @@
     <string name="esperado_codigo">Código %1$s</string>
 
     <!-- Localizar -->
+    <string name="localizar_barra_titulo">Localizar patrimônio</string>
     <string name="localizar_procurando_patrimonio">Procurando: Patrimônio %1$s</string>
     <string name="localizar_procurando_epc">Procurando: EPC %1$s</string>
     <string name="localizar_alterar">Alterar</string>
@@ -239,6 +243,7 @@
     <string name="localizar_aguardando_leitor">Aguardando o leitor RFID conectar para localizar</string>
 
     <!-- Configurações -->
+    <string name="config_barra_titulo">Configurações</string>
     <string name="config_voltar">Voltar</string>
     <string name="config_servidor">Servidor</string>
     <string name="config_servidor_verificando">Servidor: verificando...</string>

@@ -8,7 +8,7 @@
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/barraLocalizar"
         style="@style/Widget.RFID.Barra"
-        app:title="Localizar patrimônio"
+        app:title="@string/localizar_barra_titulo"
         app:navigationIcon="@drawable/ic_voltar"
         app:navigationContentDescription="@string/tela_voltar"
         android:layout_width="match_parent"
@@ -43,9 +43,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
 
+                <!-- Patrimônio em MAIÚSCULAS, como o cadastro grava (a busca também converte: RegrasLocalizar) -->
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/edtPatrimonio"
-                    android:inputType="text|textNoSuggestions"
+                    android:inputType="text|textNoSuggestions|textCapCharacters"
                     android:imeOptions="actionSearch"
                     android:maxLines="1"
                     android:layout_width="match_parent"
