@@ -5,6 +5,7 @@ import android.util.Log
 import com.example.rfid_server.erros.MascaraSensivel
 import org.json.JSONObject
 import java.time.OffsetDateTime
+import java.util.concurrent.CopyOnWriteArraySet
 
 /**
  * Operador logado neste coletor (POST /api/android/login). A sessão vale até [expiraEm] mesmo sem
@@ -56,4 +57,28 @@ object SessaoAtual {
     }
 
     fun token(context: Context): String? = get(context)?.token
+
+    // Telas abertas (AvisoSessao) que querem saber na hora que a sessão foi encerrada pelo servidor
+    private val ouvintes = CopyOnWriteArraySet<() -> Unit>()
+
+    fun ouvirEncerramento(ouvinte: () -> Unit) { ouvintes += ouvinte }
+
+    fun pararDeOuvir(ouvinte: () -> Unit) { ouvintes -= ouvinte }
+
+    /**
+     * O servidor recusou de vez a sessão [token] (ver sincronizacao.FimDaSessaoAtual): encerra, se ela ainda for a
+     * atual, guarda o [motivoServidor] para a tela de login e avisa as telas abertas. Devolve true se encerrou.
+     * Chamado na thread da sincronização: os ouvintes cuidam de passar para a thread principal.
+     */
+    fun encerrarPeloServidor(context: Context, token: String, motivoServidor: String): Boolean {
+        if (!AppConfig.encerrarSessaoRecusada(context, token, motivoServidor)) return false
+        ouvintes.forEach { ouvinte ->
+            try {
+                ouvinte()
+            } catch (e: Exception) {
+                Log.e(TAG, "Falha ao avisar uma tela do fim da sessão", e)
+            }
+        }
+        return true
+    }
 }

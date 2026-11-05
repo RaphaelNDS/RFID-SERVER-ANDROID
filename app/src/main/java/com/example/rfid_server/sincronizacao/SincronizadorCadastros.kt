@@ -29,6 +29,8 @@ class SincronizadorCadastros(
      */
     private val recusasDeSessao: RecusasDeSessao = RecusasDeSessaoEmMemoria(),
     private val relogio: () -> Long = System::currentTimeMillis,
+    /** O servidor recusou a sessão de um cadastro (sessão gravada, motivo do servidor, mensagem): ver Sincronizador. */
+    private val aoRecusarSessao: (sessao: String, motivoSessao: String?, mensagem: String) -> Unit = { _, _, _ -> },
     /** Transação do banco (em produção, runInTransaction; nos testes, direto). Último: os testes passam como lambda final. */
     private val emTransacao: (() -> Unit) -> Unit = { it() }
 ) {
@@ -53,7 +55,14 @@ class SincronizadorCadastros(
                 continue
             }
 
-            when (val resposta = tagService.cadastrarTagAgora(cadastro)) {
+            val resposta = tagService.cadastrarTagAgora(cadastro)
+            // Sessão atual que não serve mais (ex.: usuário desativado): o operador volta ao login. O cadastro segue a regra abaixo
+            val sessao = cadastro.sessaoOperador
+            if (resposta is RespostaServidor.Falha && resposta.motivo == MotivoFalha.SESSAO_INVALIDA && sessao != null) {
+                aoRecusarSessao(sessao, resposta.motivoSessao, resposta.mensagem)
+            }
+
+            when (resposta) {
                 is RespostaServidor.Sucesso -> {
                     contador.deuCerto()
                     cadastro.sessaoOperador?.let { recusasDeSessao.esquecer(it) }
