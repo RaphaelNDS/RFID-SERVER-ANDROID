@@ -44,7 +44,19 @@ enum class EstadoSincronizacao(
      * tentativas continuam (o servidor pode voltar a aceitar, ex.: banco restaurado), mas quem resolve é entrar de novo.
      */
     SESSAO_RECUSADA("O servidor recusou a sessão do operador: saia e entre de novo", resolveEntrandoDeNovo = true),
-    CERTIFICADO("Certificado do servidor não confirmado ou diferente: veja as Configurações", dependeDasConfiguracoes = true)
+    /**
+     * Registros retidos por sessão recusada, mas nenhum é da sessão ATUAL (sessões anteriores ou de outro operador):
+     * sair e entrar de novo não muda nada. Esperam o prazo de 24 h ou o servidor voltar a aceitar, e "Enviar agora"
+     * continua valendo (o servidor pode já ter voltado ao normal).
+     */
+    AGUARDANDO_SESSAO_ANTERIOR("Leituras de uma sessão anterior aguardando o servidor (até 24 h)"),
+    CERTIFICADO("Certificado do servidor não confirmado ou diferente: veja as Configurações", dependeDasConfiguracoes = true),
+    /**
+     * O servidor bloqueou o coletor por muitas tentativas com a chave inválida (HTTP 429). Insistir só mantém o
+     * bloqueio: sem "Enviar agora" e sem novas tentativas a cada 30 s; quem resolve é o responsável (chave certa nas
+     * Configurações). A verificação periódica de 15 min continua.
+     */
+    SERVIDOR_BLOQUEOU("O servidor bloqueou o coletor por muitas tentativas com a chave inválida", dependeDasConfiguracoes = true)
 }
 
 /**
@@ -86,6 +98,12 @@ class Sincronizador internal constructor(
      */
     private val agendar: (atrasoMs: Long, bloco: () -> Unit) -> Unit = { _, bloco -> bloco() },
     /**
+     * A sessão gravada num registro (referência ou token puro) é a sessão atual do aparelho? Decide o estado quando há
+     * registros retidos: da sessão atual, "saia e entre de novo" (SESSAO_RECUSADA); só de sessões anteriores ou de
+     * outro operador, AGUARDANDO_SESSAO_ANTERIOR. Em produção, [FimDaSessaoAtual.ehAtual].
+     */
+    private val ehSessaoAtual: (sessao: String) -> Boolean = { true },
+    /**
      * Roda o bloco numa transação do banco (em produção, runInTransaction; nos testes, direto). O resultado de um
      * lote é gravado de uma vez: se o app morrer no meio, nenhuma leitura aceita fica na fila para ir de novo.
      */
@@ -108,6 +126,8 @@ class Sincronizador internal constructor(
     private val sessoesRetidas = mutableSetOf<String>()
     private var leiturasRetidas = 0
     private var motivoRetencao: String? = null
+    // Todas as sessões com leitura retida nesta passada (lote e uma por vez): decidem o estado (ver falhaDaRetencao)
+    private val sessoesComRetencao = mutableSetOf<String>()
 
     // Há um pedido do solicitarEmBreve agendado (os seguintes, até ele rodar, vão junto)
     private val pedidoEmBreve = AtomicBoolean(false)
@@ -176,9 +196,11 @@ class Sincronizador internal constructor(
                 if (RegraFalhas.paraTudo(f) || disjuntor.disparou) break
             }
             // Sessão recusada (registros retidos) só vira o estado da passada se não houve outra falha: um erro do
-            // servidor numa etapa seguinte é o que o operador precisa ver ("Enviar agora" pode resolver)
+            // servidor numa etapa seguinte é o que o operador precisa ver ("Enviar agora" pode resolver). Entre as
+            // retenções, a da sessão atual ("saia e entre de novo") vem antes da de sessões anteriores
             falha = falhas.firstOrNull { RegraFalhas.paraTudo(it) }
-                ?: falhas.firstOrNull { it.motivo != MotivoFalha.SESSAO_INVALIDA } ?: falhas.firstOrNull()
+                ?: falhas.firstOrNull { it.motivo !in RETENCOES }
+                ?: falhas.firstOrNull { it.motivo == MotivoFalha.SESSAO_INVALIDA } ?: falhas.firstOrNull()
 
             // Erro do servidor (5xx, resposta inválida): vai para a tela de erros do coletor no servidor.
             // Sem conexão, chave, endereço ou certificado não: são do ambiente e já aparecem na tela do coletor
@@ -189,7 +211,7 @@ class Sincronizador internal constructor(
         } finally {
             // Uma vez por passada, mesmo se a passada terminar com exceção (ex.: banco local cheio): os erros guardados
             // vão ao servidor sempre que ele pode estar respondendo. Falha do ambiente (sem rede, chave, endereço,
-            // certificado) não: o envio daria a mesma falha
+            // certificado, coletor bloqueado por muitas tentativas) não: o envio daria a mesma falha
             if (falhas.none { RegraFalhas.paraTudo(it) }) {
                 try {
                     enviarErros()
@@ -225,6 +247,7 @@ class Sincronizador internal constructor(
         disjuntor = DisjuntorRecusas()
         avisosDeRecusa.clear()
         sessoesRetidas.clear()
+        sessoesComRetencao.clear()
         leiturasRetidas = 0
         motivoRetencao = null
 
@@ -521,6 +544,7 @@ class Sincronizador internal constructor(
         dao.registrarErro(leitura.id, mensagem)
         leiturasRetidas++
         motivoRetencao = mensagem
+        sessoesComRetencao += sessao
         Log.w(TAG, "Servidor recusou a sessão do operador da tag ${leitura.epc} ($mensagem): " +
             "a leitura fica na fila e será tentada de novo (prazo de ${PRAZO_SESSAO_RECUSADA_MS / 3_600_000} h desde a primeira recusa da sessão)")
     }
@@ -531,13 +555,14 @@ class Sincronizador internal constructor(
         return agora - primeira < PRAZO_SESSAO_RECUSADA_MS
     }
 
-    /** Leituras retidas por sessão recusada: a passada termina como falha (estado na tela e nova tentativa agendada). */
+    /**
+     * Leituras retidas por sessão recusada: a passada termina como falha (estado na tela e nova tentativa agendada).
+     * Só é "a sessão do operador" (SESSAO_INVALIDA → "saia e entre de novo") se alguma retida for da sessão ATUAL; de
+     * sessões anteriores ou de outro operador é SESSAO_ANTERIOR_RETIDA (entrar de novo não resolve).
+     */
     private fun falhaDaRetencao(): RespostaServidor.Falha? {
         if (leiturasRetidas == 0) return null
-        return RespostaServidor.Falha(
-            MotivoFalha.SESSAO_INVALIDA,
-            "$leiturasRetidas leitura(s) aguardando: o servidor recusou a sessão do operador ($motivoRetencao)"
-        )
+        return falhaDeRetencao(sessoesComRetencao, ehSessaoAtual, "$leiturasRetidas leitura(s)", motivoRetencao)
     }
 
     /** As recusadas em sequência voltam para a fila e a sincronização para (o erro é registrado em processarPendentes). */
@@ -561,11 +586,36 @@ class Sincronizador internal constructor(
         MotivoFalha.ENDERECO_INVALIDO -> EstadoSincronizacao.ENDERECO_INVALIDO
         MotivoFalha.ERRO_SERVIDOR, MotivoFalha.REQUISICAO_RECUSADA -> EstadoSincronizacao.ERRO_SERVIDOR
         MotivoFalha.SESSAO_INVALIDA -> EstadoSincronizacao.SESSAO_RECUSADA
+        MotivoFalha.SESSAO_ANTERIOR_RETIDA -> EstadoSincronizacao.AGUARDANDO_SESSAO_ANTERIOR
         MotivoFalha.CERTIFICADO -> EstadoSincronizacao.CERTIFICADO
+        MotivoFalha.MUITAS_TENTATIVAS -> EstadoSincronizacao.SERVIDOR_BLOQUEOU
     }
 
     companion object {
         private const val TAG = "SINCRONIZACAO"
+
+        /** Falhas de registros retidos por sessão recusada (não interrompem a passada). */
+        private val RETENCOES = setOf(MotivoFalha.SESSAO_INVALIDA, MotivoFalha.SESSAO_ANTERIOR_RETIDA)
+
+        /**
+         * Falha de fim de etapa para os registros retidos por sessão recusada ([quantos]: "3 leitura(s)", "1 cadastro(s)").
+         * SESSAO_INVALIDA se alguma das [sessoes] retidas for a atual ([ehSessaoAtual]); senão SESSAO_ANTERIOR_RETIDA.
+         */
+        internal fun falhaDeRetencao(
+            sessoes: Set<String>,
+            ehSessaoAtual: (String) -> Boolean,
+            quantos: String,
+            motivo: String?
+        ): RespostaServidor.Falha =
+            if (sessoes.any(ehSessaoAtual)) {
+                RespostaServidor.Falha(MotivoFalha.SESSAO_INVALIDA, "$quantos aguardando: o servidor recusou a sessão do operador ($motivo)")
+            } else {
+                RespostaServidor.Falha(
+                    MotivoFalha.SESSAO_ANTERIOR_RETIDA,
+                    "$quantos de sessão anterior aguardando: o servidor recusou a sessão ($motivo); prazo de até " +
+                        "${PRAZO_SESSAO_RECUSADA_MS / 3_600_000} h"
+                )
+            }
 
         /** Leituras por requisição (o servidor aceita até 500). */
         internal const val TAMANHO_LOTE = 100
@@ -620,6 +670,7 @@ class Sincronizador internal constructor(
                             registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) },
                             recusasDeSessao = RecusasDeSessaoGuardadas(app, RecusasDeSessaoGuardadas.ARQUIVO_CADASTROS),
                             aoRecusarSessao = aoRecusarSessao,
+                            ehSessaoAtual = fimDaSessao::ehAtual,
                             emTransacao = emTransacao
                         ),
                         registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) },
@@ -627,6 +678,7 @@ class Sincronizador internal constructor(
                         recusasDeSessao = RecusasDeSessaoGuardadas(app),
                         aoRecusarSessao = aoRecusarSessao,
                         agendar = { atraso, bloco -> agendador.schedule({ bloco() }, atraso, TimeUnit.MILLISECONDS) },
+                        ehSessaoAtual = fimDaSessao::ehAtual,
                         emTransacao = emTransacao
                     )
                 }.also { instancia = it }

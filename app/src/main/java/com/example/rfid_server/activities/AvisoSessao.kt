@@ -37,32 +37,22 @@ class AvisoSessao(
     private val aoSessaoAcabar: (() -> Boolean)? = null
 ) {
 
-    private val handler = Handler(Looper.getMainLooper())
     private var dialogo: AlertDialog? = null
 
-    private val verificacao = object : Runnable {
-        override fun run() {
-            verificar()
-            handler.postDelayed(this, INTERVALO_MS)
-        }
-    }
+    private val laco = LacoConferencia(Handler(Looper.getMainLooper()), INTERVALO_MS) { verificar() }
 
     // Sessão encerrada pelo servidor durante a sincronização (outra thread): confere na hora, sem esperar os 30 s.
     // Sem isso o operador seguia lendo até a próxima conferência, e as leituras eram ignoradas sem aviso
-    private val aoEncerrarSessao: () -> Unit = {
-        handler.removeCallbacks(verificacao)
-        handler.post(verificacao)
-    }
+    private val aoEncerrarSessao: () -> Unit = { laco.conferirJa() }
 
     fun iniciar() {
         SessaoAtual.ouvirEncerramento(aoEncerrarSessao)
-        handler.removeCallbacks(verificacao)
-        handler.post(verificacao)
+        laco.iniciar()
     }
 
     fun parar() {
         SessaoAtual.pararDeOuvir(aoEncerrarSessao)
-        handler.removeCallbacks(verificacao)
+        laco.parar()
     }
 
     private fun verificar() {
@@ -125,6 +115,48 @@ class AvisoSessao(
                     RespostaServidor.NaoEncontrado -> pedirSenha(sessao, activity.getString(R.string.comum_servidor_nao_reconheceu_login))
                 }
             }
+        }
+    }
+
+    /**
+     * Conferência repetida a cada [intervaloMs] na thread do [handler], ligada no [iniciar] e desligada no [parar].
+     * Só reagenda se ainda estiver ligada depois de conferir: um [parar] chamado DENTRO da conferência (ex.: o Cadastro,
+     * no aoSessaoAcabar, para o aviso e pede a senha) não é desfeito. Antes o reagendamento vinha sempre, e o pedido de
+     * senha do Cadastro voltava a cada 30 s mesmo depois de Cancelar.
+     */
+    internal class LacoConferencia(
+        private val handler: Handler,
+        private val intervaloMs: Long,
+        private val conferir: () -> Unit
+    ) {
+        @Volatile
+        var ativo = false
+            private set
+
+        private val passo = object : Runnable {
+            override fun run() {
+                // Pedido do conferirJa (outra thread) que chegou depois do parar(): a tela já não acompanha a sessão
+                if (!ativo) return
+                conferir()
+                if (ativo) handler.postDelayed(this, intervaloMs)
+            }
+        }
+
+        fun iniciar() {
+            ativo = true
+            handler.removeCallbacks(passo)
+            handler.post(passo)
+        }
+
+        fun parar() {
+            ativo = false
+            handler.removeCallbacks(passo)
+        }
+
+        /** Confere agora (pode chamar de qualquer thread); o laço segue a cada [intervaloMs] a partir daí. */
+        fun conferirJa() {
+            handler.removeCallbacks(passo)
+            handler.post(passo)
         }
     }
 

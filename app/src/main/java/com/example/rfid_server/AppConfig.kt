@@ -133,7 +133,7 @@ object AppConfig {
             putBoolean(KEY_SESSAO_CADASTRAR, sessao.podeCadastrar)
             putString(KEY_ULTIMO_EMAIL, sessao.email)
             // Entrou de novo: o motivo do fim da sessão anterior já não interessa
-            remove(KEY_SESSAO_MOTIVO_FIM)
+            removerMotivoFim()
         }
     }
 
@@ -160,28 +160,56 @@ object AppConfig {
 
     /**
      * O servidor recusou de vez a sessão [token] (ver FimDaSessaoAtual): apaga a sessão, só se a guardada ainda for
-     * essa (um login novo feito nesse meio-tempo fica), e guarda o [motivoServidor] (ex.: "DESATIVADO") para a tela de
-     * login mostrar uma vez. Devolve true se apagou.
+     * essa (um login novo feito nesse meio-tempo fica), e guarda o [motivoServidor] (ex.: "DESATIVADO"), o email do
+     * operador e a hora, para a tela de login mostrar uma vez de quem era a sessão. Devolve true se apagou.
      */
-    fun encerrarSessaoRecusada(context: Context, token: String, motivoServidor: String): Boolean {
+    fun encerrarSessaoRecusada(
+        context: Context,
+        token: String,
+        motivoServidor: String,
+        agora: Long = System.currentTimeMillis()
+    ): Boolean {
         synchronized(travaSegredos) {
             if (lerSegredo(context, KEY_SESSAO_TOKEN, "o token da sessão") != token) return false
+            val email = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_SESSAO_EMAIL, "").orEmpty()
             gravarSegredos(context) {
                 remove(KEY_SESSAO_TOKEN).remove(KEY_SESSAO_EXPIRA).remove(KEY_SESSAO_NOME)
                     .remove(KEY_SESSAO_EMAIL).remove(KEY_SESSAO_LER).remove(KEY_SESSAO_CADASTRAR)
                 putString(KEY_SESSAO_MOTIVO_FIM, motivoServidor)
+                putString(KEY_SESSAO_MOTIVO_FIM_EMAIL, email)
+                putLong(KEY_SESSAO_MOTIVO_FIM_EM, agora)
             }
         }
         return true
     }
 
-    /** Motivo guardado por [encerrarSessaoRecusada], ou null. Apaga depois de ler: a tela de login mostra uma vez só. */
-    fun tirarMotivoFimSessao(context: Context): String? {
+    /** Fim de sessão guardado por [encerrarSessaoRecusada]: o motivo do servidor, de quem era a sessão e quando. */
+    data class FimSessao(val motivoServidor: String, val email: String, val em: Long)
+
+    /** Depois disto o motivo do fim da sessão não é mais mostrado no login (a sessão dura 12 h). */
+    const val VALIDADE_MOTIVO_FIM_MS = 12L * 60 * 60 * 1000
+
+    /**
+     * Fim de sessão guardado por [encerrarSessaoRecusada], ou null. Apaga depois de ler: a tela de login mostra uma vez
+     * só. Com mais de [VALIDADE_MOTIVO_FIM_MS] (ou sem a hora, guardado por uma versão anterior) é descartado sem
+     * mostrar: quem abre o login bem depois, talvez outro operador, não precisa do aviso da sessão de outra pessoa.
+     */
+    fun tirarMotivoFimSessao(context: Context, agora: Long = System.currentTimeMillis()): FimSessao? {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val motivo = prefs.getString(KEY_SESSAO_MOTIVO_FIM, null) ?: return null
-        prefs.edit { remove(KEY_SESSAO_MOTIVO_FIM) }
-        return motivo
+        val motivo = prefs.getString(KEY_SESSAO_MOTIVO_FIM, null)
+        val email = prefs.getString(KEY_SESSAO_MOTIVO_FIM_EMAIL, "").orEmpty()
+        val em = prefs.getLong(KEY_SESSAO_MOTIVO_FIM_EM, 0L)
+        prefs.edit { removerMotivoFim() }
+        if (motivo == null) return null
+        if (em <= 0L || agora - em > VALIDADE_MOTIVO_FIM_MS) {
+            Log.i(TAG, "Motivo do fim de uma sessão anterior ($motivo) descartado sem mostrar: guardado há mais de 12 h")
+            return null
+        }
+        return FimSessao(motivo, email, em)
     }
+
+    private fun SharedPreferences.Editor.removerMotivoFim(): SharedPreferences.Editor =
+        remove(KEY_SESSAO_MOTIVO_FIM).remove(KEY_SESSAO_MOTIVO_FIM_EMAIL).remove(KEY_SESSAO_MOTIVO_FIM_EM)
 
     // Esperado de cada local (JSON de /api/android/inventarios/esperado): o inventário mostra o que falta
     // mesmo sem rede, com a última lista baixada. Fica em arquivo, um por local (EsperadoGuardado).
@@ -356,6 +384,8 @@ object AppConfig {
     private const val KEY_SESSAO_LER = "sessao_pode_ler"
     private const val KEY_SESSAO_CADASTRAR = "sessao_pode_cadastrar"
     private const val KEY_SESSAO_MOTIVO_FIM = "sessao_motivo_fim"
+    private const val KEY_SESSAO_MOTIVO_FIM_EMAIL = "sessao_motivo_fim_email"
+    private const val KEY_SESSAO_MOTIVO_FIM_EM = "sessao_motivo_fim_em"
     private const val KEY_ULTIMO_EMAIL = "ultimo_email"
     private const val KEY_AVISO_LEITURA = "aviso_leitura"
     /** Só para trazer o que a versão 1.5.0 e anteriores guardavam aqui (ver esperadoGuardado). */

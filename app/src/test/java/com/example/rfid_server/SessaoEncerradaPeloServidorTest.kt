@@ -57,8 +57,47 @@ class SessaoEncerradaPeloServidorTest {
         assertNull(SessaoAtual.get(context))
         assertEquals(1, avisos)
         assertEquals("ana@x.com", AppConfig.getUltimoEmail(context))
-        assertEquals("DESATIVADO", AppConfig.tirarMotivoFimSessao(context))
+        assertEquals("DESATIVADO", AppConfig.tirarMotivoFimSessao(context)?.motivoServidor)
         assertNull("Mostrado uma vez só", AppConfig.tirarMotivoFimSessao(context))
+    }
+
+    @Test
+    fun `o motivo guarda de quem era a sessao para o login mostrar`() {
+        val agora = 1_760_000_000_000L
+        AppConfig.saveSessao(context, sessao("token-ana"))
+        assertTrue(AppConfig.encerrarSessaoRecusada(context, "token-ana", "EXPIRADA", agora))
+
+        val fim = AppConfig.tirarMotivoFimSessao(context, agora + 60_000)
+
+        assertEquals(AppConfig.FimSessao("EXPIRADA", "ana@x.com", agora), fim)
+        assertEquals("a***@x.com", com.example.rfid_server.erros.MascaraSensivel.email(fim!!.email))
+    }
+
+    @Test
+    fun `motivo com mais de 12 h e descartado sem mostrar`() {
+        val agora = 1_760_000_000_000L
+        AppConfig.saveSessao(context, sessao("token-ana"))
+        AppConfig.encerrarSessaoRecusada(context, "token-ana", "DESATIVADO", agora)
+
+        assertNull(AppConfig.tirarMotivoFimSessao(context, agora + AppConfig.VALIDADE_MOTIVO_FIM_MS + 1))
+        assertNull("Descartado de vez", AppConfig.tirarMotivoFimSessao(context, agora))
+    }
+
+    @Test
+    fun `motivo ainda dentro das 12 h e mostrado`() {
+        val agora = 1_760_000_000_000L
+        AppConfig.saveSessao(context, sessao("token-ana"))
+        AppConfig.encerrarSessaoRecusada(context, "token-ana", "DESATIVADO", agora)
+
+        assertEquals("DESATIVADO", AppConfig.tirarMotivoFimSessao(context, agora + AppConfig.VALIDADE_MOTIVO_FIM_MS)?.motivoServidor)
+    }
+
+    @Test
+    fun `motivo guardado por versao anterior sem hora nem email e descartado`() {
+        context.getSharedPreferences("rfid_prefs", Context.MODE_PRIVATE).edit().putString("sessao_motivo_fim", "ENCERRADA").commit()
+
+        assertNull(AppConfig.tirarMotivoFimSessao(context))
+        assertTrue(context.getSharedPreferences("rfid_prefs", Context.MODE_PRIVATE).all.keys.none { it.startsWith("sessao_motivo_fim") })
     }
 
     @Test

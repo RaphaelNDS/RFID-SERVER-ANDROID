@@ -33,6 +33,21 @@ class FormularioCadastroTest {
     }
 
     @Test
+    fun `patrimonio codigo interno e serie sao salvos em maiusculas sem espacos nas pontas`() {
+        assertEquals("PAT-123", FormularioCadastro.normalizarCodigo("  pat-123 "))
+        assertEquals("ABC-1", FormularioCadastro.normalizarCodigo("Abc-1"))
+        assertEquals("SN9X", FormularioCadastro.normalizarCodigo("sn9x\n"))
+        assertEquals("", FormularioCadastro.normalizarCodigo("   "))
+        // Locale.ROOT: no aparelho em turco o "i" não vira "İ"
+        assertEquals("NOTEBOOK-I", FormularioCadastro.normalizarCodigo("notebook-i"))
+    }
+
+    @Test
+    fun `o que foi digitado em minusculas e salvo em maiusculas nao conta como alteracao`() {
+        assertFalse(salvo.copy(codigoInterno = "abc-1", numeroSerie = "sn9").alteradoEmRelacaoA(salvo))
+    }
+
+    @Test
     fun `mudar o cadastro guardado conta como alteracao`() {
         assertTrue(salvo.copy(codigoInterno = "ABC-2").alteradoEmRelacaoA(salvo))
         assertTrue(salvo.copy(modeloId = null).alteradoEmRelacaoA(salvo))
