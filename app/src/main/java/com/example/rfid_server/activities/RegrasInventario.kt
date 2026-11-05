@@ -9,6 +9,21 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
+ * Nome do local do inventário, com a mesma regra do servidor (InventarioService): espaços nas pontas tirados,
+ * espaços repetidos viram um e no máximo [MAXIMO] caracteres. Local maior era aceito offline e o servidor
+ * recusava a abertura (400) em toda passada, até o coletor desistir.
+ */
+object LocalInventario {
+
+    const val MAXIMO = 120
+
+    fun normalizar(local: String): String = local.trim().replace(Regex("\\s+"), " ")
+
+    /** O local normalizado cabe no limite do servidor (o vazio é tratado à parte, com outra mensagem). */
+    fun dentroDoLimite(local: String): Boolean = normalizar(local).length <= MAXIMO
+}
+
+/**
  * Filtro das abas Faltando e Lidas do inventário: só em memória (o banco não muda). Sem dependência do Android,
  * para poder ser testado no computador.
  */
@@ -47,6 +62,16 @@ object RitmoComparacao {
         if (ultimoCalculo == null) return 0
         return (ultimoCalculo + intervaloMs - agora).coerceIn(0, intervaloMs)
     }
+}
+
+/** Decisões de apresentação da tela de inventário em andamento (testadas no computador). */
+object RegrasTelaInventario {
+
+    /**
+     * A instrução "Aperte o gatilho…" só aparece até a primeira leitura: depois disso o operador já sabe o que
+     * fazer, e a linha vira espaço para a lista do que falta.
+     */
+    fun mostrarInstrucao(totalLidas: Int): Boolean = totalLidas == 0
 }
 
 /** O que aparece na tela de inventário depois de cada cálculo (feito fora da thread principal). */

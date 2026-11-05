@@ -91,18 +91,19 @@
                         android:layout_height="wrap_content"/>
                 </com.google.android.material.textfield.TextInputLayout>
 
-                <Button
-                    android:id="@+id/btnEntrar"
-                    android:text="@string/login_entrar"
-                    android:layout_marginTop="20dp"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"/>
-
+                <!-- Erro acima do Entrar: com o teclado aberto fica à vista, junto dos campos -->
                 <TextView
                     android:id="@+id/txtStatus"
                     android:visibility="gone"
                     android:textColor="@color/erro"
                     android:layout_marginTop="12dp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"/>
+
+                <Button
+                    android:id="@+id/btnEntrar"
+                    android:text="@string/login_entrar"
+                    android:layout_marginTop="16dp"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"/>
 

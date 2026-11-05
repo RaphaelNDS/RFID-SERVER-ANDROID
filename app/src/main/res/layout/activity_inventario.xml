@@ -5,9 +5,14 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- Seta de voltar; com inventário aberto, o local vai no subtítulo e "Cancelar inventário" fica no menu
+         (menu_inventario), longe do dedo: assim o cabeçalho sobra para a lista -->
     <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/barraInventario"
         style="@style/Widget.RFID.Barra"
         app:title="Inventário por local"
+        app:navigationIcon="@drawable/ic_voltar"
+        app:navigationContentDescription="@string/tela_voltar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
@@ -42,9 +47,14 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
 
+                <!-- "Ir" do teclado inicia o inventário (o teclado e as sugestões cobriam o botão). Sem a barra de
+                     sugestões do teclado: as sugestões que valem são as da lista de locais -->
                 <com.google.android.material.textfield.MaterialAutoCompleteTextView
                     android:id="@+id/edtLocal"
-                    android:inputType="textCapSentences"
+                    android:inputType="text|textNoSuggestions|textCapSentences"
+                    android:imeOptions="actionGo"
+                    android:maxLines="1"
+                    android:maxLength="120"
                     android:completionThreshold="1"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"/>
@@ -59,7 +69,8 @@
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
-    <!-- Inventário em andamento -->
+    <!-- Inventário em andamento: cabeçalho enxuto (leitor, resumo, referência), abas, filtro, a lista ocupa o resto
+         e "Finalizar" fica fixo no rodapé. A instrução do gatilho some depois da primeira leitura (RegrasTelaInventario) -->
     <LinearLayout
         android:id="@+id/painelAndamento"
         android:orientation="vertical"
@@ -75,24 +86,46 @@
         <LinearLayout
             android:orientation="vertical"
             android:background="@color/superficie"
-            android:padding="16dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="8dp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
-            <TextView
-                android:id="@+id/txtLocal"
-                android:textColor="@color/marinho"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"/>
-
+            <!-- Contagens (lidas, esperadas, faltam, fora da lista): no máximo 2 linhas -->
             <TextView
                 android:id="@+id/txtResumo"
                 android:textColor="@color/texto"
                 android:textSize="15sp"
+                android:textStyle="bold"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+
+            <!-- Com o que está comparando (ou por que não compara): uma linha só -->
+            <TextView
+                android:id="@+id/txtReferencia"
+                android:textColor="@color/texto_secundario"
+                android:textSize="13sp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:layout_marginTop="2dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
+
+            <!-- Inventário recusado pelo servidor: no máximo 2 linhas (a faixa vermelha do topo também avisa) -->
+            <TextView
+                android:id="@+id/txtRecusado"
+                android:textColor="@color/erro"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:visibility="gone"
                 android:layout_marginTop="4dp"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"/>
 
             <!-- Etiquetas aguardando envio: dá para pedir o envio na hora -->
@@ -107,7 +140,9 @@
                 <TextView
                     android:id="@+id/txtAguardando"
                     android:textColor="@color/texto"
-                    android:textSize="15sp"
+                    android:textSize="14sp"
+                    android:maxLines="2"
+                    android:ellipsize="end"
                     android:layout_weight="1"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"/>
@@ -126,39 +161,17 @@
                 android:text="@string/inventario_chame_responsavel"
                 android:textColor="@color/erro"
                 android:textStyle="bold"
-                android:textSize="15sp"
+                android:textSize="14sp"
                 android:visibility="gone"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"/>
 
-            <TextView
-                android:id="@+id/txtReferencia"
-                android:textAppearance="@style/Texto.RFID.Secundario"
-                android:layout_marginTop="2dp"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"/>
-
+            <!-- Só até a primeira leitura: depois disso o operador já sabe, e a linha vira espaço para a lista -->
             <TextView
                 android:id="@+id/txtStatus"
                 android:text="@string/inventario_instrucao"
                 android:textAppearance="@style/Texto.RFID.Secundario"
                 android:layout_marginTop="4dp"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"/>
-
-            <Button
-                android:id="@+id/btnFinalizar"
-                android:text="@string/inventario_finalizar"
-                android:layout_marginTop="12dp"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"/>
-
-            <!-- Só enquanto nada foi enviado ao servidor (a tela confere e explica se já foi) -->
-            <Button
-                android:id="@+id/btnCancelarInventario"
-                style="@style/Widget.RFID.Botao.Texto"
-                android:text="@string/inventario_cancelar"
-                android:layout_gravity="center_horizontal"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"/>
         </LinearLayout>
@@ -174,7 +187,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
 
-        <!-- Só com lista grande (FiltroInventario): filtra em memória a aba aberta -->
+        <!-- Só com lista grande (FiltroInventario): filtra em memória a aba aberta. Patrimônio e EPC em maiúsculas,
+             sem sugestões do teclado; "Buscar" do teclado só fecha o teclado (o filtro já vale enquanto digita) -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/campoFiltro"
             android:hint="@string/inventario_filtro_hint"
@@ -182,14 +196,14 @@
             app:endIconMode="clear_text"
             android:layout_marginStart="12dp"
             android:layout_marginEnd="12dp"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="4dp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/edtFiltro"
-                android:inputType="text"
-                android:imeOptions="actionDone"
+                android:inputType="text|textNoSuggestions|textCapCharacters"
+                android:imeOptions="actionSearch"
                 android:maxLines="1"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"/>
@@ -200,8 +214,21 @@
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
             android:paddingTop="8dp"
+            android:paddingBottom="8dp"
             android:clipToPadding="false"
+            android:layout_weight="1"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"/>
+            android:layout_height="0dp"/>
+
+        <!-- Barra fixa do rodapé, fora da lista que rola: sempre à mão, na largura toda -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnFinalizar"
+            android:text="@string/inventario_finalizar"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            app:cornerRadius="0dp"
+            android:minHeight="56dp"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"/>
     </LinearLayout>
 </LinearLayout>

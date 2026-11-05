@@ -5,8 +5,12 @@
     android:layout_height="match_parent">
 
     <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/barraConfiguracoes"
         style="@style/Widget.RFID.Barra"
         app:title="Configurações"
+        app:navigationIcon="@drawable/ic_voltar"
+        app:navigationIconTint="@color/white"
+        app:navigationContentDescription="@string/config_voltar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
@@ -53,7 +57,9 @@
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/edtIp"
-                            android:inputType="text"
+                            android:inputType="textUri|textNoSuggestions"
+                            android:imeOptions="actionNext"
+                            android:importantForAutofill="no"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"/>
                     </com.google.android.material.textfield.TextInputLayout>
@@ -68,7 +74,8 @@
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/edtChave"
-                            android:inputType="textPassword"
+                            android:inputType="textPassword|textNoSuggestions"
+                            android:importantForAutofill="no"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"/>
                     </com.google.android.material.textfield.TextInputLayout>
@@ -119,19 +126,24 @@
                     <!-- Também vale na hora: o leitor recebe a potência nova sem reconectar -->
                     <TextView
                         android:text="@string/config_potencia"
+                        android:textAppearance="@style/Texto.RFID.Secundario"
                         android:layout_marginTop="12dp"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"/>
 
+                    <!-- Mesmo contorno das listas do Cadastro -->
                     <Spinner
                         android:id="@+id/spnPotencia"
-                        android:minHeight="48dp"
+                        android:background="@drawable/campo_contorno"
+                        android:minHeight="52dp"
+                        android:layout_marginTop="4dp"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"/>
 
                     <TextView
                         android:text="@string/config_potencia_explicacao"
                         android:textAppearance="@style/Texto.RFID.Secundario"
+                        android:layout_marginTop="8dp"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"/>
                 </LinearLayout>

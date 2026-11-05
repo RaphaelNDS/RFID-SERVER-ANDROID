@@ -6,8 +6,11 @@
     android:layout_height="match_parent">
 
     <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/barraLocalizar"
         style="@style/Widget.RFID.Barra"
         app:title="Localizar patrimônio"
+        app:navigationIcon="@drawable/ic_voltar"
+        app:navigationContentDescription="@string/tela_voltar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
@@ -16,7 +19,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
 
+    <!-- Busca: recolhida enquanto localiza (sobra a tela para a proximidade); "Alterar" traz de volta -->
     <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cartaoBusca"
         android:layout_margin="16dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
@@ -56,17 +61,54 @@
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
+    <!-- No lugar do cartão de busca, enquanto localiza: o que está sendo procurado e "Alterar" -->
+    <LinearLayout
+        android:id="@+id/linhaProcurando"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/superficie"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp"
+        android:minHeight="48dp"
+        android:visibility="gone"
+        android:layout_marginBottom="8dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <!-- EPC é comprido: corta no meio para mostrar o começo e o fim -->
+        <TextView
+            android:id="@+id/txtProcurando"
+            android:textColor="@color/marinho"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="middle"
+            android:layout_weight="1"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"/>
+
+        <Button
+            android:id="@+id/btnAlterarBusca"
+            style="@style/Widget.RFID.Botao.Texto"
+            android:text="@string/localizar_alterar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"/>
+    </LinearLayout>
+
+    <!-- Proximidade: ocupa o resto da tela, com texto e barra grandes para ler de longe andando -->
     <com.google.android.material.card.MaterialCardView
         android:layout_marginStart="16dp"
         android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        android:layout_weight="1"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="0dp">
 
         <LinearLayout
             android:orientation="vertical"
             android:padding="16dp"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            android:layout_height="match_parent">
 
             <TextView
                 android:text="@string/localizar_proximidade"
@@ -74,28 +116,39 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"/>
 
-            <TextView
-                android:id="@+id/txtStatus"
-                android:text="@string/localizar_aguardando"
-                android:textColor="@color/texto"
-                android:textSize="16sp"
-                android:layout_marginTop="8dp"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"/>
-
-            <!-- Barra de distância: quanto mais cheia, mais perto da etiqueta -->
-            <com.google.android.material.progressindicator.LinearProgressIndicator
-                android:id="@+id/progressDistancia"
-                android:max="100"
-                android:progress="0"
-                app:trackThickness="14dp"
-                app:trackCornerRadius="7dp"
-                app:trackStopIndicatorSize="0dp"
-                app:indicatorColor="@color/marinho"
-                app:trackColor="@color/azul_claro"
-                android:layout_marginTop="16dp"
+            <LinearLayout
+                android:orientation="vertical"
+                android:gravity="center"
+                android:layout_weight="1"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"/>
+                android:layout_height="0dp">
+
+                <TextView
+                    android:id="@+id/txtStatus"
+                    android:text="@string/localizar_aguardando"
+                    android:textColor="@color/texto"
+                    android:textSize="30sp"
+                    android:textStyle="bold"
+                    android:gravity="center"
+                    android:accessibilityLiveRegion="polite"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"/>
+
+                <!-- Barra de distância: quanto mais cheia, mais perto da etiqueta. A cor muda por faixa
+                     (Proximidade.faixa): cinza longe, âmbar aproximando, verde muito perto -->
+                <com.google.android.material.progressindicator.LinearProgressIndicator
+                    android:id="@+id/progressDistancia"
+                    android:max="100"
+                    android:progress="0"
+                    app:trackThickness="36dp"
+                    app:trackCornerRadius="8dp"
+                    app:trackStopIndicatorSize="0dp"
+                    app:indicatorColor="@color/texto_terciario"
+                    app:trackColor="@color/borda"
+                    android:layout_marginTop="24dp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"/>
+            </LinearLayout>
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 </LinearLayout>

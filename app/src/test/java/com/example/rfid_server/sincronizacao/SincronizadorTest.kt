@@ -581,7 +581,7 @@ class SincronizadorTest {
 
         val estado = sincronizador().processarPendentes()
 
-        assertEquals("Não está tudo enviado", EstadoSincronizacao.ERRO_SERVIDOR, estado)
+        assertEquals("Não está tudo enviado", EstadoSincronizacao.SESSAO_RECUSADA, estado)
         assertEquals(1, novasTentativasAgendadas)
         val retida = dao.porEpc("SEM-SESSAO")
         assertFalse("Fica na fila durante o prazo", retida.envioConcluido)
@@ -616,7 +616,7 @@ class SincronizadorTest {
         servidor.enqueue(json(401, sessaoRecusada))   // lote
         servidor.enqueue(json(401, sessaoRecusada))   // E1 sozinha; E2..E5 nem são tentadas
 
-        assertEquals(EstadoSincronizacao.ERRO_SERVIDOR, sincronizadorComRecusas().processarPendentes())
+        assertEquals(EstadoSincronizacao.SESSAO_RECUSADA, sincronizadorComRecusas().processarPendentes())
 
         assertEquals(listOf("/api/android/leituras/lote", "/api/android/tags/E1"), caminhosRecebidos())
         dao.leituras.forEach {
@@ -676,7 +676,7 @@ class SincronizadorTest {
             inventarios = SincronizadorInventarios(inventarioDao, tagService), relogio = { agora }
         ).processarPendentes()
 
-        assertEquals(EstadoSincronizacao.ERRO_SERVIDOR, estado)
+        assertEquals(EstadoSincronizacao.SESSAO_RECUSADA, estado)
         assertTrue(inventarioDao.inventario("inv-1").aberturaEnviada)
         assertEquals(1, novasTentativasAgendadas)
     }

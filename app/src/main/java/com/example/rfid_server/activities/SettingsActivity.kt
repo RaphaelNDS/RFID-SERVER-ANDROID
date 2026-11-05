@@ -23,6 +23,7 @@ import com.example.rfid_server.service.ResultadoConexao
 import com.example.rfid_server.service.StatusConexao
 import com.example.rfid_server.sincronizacao.Sincronizador
 import com.example.rfid_server.service.TagService
+import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.textfield.TextInputLayout
 
 class SettingsActivity : AppCompatActivity() {
@@ -41,6 +42,9 @@ class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
+        findViewById<MaterialToolbar>(R.id.barraConfiguracoes).setNavigationOnClickListener {
+            onBackPressedDispatcher.onBackPressed()
+        }
 
         edtIp = findViewById(R.id.edtIp)
         edtChave = findViewById(R.id.edtChave)

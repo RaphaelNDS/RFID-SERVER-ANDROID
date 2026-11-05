@@ -122,7 +122,7 @@ class RegraFalhasTest {
         )
 
         servidor.enqueue(loteRecusado("DESCONHECIDA"))
-        assertEquals(EstadoSincronizacao.ERRO_SERVIDOR, sincronizador().processarPendentes())
+        assertEquals(EstadoSincronizacao.SESSAO_RECUSADA, sincronizador().processarPendentes())
         val primeira = recusas.primeiraRecusa("sessao-ana")
         assertEquals(agora, primeira)
 

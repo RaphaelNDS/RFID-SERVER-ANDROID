@@ -174,6 +174,18 @@ class RepositorioLeiturasTest {
     }
 
     @Test
+    fun `selos de aguardando e recusadas da tela principal so aparecem quando ha`() {
+        val zerada = ContagemSessao(lidas = 3, cadastradas = 2, naoCadastradas = 1)
+        assertEquals(false, zerada.mostrarSeloAguardando())
+        assertEquals(false, zerada.mostrarSeloRecusadas())
+
+        assertEquals(true, zerada.copy(aguardandoServidor = 1).mostrarSeloAguardando())
+        assertEquals(false, zerada.copy(aguardandoServidor = 1).mostrarSeloRecusadas())
+        assertEquals(true, zerada.copy(recusadas = 2).mostrarSeloRecusadas())
+        assertEquals(false, zerada.copy(recusadas = 2).mostrarSeloAguardando())
+    }
+
+    @Test
     fun `resumo dos contadores so quebra a linha entre um contador e outro`() {
         val resumo = ContagemSessao(lidas = 150, cadastradas = 20, naoCadastradas = 130, aguardandoServidor = 45).resumo()
 

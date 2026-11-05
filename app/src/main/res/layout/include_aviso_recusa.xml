@@ -21,6 +21,8 @@
         android:textColor="@color/erro"
         android:textStyle="bold"
         android:textSize="14sp"
+        android:maxLines="3"
+        android:ellipsize="end"
         android:layout_width="0dp"
         android:layout_weight="1"
         android:layout_height="wrap_content"/>

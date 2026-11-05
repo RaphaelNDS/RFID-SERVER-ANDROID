@@ -11,6 +11,16 @@ class RegrasFaixaSincronizacaoTest {
     private val responsavel = RegrasFaixaSincronizacao.Acoes(enviarAgora = false, chamarResponsavel = true)
 
     @Test
+    fun `texto da faixa poe o mais curto e acionavel primeiro e junta numa linha so`() {
+        assertEquals(
+            "Chame o responsável. Sem chave — 3 leitura(s). Relógio errado",
+            RegrasFaixaSincronizacao.texto("Relógio errado", "Sem chave — 3 leitura(s).", "Chame o responsável.")
+        )
+        assertEquals("Relógio errado", RegrasFaixaSincronizacao.texto("Relógio errado", null, null))
+        assertEquals("Enviando — 2", RegrasFaixaSincronizacao.texto(null, "Enviando — 2", null))
+    }
+
+    @Test
     fun `sem leituras aguardando nao oferece acao (so o aviso do relogio)`() {
         EstadoSincronizacao.entries.forEach { assertEquals(nenhuma, RegrasFaixaSincronizacao.acoes(0, it)) }
         assertEquals(nenhuma, RegrasFaixaSincronizacao.acoes(0, null))

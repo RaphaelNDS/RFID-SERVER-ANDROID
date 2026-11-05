@@ -3,7 +3,6 @@ package com.example.rfid_server.activities
 import com.example.rfid_server.erros.MascaraSensivel
 import android.os.Handler
 import android.os.Looper
-import android.text.InputType
 import android.util.Log
 import android.widget.EditText
 import android.widget.Toast
@@ -30,7 +29,12 @@ import java.util.Locale
  */
 class AvisoSessao(
     private val activity: AppCompatActivity,
-    private val aoMudarSessao: (SessaoOperador) -> Unit = {}
+    private val aoMudarSessao: (SessaoOperador) -> Unit = {},
+    /**
+     * Sessão acabou (pelo tempo ou encerrada pelo servidor) com a tela aberta. Devolve true se a tela trata sozinha
+     * (ex.: o Cadastro pede a senha sem sair, para não perder o formulário); false ou ausente = vai para o login.
+     */
+    private val aoSessaoAcabar: (() -> Boolean)? = null
 ) {
 
     private val handler = Handler(Looper.getMainLooper())
@@ -43,19 +47,31 @@ class AvisoSessao(
         }
     }
 
+    // Sessão encerrada pelo servidor durante a sincronização (outra thread): confere na hora, sem esperar os 30 s.
+    // Sem isso o operador seguia lendo até a próxima conferência, e as leituras eram ignoradas sem aviso
+    private val aoEncerrarSessao: () -> Unit = {
+        handler.removeCallbacks(verificacao)
+        handler.post(verificacao)
+    }
+
     fun iniciar() {
+        SessaoAtual.ouvirEncerramento(aoEncerrarSessao)
         handler.removeCallbacks(verificacao)
         handler.post(verificacao)
     }
 
     fun parar() {
+        SessaoAtual.pararDeOuvir(aoEncerrarSessao)
         handler.removeCallbacks(verificacao)
     }
 
     private fun verificar() {
         if (activity.isFinishing || activity.isDestroyed) return
-        // Sessão acabou com a tela aberta: volta para o login (mesma regra das telas)
-        val sessao = activity.exigirSessao() ?: return
+        // Sessão acabou com a tela aberta: volta para o login (mesma regra das telas), a não ser que a tela trate
+        val sessao = SessaoAtual.get(activity) ?: run {
+            if (aoSessaoAcabar?.invoke() != true) activity.exigirSessao()
+            return
+        }
         val agora = System.currentTimeMillis()
         val minutos = PoliticaAvisoSessao.avisoDevido(sessao.token, sessao.expiraEm, agora) ?: return
 
@@ -72,18 +88,18 @@ class AvisoSessao(
     }
 
     private fun pedirSenha(sessao: SessaoOperador, erro: String? = null) {
-        val campoSenha = EditText(activity).apply {
-            setHint(R.string.comum_senha)
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-        }
+        // Campo com margem do diálogo, foco e teclado já abertos; o Concluir do teclado renova
+        val vista = activity.layoutInflater.inflate(R.layout.dialogo_senha, null)
+        val campoSenha = vista.findViewById<EditText>(R.id.edtCampoDialogo)
 
-        AlertDialog.Builder(activity)
+        val pedido = AlertDialog.Builder(activity)
             .setTitle(R.string.sessao_renovar_titulo)
             .setMessage((erro?.let { "$it\n\n" } ?: "") + activity.getString(R.string.sessao_senha_de, sessao.email))
-            .setView(campoSenha)
+            .setView(vista)
             .setPositiveButton(R.string.sessao_renovar) { _, _ -> renovar(sessao, campoSenha.text.toString()) }
             .setNegativeButton(R.string.comum_cancelar) { _, _ -> Log.i(TAG, "Operador ${MascaraSensivel.email(sessao.email)} cancelou a renovação da sessão") }
-            .show()
+            .create()
+        CampoDialogo.mostrar(pedido, campoSenha)
     }
 
     private fun renovar(sessao: SessaoOperador, senha: String) {

@@ -7,7 +7,12 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
 import android.view.View
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.Button
@@ -17,6 +22,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.LiveData
@@ -25,6 +31,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.rfid_server.AppConfig
 import com.example.rfid_server.AvisoLeitura
 import com.example.rfid_server.R
+import com.example.rfid_server.RegrasLocalizar
 import com.example.rfid_server.RfidManager
 import com.example.rfid_server.SessaoAtual
 import com.example.rfid_server.adapter.EsperadoAdapter
@@ -40,6 +47,7 @@ import com.example.rfid_server.service.RespostaServidor
 import com.example.rfid_server.service.TagService
 import com.example.rfid_server.sincronizacao.EstadoSincronizacao
 import com.example.rfid_server.sincronizacao.Sincronizador
+import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.tabs.TabLayout
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
@@ -62,9 +70,11 @@ class InventarioActivity : AppCompatActivity() {
     private lateinit var painelInicio: View
     private lateinit var painelAndamento: LinearLayout
     private lateinit var edtLocal: AutoCompleteTextView
-    private lateinit var txtLocal: TextView
+    // Barra do topo: seta de voltar, local no subtítulo e "Cancelar inventário" no menu
+    private lateinit var barra: MaterialToolbar
     private lateinit var txtResumo: TextView
     private lateinit var txtReferencia: TextView
+    private lateinit var txtRecusado: TextView
     private lateinit var txtStatus: TextView
     private lateinit var tabs: TabLayout
     private lateinit var recycler: RecyclerView
@@ -137,9 +147,9 @@ class InventarioActivity : AppCompatActivity() {
         painelInicio = findViewById(R.id.painelInicio)
         painelAndamento = findViewById(R.id.painelAndamento)
         edtLocal = findViewById(R.id.edtLocal)
-        txtLocal = findViewById(R.id.txtLocal)
         txtResumo = findViewById(R.id.txtResumo)
         txtReferencia = findViewById(R.id.txtReferencia)
+        txtRecusado = findViewById(R.id.txtRecusado)
         txtStatus = findViewById(R.id.txtStatus)
         tabs = findViewById(R.id.tabsInventario)
         campoFiltro = findViewById(R.id.campoFiltro)
@@ -166,16 +176,36 @@ class InventarioActivity : AppCompatActivity() {
             override fun onTabReselected(tab: TabLayout.Tab) = Unit
         })
 
+        configurarBarra()
+
         findViewById<Button>(R.id.btnIniciar).setOnClickListener { iniciar() }
         findViewById<Button>(R.id.btnFinalizar).setOnClickListener { confirmarFinalizacao() }
-        findViewById<Button>(R.id.btnCancelarInventario).setOnClickListener { confirmarCancelamento() }
         btnEnviarAgora = findViewById(R.id.btnEnviarAgora)
         btnEnviarAgora.setOnClickListener { enviarAgora() }
+
+        // "Ir" do teclado (e Enter do teclado físico ou do leitor de código de barras) faz o mesmo que "Iniciar inventário"
+        edtLocal.setOnEditorActionListener { _, actionId, evento ->
+            when (RegrasLocalizar.acaoTecla(actionId, evento?.keyCode, evento?.action, EditorInfo.IME_ACTION_GO)) {
+                RegrasLocalizar.AcaoTecla.BUSCAR -> { iniciar(); true }
+                RegrasLocalizar.AcaoTecla.CONSUMIR -> true
+                RegrasLocalizar.AcaoTecla.IGNORAR -> false
+            }
+        }
+        // Escolheu uma sugestão: o local está pronto, o teclado sai da frente do botão
+        edtLocal.setOnItemClickListener { _, _, _, _ -> fecharTeclado(edtLocal) }
 
         // Filtro só em memória: refaz a lista no próximo cálculo (agrupado como as leituras)
         edtFiltro.doAfterTextChanged {
             termoFiltro = it?.toString().orEmpty()
             pedirComparacao()
+        }
+        // O filtro já vale enquanto digita: "Buscar" do teclado só tira o teclado da frente da lista
+        edtFiltro.setOnEditorActionListener { _, actionId, evento ->
+            when (RegrasLocalizar.acaoTecla(actionId, evento?.keyCode, evento?.action)) {
+                RegrasLocalizar.AcaoTecla.BUSCAR -> { fecharTeclado(edtFiltro); true }
+                RegrasLocalizar.AcaoTecla.CONSUMIR -> true
+                RegrasLocalizar.AcaoTecla.IGNORAR -> false
+            }
         }
 
         mostrarEstadoLeitor(rfidManager)
@@ -195,6 +225,33 @@ class InventarioActivity : AppCompatActivity() {
         rfidManager.definirOuvinte(this, ouvinte)
     }
 
+    /**
+     * Seta de voltar e menu da barra. "Cancelar inventário" saiu do cabeçalho (ocupava espaço da lista) e foi para o
+     * menu de três pontos, em vermelho por ser destrutiva; a confirmação e a regra continuam as mesmas.
+     */
+    private fun configurarBarra() {
+        barra = findViewById(R.id.barraInventario)
+        barra.setNavigationOnClickListener { onBackPressedDispatcher.onBackPressed() }
+        barra.inflateMenu(R.menu.menu_inventario)
+        barra.menu.findItem(R.id.menu_cancelar_inventario)?.let { item ->
+            item.title = SpannableString(item.title).apply {
+                setSpan(ForegroundColorSpan(ContextCompat.getColor(this@InventarioActivity, R.color.erro)), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
+        barra.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                R.id.menu_cancelar_inventario -> { confirmarCancelamento(); true }
+                else -> false
+            }
+        }
+    }
+
+    /** Tira o teclado da frente (ele cobria o botão ou a lista) e solta o foco do campo. */
+    private fun fecharTeclado(campo: View) {
+        getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(campo.windowToken, 0)
+        campo.clearFocus()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
         if (::aviso.isInitialized) aviso.liberar()
@@ -208,9 +265,13 @@ class InventarioActivity : AppCompatActivity() {
         val mudou = inventario?.id != inventarioAtual?.id
         inventarioAtual = inventario
 
+        // "Cancelar inventário" só existe com inventário em andamento
+        barra.menu.findItem(R.id.menu_cancelar_inventario)?.isVisible = inventario != null
+
         if (inventario == null) {
             painelInicio.visibility = View.VISIBLE
             painelAndamento.visibility = View.GONE
+            barra.subtitle = null
             rfidManager.removerOuvinte(this)
             pararDeObservarItens()
             return
@@ -218,7 +279,8 @@ class InventarioActivity : AppCompatActivity() {
 
         painelInicio.visibility = View.GONE
         painelAndamento.visibility = View.VISIBLE
-        txtLocal.text = getString(R.string.inventario_local, inventario.local)
+        // O local vai no subtítulo da barra: uma linha a menos no cabeçalho, sobra para a lista
+        barra.subtitle = getString(R.string.inventario_local, inventario.local)
         atualizarResumo()
 
         if (mudou) {
@@ -382,13 +444,16 @@ class InventarioActivity : AppCompatActivity() {
                 if (c.faltando.isNotEmpty()) append(SEPARADOR).append(getString(R.string.inventario_resumo_faltam, c.faltando.size))
                 if (c.foraDaLista > 0) append(SEPARADOR).append(getString(R.string.inventario_resumo_fora_da_lista, c.foraDaLista))
             }
-            if (recusado != null) {
-                append("\n\n").append(
-                    recusado.ultimoErro?.let { getString(R.string.inventario_recusado_motivo, it) }
-                        ?: getString(R.string.inventario_recusado)
-                )
-            }
         }
+
+        // Recusa em linha própria (no máximo 2 linhas, ver layout), no lugar do "\n\n" que esticava o cabeçalho
+        txtRecusado.isVisible = recusado != null
+        txtRecusado.text = recusado?.let { r ->
+            r.ultimoErro?.let { getString(R.string.inventario_recusado_motivo, it) } ?: getString(R.string.inventario_recusado)
+        }
+
+        // "Aperte o gatilho…" só até a primeira leitura
+        txtStatus.isVisible = RegrasTelaInventario.mostrarInstrucao(totalLidas)
 
         // Aguardando envio: com o botão "Enviar agora" ao lado (inventário recusado não vai mais ao servidor).
         // Mesma regra da tela principal: com chave, endereço ou certificado errados, repetir o envio não adianta,
@@ -524,12 +589,22 @@ class InventarioActivity : AppCompatActivity() {
     // ================= AÇÕES =================
 
     private fun iniciar() {
-        val local = edtLocal.text.toString().trim()
+        // Mesma regra do servidor: sem espaços nas pontas nem repetidos, e no máximo 120 caracteres
+        val local = LocalInventario.normalizar(edtLocal.text.toString())
 
         if (local.isEmpty()) {
             Toast.makeText(this, R.string.inventario_informe_local, Toast.LENGTH_SHORT).show()
             return
         }
+        if (!LocalInventario.dentroDoLimite(local)) {
+            Log.w(TAG, "Inventário não iniciado: local com ${local.length} caracteres (máximo ${LocalInventario.MAXIMO})")
+            edtLocal.error = getString(R.string.inventario_local_grande, LocalInventario.MAXIMO, local.length)
+            return
+        }
+
+        // Local válido: teclado e sugestões saem da frente (da pergunta do local novo e, depois, da lista)
+        edtLocal.dismissDropDown()
+        fecharTeclado(edtLocal)
 
         // Local fora da lista costuma ser erro de digitação ("Sala 11" no lugar de "Sala 101"): o inventário
         // ficaria num local que não existe e sem a comparação com o último inventário

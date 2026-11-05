@@ -120,7 +120,8 @@ class RepositorioLeituras internal constructor(
                     RepositorioLeituras(
                         dao = BancoLocal.get(app).leituraDao(),
                         executor = ExecutorProtegido.umaThread(app, "gravar as leituras"),
-                        solicitarSincronizacao = sincronizador::solicitar,
+                        // Junta os pedidos de ~2,5 s: com o gatilho apertado, cada etiqueta nova pedia uma passada
+                        solicitarSincronizacao = sincronizador::solicitarEmBreve,
                         sessaoAtual = { SessaoAtual.token(app)?.let { CofreSessoes.get(app).referencia(it) } }
                     )
                 }.also { instancia = it }

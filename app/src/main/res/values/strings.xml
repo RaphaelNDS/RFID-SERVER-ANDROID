@@ -19,6 +19,14 @@
     <string name="comum_versao_app" translatable="false">%1$s · %2$s</string>
 
     <!-- Login -->
+    <string name="login_entrando">Entrando…</string>
+    <!-- Sessão encerrada porque o servidor a recusou na sincronização (motivo do servidor) -->
+    <string name="login_sessao_usuario_desativado">Seu usuário foi desativado. Fale com o administrador.</string>
+    <string name="login_sessao_usuario_excluido">Seu usuário não existe mais no servidor. Fale com o administrador.</string>
+    <string name="login_sessao_encerrada">O servidor encerrou sua sessão: entre de novo.</string>
+    <string name="login_sessao_expirada">Sua sessão expirou no servidor: entre de novo.</string>
+    <string name="login_sessao_outro_coletor">O servidor não reconhece sua sessão neste coletor (coletor cadastrado com outro nome?): entre de novo.</string>
+    <string name="login_sessao_desconhecida">O servidor não reconhece sua sessão (servidor trocado ou restaurado): entre de novo.</string>
     <string name="login_subtitulo">Sistema RFID · Controle de patrimônio</string>
     <string name="login_acesso_operador">Acesso do operador</string>
     <string name="login_instrucao">Entre com seu usuário do Sistema RFID</string>
@@ -47,6 +55,18 @@
     <string name="sessao_renovada">Sessão renovada até %1$s</string>
 
     <!-- Tela principal (leitura) -->
+    <string name="main_contador_lidas">Lidas</string>
+    <string name="main_contador_cadastradas">Cadastradas</string>
+    <string name="main_contador_nao_cadastradas">Não cad.</string>
+    <string name="main_selo_aguardando">Aguardando %1$d</string>
+    <string name="main_selo_recusadas">Recusadas %1$d ›</string>
+    <string name="main_selo_recusadas_descricao">%1$d leitura(s) recusada(s) pelo servidor. Toque para ver quais são.</string>
+    <string name="main_rodape_inventario">Inventário</string>
+    <string name="main_rodape_localizar">Localizar</string>
+    <string name="nao_cadastradas_cadastrar">Cadastrar ›</string>
+    <string name="tag_sem_patrimonio">Sem patrimônio</string>
+    <string name="tag_sem_descricao">Tipo, marca e modelo não informados</string>
+    <string name="tag_codigo_serie">Cód. %1$s · Série %2$s</string>
     <string name="main_enviar_agora">Enviar agora</string>
     <string name="main_enviando_agora">Enviando as leituras ao servidor…</string>
     <string name="main_chame_responsavel">Chame o responsável pelo coletor.</string>    <string name="main_operador">Operador: %1$s · sessão até %2$s</string>
@@ -55,9 +75,8 @@
     <string name="main_enviando">Enviando</string>
     <string name="main_aviso_sincronizacao">%1$s — %2$d leitura(s) guardada(s) no coletor, aguardando envio</string>
     <string name="main_nova_leitura">Nova leitura</string>
+    <string name="main_menu_recusadas">Leituras recusadas</string>
     <string name="main_configuracoes">Configurações</string>
-    <string name="main_localizar">Localizar patrimônio</string>
-    <string name="main_inventario">Inventário por local</string>
     <string name="main_sair_menu">Sair (trocar operador)</string>
     <string name="main_sair_titulo">Sair do coletor</string>
     <string name="main_sair_mensagem">Sair como %1$s? O próximo operador entra com o próprio usuário.</string>
@@ -67,13 +86,9 @@
     <string name="main_nova_leitura_titulo">Começar nova leitura?</string>
     <string name="main_nova_leitura_mensagem">As %1$d tag(s) lidas vão sair da tela, e a mesma tag poderá ser lida de novo.</string>
     <string name="main_nova_leitura_pendentes">%1$d leitura(s) ainda não chegaram ao servidor: elas continuam guardadas no coletor e serão enviadas assim que possível.</string>
-    <string name="leitura_titulo">Etiquetas lidas</string>
     <string name="leitura_vazia">Nenhuma etiqueta cadastrada lida nesta leitura. Aperte o gatilho; as não cadastradas ficam na outra aba.</string>
-    <string name="leitura_aguardando_servidor">EPC %1$s · aguardando o servidor identificar</string>
-    <string name="nao_cadastradas_titulo">Etiquetas não cadastradas · toque para cadastrar</string>
+    <string name="leitura_aguardando_servidor">⏳ EPC %1$s · aguardando o servidor identificar</string>
     <string name="nao_cadastradas_vazia">Nenhuma etiqueta não cadastrada lida. Aperte o gatilho.</string>
-    <string name="nao_cadastradas_seta" translatable="false">›</string>
-    <string name="main_recusadas_toque">"  (toque para ver as recusadas)"</string>
 
     <!-- Leituras recusadas pelo servidor (toque no contador da tela principal) -->
     <string name="recusadas_titulo">Recusadas pelo servidor nos últimos 30 dias (%1$d)</string>
@@ -93,18 +108,16 @@
     <string name="aviso_recusa_ciente">Ciente</string>
 
     <!-- Item da lista de etiquetas cadastradas -->
-    <string name="tag_codigo">Código: %1$s</string>
-    <string name="tag_tipo">Tipo: %1$s</string>
-    <string name="tag_marca">Marca: %1$s</string>
-    <string name="tag_modelo">Modelo: %1$s</string>
-    <string name="tag_patrimonio">Patrimônio: %1$s</string>
-    <string name="tag_serie">Série: %1$s</string>
-    <string name="tag_sem_valor" translatable="false">—</string>
+    <string name="tag_codigo">Cód. %1$s</string>
+    <string name="tag_patrimonio">Patrimônio %1$s</string>
 
     <!-- Faixa do estado do leitor -->
     <string name="estado_leitor_reconectar">Reconectar</string>
 
     <!-- Cadastro de etiqueta -->
+    <string name="cadastro_voltar">Voltar</string>
+    <string name="cadastro_sessao_terminou">Sua sessão terminou com o cadastro aberto. Digite a sua senha para continuar: o que foi preenchido não se perde.</string>
+    <string name="cadastro_sessao_nao_renovada">Cadastro ainda não salvo. Toque em Salvar cadastro para digitar a senha e salvar.</string>
     <string name="cadastro_titulo">Cadastrar etiqueta</string>
     <string name="cadastro_descartar_titulo">Descartar o cadastro?</string>
     <string name="cadastro_descartar_mensagem">O que foi preenchido e não foi salvo será perdido.</string>
@@ -140,6 +153,8 @@
     <string name="cadastro_guardado">Cadastro guardado: será enviado ao servidor</string>
 
     <!-- Inventário -->
+    <string name="tela_voltar">Voltar</string>
+    <string name="inventario_local_grande">O local pode ter no máximo %1$d caracteres (este tem %2$d). Encurte o nome.</string>
     <string name="inventario_lida_fora_da_lista">Fora da lista: não era esperada neste local. Toque para localizar.</string>
     <string name="inventario_filtro_hint">Filtrar por patrimônio ou EPC</string>
     <string name="inventario_enviar_agora">Enviar agora</string>
@@ -207,6 +222,9 @@
     <string name="esperado_codigo">Código %1$s</string>
 
     <!-- Localizar -->
+    <string name="localizar_procurando_patrimonio">Procurando: Patrimônio %1$s</string>
+    <string name="localizar_procurando_epc">Procurando: EPC %1$s</string>
+    <string name="localizar_alterar">Alterar</string>
     <string name="localizar_titulo">Patrimônio procurado</string>
     <string name="localizar_hint">Número do patrimônio</string>
     <string name="localizar_buscar">Buscar</string>
@@ -214,7 +232,6 @@
     <string name="localizar_aguardando">Aguardando...</string>
     <string name="localizar_digite_patrimonio">Digite o patrimônio</string>
     <string name="localizar_buscando">Buscando patrimônio...</string>
-    <string name="localizar_item_sem_patrimonio">Item sem patrimônio: localizando pela etiqueta</string>
     <string name="localizar_localizando">Localizando...</string>
     <string name="localizar_nao_encontrado">Patrimônio não encontrado</string>
     <string name="localizar_sem_sinal">Sem sinal da etiqueta</string>
@@ -222,6 +239,7 @@
     <string name="localizar_aguardando_leitor">Aguardando o leitor RFID conectar para localizar</string>
 
     <!-- Configurações -->
+    <string name="config_voltar">Voltar</string>
     <string name="config_servidor">Servidor</string>
     <string name="config_servidor_verificando">Servidor: verificando...</string>
     <string name="config_ip_hint">IP do servidor</string>
@@ -267,6 +285,13 @@
     <string name="config_cert_confirmado">Certificado confirmado (SHA-256):\n%1$s</string>
 
     <!-- PIN das Configurações -->
+    <string name="pin_liberar_com_chave">Liberar com a chave do coletor</string>
+    <string name="pin_chave_explicacao">Sem conexão com o servidor (ex.: troca de servidor)? Digite a chave deste coletor, a mesma cadastrada no servidor. O PIN é apagado e um novo é criado em seguida. Cada erro conta como PIN errado.</string>
+    <string name="pin_chave_hint">Chave do coletor</string>
+    <string name="pin_chave_informe">Digite a chave do coletor</string>
+    <string name="pin_chave_errada">Chave incorreta. Restam %1$d tentativa(s)</string>
+    <string name="pin_chave_errada_bloqueado">Chave incorreta: PIN bloqueado por %1$d minutos</string>
+    <string name="pin_chave_bloqueado">PIN bloqueado por muitas tentativas erradas. Aguarde %1$d minuto(s) ou peça a um administrador para liberar.</string>
     <string name="pin_hint">PIN</string>
     <string name="pin_repita">Repita o PIN</string>
     <string name="pin_novo">PIN novo</string>

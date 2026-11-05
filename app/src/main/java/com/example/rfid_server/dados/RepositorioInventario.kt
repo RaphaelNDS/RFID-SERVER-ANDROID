@@ -289,7 +289,8 @@ class RepositorioInventario internal constructor(
                     RepositorioInventario(
                         dao = BancoLocal.get(app).inventarioDao(),
                         executor = ExecutorProtegido.umaThread(app, "gravar o inventário"),
-                        solicitarSincronizacao = sincronizador::solicitar,
+                        // Junta os pedidos de ~2,5 s: com o gatilho apertado, cada etiqueta nova pedia uma passada
+                        solicitarSincronizacao = sincronizador::solicitarEmBreve,
                         sessaoAtual = { SessaoAtual.token(app)?.let { CofreSessoes.get(app).referencia(it) } },
                         cientes = GuardaCientes.Preferencias(app),
                         semSincronizacao = { bloco -> sincronizador.exclusivo(bloco) }

@@ -100,7 +100,7 @@ class MotivoSessaoTest {
         servidor.enqueue(sessaoRecusada("DESCONHECIDA"))
         servidor.enqueue(sessaoRecusada("DESCONHECIDA"))
 
-        assertEquals(EstadoSincronizacao.ERRO_SERVIDOR, sincronizador().processarPendentes())
+        assertEquals(EstadoSincronizacao.SESSAO_RECUSADA, sincronizador().processarPendentes())
 
         val leitura = dao.porEpc("E1")
         assertFalse(leitura.recusada || leitura.envioConcluido)
@@ -113,7 +113,7 @@ class MotivoSessaoTest {
         servidor.enqueue(sessaoRecusada(null))
         servidor.enqueue(sessaoRecusada(null))
 
-        assertEquals(EstadoSincronizacao.ERRO_SERVIDOR, sincronizador().processarPendentes())
+        assertEquals(EstadoSincronizacao.SESSAO_RECUSADA, sincronizador().processarPendentes())
         assertFalse(dao.porEpc("E1").envioConcluido)
     }
 
@@ -124,7 +124,7 @@ class MotivoSessaoTest {
         (0..2).forEach { dao.inserir(LeituraEntity(epc = "E$it", lidoEm = agora, sessaoOperador = "sessao-ana")) }
         servidor.enqueue(loteRecusado("DESCONHECIDA", "EXPIRADA", null))
 
-        assertEquals(EstadoSincronizacao.ERRO_SERVIDOR, sincronizador().processarPendentes())
+        assertEquals(EstadoSincronizacao.SESSAO_RECUSADA, sincronizador().processarPendentes())
 
         assertFalse("DESCONHECIDA espera", dao.porEpc("E0").envioConcluido)
         assertTrue("EXPIRADA sai", dao.porEpc("E1").recusada)

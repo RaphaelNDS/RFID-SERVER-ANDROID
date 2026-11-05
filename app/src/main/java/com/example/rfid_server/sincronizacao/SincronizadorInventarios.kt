@@ -21,8 +21,15 @@ class SincronizadorInventarios(
     private val tagService: TagService,
     /** Guarda um erro para a tela de erros do coletor no servidor (tipo, mensagem). */
     private val registrarErro: (String, String) -> Unit = { _, _ -> },
-    private val relogio: () -> Long = System::currentTimeMillis
+    private val relogio: () -> Long = System::currentTimeMillis,
+    /** O servidor recusou a sessão de uma etapa (sessão gravada, motivo do servidor, mensagem): ver Sincronizador. */
+    private val aoRecusarSessao: (sessao: String, motivoSessao: String?, mensagem: String) -> Unit = { _, _, _ -> }
 ) {
+
+    /** Sessão atual que não serve mais (ex.: usuário desativado): o operador volta ao login. O inventário segue a regra de sempre. */
+    private fun avisarSessaoRecusada(sessao: String?, falha: RespostaServidor.Falha) {
+        if (falha.motivo == MotivoFalha.SESSAO_INVALIDA && sessao != null) aoRecusarSessao(sessao, falha.motivoSessao, falha.mensagem)
+    }
 
     /** Processa todos os inventários pendentes. Devolve a falha que deve interromper a sincronização, ou null. */
     fun processar(): RespostaServidor.Falha? {
@@ -100,7 +107,7 @@ class SincronizadorInventarios(
 
         if (!inventario.aberturaEnviada) {
             when (val r = tagService.abrirInventarioAgora(id, inventario.local, inventario.iniciadoEm, inventario.sessaoOperador)) {
-                is RespostaServidor.Falha -> return r
+                is RespostaServidor.Falha -> return r.also { avisarSessaoRecusada(inventario.sessaoOperador, it) }
                 // Só aconteceria com servidor sem a API de inventário (o 404 do POST vira Falha no TagService)
                 RespostaServidor.NaoEncontrado -> return RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Servidor sem suporte a inventário")
                 is RespostaServidor.Sucesso -> {
@@ -127,6 +134,7 @@ class SincronizadorInventarios(
                         // Recusa só deste grupo (ex.: o operador que leu foi desativado): as etiquetas dos outros
                         // operadores e a finalização seguem. Falha de comunicação para tudo, como antes
                         if (r.motivo != MotivoFalha.REQUISICAO_RECUSADA && r.motivo != MotivoFalha.SESSAO_INVALIDA) return r
+                        avisarSessaoRecusada(sessao, r)
                         itensRecusados(inventario, grupo.map { it.id }, r.mensagem, r.motivoSessao)
                         recusadas += grupo.size
                     }
@@ -145,7 +153,7 @@ class SincronizadorInventarios(
         val finalizadoEm = inventario.finalizadoEm
         if (finalizadoEm != null && !inventario.finalizacaoEnviada) {
             when (val r = tagService.finalizarInventarioAgora(id, finalizadoEm, inventario.sessaoFinalizacao)) {
-                is RespostaServidor.Falha -> return r
+                is RespostaServidor.Falha -> return r.also { avisarSessaoRecusada(inventario.sessaoFinalizacao, it) }
                 RespostaServidor.NaoEncontrado -> return reabrir(inventario)
                 is RespostaServidor.Sucesso -> {
                     dao.marcarFinalizacaoEnviada(id)

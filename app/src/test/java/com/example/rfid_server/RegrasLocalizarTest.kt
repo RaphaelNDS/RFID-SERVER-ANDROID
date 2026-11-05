@@ -11,6 +11,29 @@ import org.junit.Test
 
 class RegrasLocalizarTest {
 
+    // ================= LINHA "PROCURANDO: …" =================
+
+    @Test
+    fun `procurando mostra o patrimonio quando conhecido`() {
+        assertEquals(RegrasLocalizar.Alvo.Patrimonio("12345"), RegrasLocalizar.alvo("E200ABC", " 12345 "))
+    }
+
+    @Test
+    fun `procurando mostra o EPC quando o item nao tem patrimonio`() {
+        assertEquals(RegrasLocalizar.Alvo.Epc("E200ABC"), RegrasLocalizar.alvo("E200ABC", null))
+        assertEquals(RegrasLocalizar.Alvo.Epc("E200ABC"), RegrasLocalizar.alvo("E200ABC", "  "))
+    }
+
+    @Test
+    fun `campo do local do inventario inicia com o Ir do teclado e com Enter`() {
+        val ir = EditorInfo.IME_ACTION_GO
+        assertEquals(AcaoTecla.BUSCAR, RegrasLocalizar.acaoTecla(ir, null, null, acaoDoTeclado = ir))
+        assertEquals(AcaoTecla.BUSCAR, RegrasLocalizar.acaoTecla(EditorInfo.IME_NULL, KeyEvent.KEYCODE_ENTER, KeyEvent.ACTION_DOWN, ir))
+        assertEquals(AcaoTecla.CONSUMIR, RegrasLocalizar.acaoTecla(EditorInfo.IME_NULL, KeyEvent.KEYCODE_ENTER, KeyEvent.ACTION_UP, ir))
+        // Com "Ir" configurado, "Buscar" não é a ação do campo
+        assertEquals(AcaoTecla.IGNORAR, RegrasLocalizar.acaoTecla(EditorInfo.IME_ACTION_SEARCH, null, null, ir))
+    }
+
     // ================= INÍCIO PELO PEDIDO DE OUTRA TELA =================
 
     @Test

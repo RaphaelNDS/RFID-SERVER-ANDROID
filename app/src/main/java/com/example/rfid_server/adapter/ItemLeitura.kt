@@ -20,6 +20,27 @@ sealed class ItemLeitura {
         override val chave: String get() = "a:$epc"
     }
 
+    /**
+     * O que vai em cada linha do cartão da etiqueta cadastrada (item_tag.xml), sem os rótulos (vêm do strings.xml):
+     *  1. [patrimonio] em destaque (null: "Sem patrimônio");
+     *  2. [descricao] "Tipo · Marca · Modelo", só com o que foi informado (null: nenhum dos três);
+     *  3. [codigo] e [serie] (null: sem número de série) em texto menor.
+     */
+    data class LinhasTag(val patrimonio: String?, val descricao: String?, val codigo: String, val serie: String?) {
+        companion object {
+            fun de(tag: TagView) = LinhasTag(
+                patrimonio = tag.patrimonio.preenchido(),
+                descricao = listOfNotNull(tag.tipo.preenchido(), tag.marca.preenchido(), tag.modelo.preenchido())
+                    .joinToString(" · ")
+                    .ifEmpty { null },
+                codigo = tag.codigoInterno.trim(),
+                serie = tag.numeroSerie.preenchido()
+            )
+
+            private fun String?.preenchido(): String? = this?.trim()?.takeIf { it.isNotEmpty() }
+        }
+    }
+
     companion object {
         /** Junta as cadastradas e as que aguardam o servidor, da leitura mais nova para a mais antiga. */
         fun montar(cadastradas: List<LeituraEntity>, aguardando: List<LeituraEntity>): List<ItemLeitura> =

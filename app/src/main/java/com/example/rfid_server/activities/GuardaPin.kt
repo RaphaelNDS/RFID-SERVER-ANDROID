@@ -4,6 +4,7 @@ import com.example.rfid_server.erros.MascaraSensivel
 import android.os.SystemClock
 import android.util.Log
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -18,7 +19,8 @@ import com.google.android.material.textfield.TextInputLayout
 
 /**
  * Diálogos do PIN das Configurações (PinColetor): pedir o PIN antes de trocar o servidor, a chave ou o
- * certificado; criar o PIN na primeira vez; e "Esqueci o PIN", que um ADMIN libera pelo servidor.
+ * certificado; criar o PIN na primeira vez; e "Esqueci o PIN", que um ADMIN libera pelo servidor ou o responsável
+ * libera com a chave do coletor (troca de servidor: o servidor novo ainda não conecta).
  */
 class GuardaPin(private val activity: AppCompatActivity, private val tagService: TagService) {
 
@@ -63,8 +65,12 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
             .setNeutralButton(R.string.pin_esqueci, null)
             .create()
 
+        // Abre com o teclado numérico na tela; o Concluir do teclado confere o PIN como o botão
+        CampoDialogo.confirmarPeloTeclado(dialogo, edtPin)
+
         // Botões tratados no onShow: com o PIN errado o diálogo continua aberto, mostrando o erro
         dialogo.setOnShowListener {
+            CampoDialogo.focarComTeclado(dialogo, edtPin)
             dialogo.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val (hash, sal) = AppConfig.getPin(activity) ?: return@setOnClickListener run { dialogo.dismiss(); liberado() }
 
@@ -117,7 +123,12 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
             .setNegativeButton(R.string.comum_cancelar, null)
             .create()
 
+        // PIN novo → Próximo vai para o "Repita o PIN"; lá o Concluir cria
+        CampoDialogo.confirmarPeloTeclado(dialogo, edtConfirmar)
+        edtPin.imeOptions = EditorInfo.IME_ACTION_NEXT
+
         dialogo.setOnShowListener {
+            CampoDialogo.focarComTeclado(dialogo, edtPin)
             dialogo.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val pin = edtPin.text.toString()
                 val problema = PinColetor.problemaDoNovo(pin, edtConfirmar.text.toString())
@@ -143,14 +154,27 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
         val edtEmail = vista.findViewById<TextInputEditText>(R.id.edtEmailAdmin)
         val edtSenha = vista.findViewById<TextInputEditText>(R.id.edtSenhaAdmin)
 
+        // Na troca de servidor o servidor novo não conecta: a chave do coletor libera sem o servidor
+        val temChave = AppConfig.chaveConfigurada(activity)
         val dialogo = AlertDialog.Builder(activity)
             .setTitle(R.string.pin_liberar_titulo)
             .setView(vista)
             .setPositiveButton(R.string.pin_liberar, null)
             .setNegativeButton(R.string.comum_cancelar, null)
+            .apply { if (temChave) setNeutralButton(R.string.pin_liberar_com_chave, null) }
             .create()
 
+        // Email → Próximo → senha; na senha o Concluir libera
+        CampoDialogo.confirmarPeloTeclado(dialogo, edtSenha)
+
         dialogo.setOnShowListener {
+            CampoDialogo.focarComTeclado(dialogo, edtEmail)
+            if (temChave) {
+                dialogo.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+                    dialogo.dismiss()
+                    liberarComChave(liberado)
+                }
+            }
             val botao = dialogo.getButton(AlertDialog.BUTTON_POSITIVE)
             botao.setOnClickListener {
                 val email = edtEmail.text.toString().trim()
@@ -179,6 +203,75 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
                             }
 
                             RespostaServidor.NaoEncontrado -> Unit
+                        }
+                    }
+                }
+            }
+        }
+        dialogo.show()
+    }
+
+    /**
+     * Libera o PIN com a chave do coletor (a mesma cadastrada no servidor), sem precisar do servidor. Os erros
+     * contam junto com os do PIN (PinColetor.liberarComChave): bloqueado o PIN, a chave também não é conferida.
+     */
+    private fun liberarComChave(liberado: () -> Unit) {
+        val vista = activity.layoutInflater.inflate(R.layout.dialogo_pin_chave, null)
+        val layoutChave = vista.findViewById<TextInputLayout>(R.id.layoutChavePin)
+        val edtChave = vista.findViewById<TextInputEditText>(R.id.edtChavePin)
+
+        val dialogo = AlertDialog.Builder(activity)
+            .setTitle(R.string.pin_liberar_titulo)
+            .setView(vista)
+            .setPositiveButton(R.string.pin_liberar, null)
+            .setNegativeButton(R.string.comum_cancelar, null)
+            .create()
+
+        CampoDialogo.confirmarPeloTeclado(dialogo, edtChave)
+
+        dialogo.setOnShowListener {
+            CampoDialogo.focarComTeclado(dialogo, edtChave)
+            dialogo.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+                val digitada = edtChave.text.toString()
+                if (digitada.isBlank()) {
+                    layoutChave.error = activity.getString(R.string.pin_chave_informe)
+                    return@setOnClickListener
+                }
+
+                AppConfig.limparBloqueioPinVencido(activity)
+                val resultado = PinColetor.liberarComChave(
+                    digitada, AppConfig.getChaveDispositivo(activity), AppConfig.getTentativasPin(activity),
+                    System.currentTimeMillis(), SystemClock.elapsedRealtime()
+                )
+                edtChave.text = null
+                when (resultado) {
+                    PinColetor.LiberacaoPorChave.Liberado -> {
+                        AppConfig.apagarPin(activity)
+                        Log.w(TAG, "PIN das Configurações apagado: liberado com a chave do coletor")
+                        dialogo.dismiss()
+                        criar(liberado)
+                    }
+
+                    is PinColetor.LiberacaoPorChave.Bloqueado -> {
+                        val minutos = (resultado.restanteMs - 1) / 60_000 + 1
+                        Log.w(TAG, "Liberação do PIN pela chave recusada: PIN bloqueado por mais $minutos minuto(s)")
+                        dialogo.dismiss()
+                        Toast.makeText(activity, activity.getString(R.string.pin_chave_bloqueado, minutos), Toast.LENGTH_LONG).show()
+                    }
+
+                    is PinColetor.LiberacaoPorChave.Errada -> {
+                        val depois = resultado.estado
+                        AppConfig.saveTentativasPin(activity, depois)
+                        val erros = depois.erros
+                        if (erros % PinColetor.MAX_ERROS == 0) {
+                            val minutos = depois.duracao / 60_000
+                            Log.w(TAG, "Chave do coletor errada ao liberar o PIN ($erros erro(s) desde o último acerto): bloqueado por $minutos min")
+                            dialogo.dismiss()
+                            Toast.makeText(activity, activity.getString(R.string.pin_chave_errada_bloqueado, minutos), Toast.LENGTH_LONG).show()
+                        } else {
+                            val restam = PinColetor.restantesAteBloqueio(erros)
+                            Log.w(TAG, "Chave do coletor errada ao liberar o PIN ($erros erro(s) desde o último acerto; $restam até o próximo bloqueio)")
+                            layoutChave.error = activity.getString(R.string.pin_chave_errada, restam)
                         }
                     }
                 }

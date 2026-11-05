@@ -6,6 +6,7 @@ import android.os.SystemClock
 import android.view.View
 import android.widget.Button
 import android.widget.TextView
+import androidx.annotation.ColorRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.example.rfid_server.CorFaixa
@@ -20,8 +21,26 @@ import com.example.rfid_server.R
 import com.example.rfid_server.RfidManager
 
 /**
- * Liga a faixa de layout/include_estado_leitor.xml ao estado do leitor RFID: verde quando conectado,
- * amarela conectando e vermelha desconectado (com o botão "Reconectar", que não espera a tentativa automática).
+ * Cores da faixa do leitor para cada situação (lógica pura, testável sem Android).
+ *  - Conectado: discreta, fundo verde-claro com texto e bolinha verdes.
+ *  - Atenção (conectando, bateria baixa, falha de configuração): fundo SÓLIDO âmbar com texto branco (~6,4:1).
+ *  - Erro (desconectado, parado, falha de leitura, bateria crítica): fundo SÓLIDO vermelho com texto branco (~5,6:1).
+ * No fundo sólido a bolinha é branca (na cor do fundo ela sumiria).
+ */
+object EstiloFaixaLeitor {
+
+    data class Estilo(@ColorRes val fundo: Int, @ColorRes val texto: Int, @ColorRes val marca: Int, val solido: Boolean)
+
+    fun de(cor: CorFaixa): Estilo = when (cor) {
+        CorFaixa.SUCESSO -> Estilo(R.color.sucesso_fundo, R.color.sucesso, R.color.sucesso, solido = false)
+        CorFaixa.ATENCAO -> Estilo(R.color.atencao, R.color.white, R.color.white, solido = true)
+        CorFaixa.ERRO -> Estilo(R.color.erro, R.color.white, R.color.white, solido = true)
+    }
+}
+
+/**
+ * Liga a faixa de layout/include_estado_leitor.xml ao estado do leitor RFID: discreta (verde-claro) quando conectado,
+ * âmbar sólida conectando e vermelha sólida desconectado (com o botão "Reconectar", que não espera a tentativa automática).
  * Desconectada, a faixa diz o motivo; conectada, avisa de falha ao começar a leitura (por alguns segundos),
  * de falha ao configurar o gatilho e de bateria baixa (regras em [FaixaLeitor]).
  * Chame no onCreate de uma tela que tenha o include.
@@ -53,14 +72,10 @@ fun AppCompatActivity.mostrarEstadoLeitor(rfidManager: RfidManager) {
         val desconectado = estado == EstadoLeitor.DESCONECTADO || estado == EstadoLeitor.PARADO
         botao.visibility = if (desconectado) View.VISIBLE else View.GONE
 
-        val (fundo, cor) = when (FaixaLeitor.cor(mensagem)) {
-            CorFaixa.SUCESSO -> R.color.sucesso_fundo to R.color.sucesso
-            CorFaixa.ATENCAO -> R.color.atencao_fundo to R.color.atencao
-            CorFaixa.ERRO -> R.color.erro_fundo to R.color.erro
-        }
-        painel.setBackgroundColor(ContextCompat.getColor(this, fundo))
-        texto.setTextColor(ContextCompat.getColor(this, cor))
-        marca.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, cor))
+        val estilo = EstiloFaixaLeitor.de(FaixaLeitor.cor(mensagem))
+        painel.setBackgroundColor(ContextCompat.getColor(this, estilo.fundo))
+        texto.setTextColor(ContextCompat.getColor(this, estilo.texto))
+        marca.backgroundTintList = ColorStateList.valueOf(ContextCompat.getColor(this, estilo.marca))
 
         FaixaLeitor.redesenharEmMs(detalhe, agora)?.let { espera ->
             val acao = Runnable { desenhar() }

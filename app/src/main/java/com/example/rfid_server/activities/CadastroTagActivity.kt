@@ -20,14 +20,17 @@ import androidx.appcompat.app.AppCompatActivity
 import com.example.rfid_server.AppConfig
 import com.example.rfid_server.R
 import com.example.rfid_server.SessaoAtual
+import com.example.rfid_server.SessaoOperador
 import com.example.rfid_server.dados.CadastroEntity
 import com.example.rfid_server.dados.CatalogoColetor
 import com.example.rfid_server.dados.MarcaCatalogo
 import com.example.rfid_server.dados.RepositorioCadastros
 import com.example.rfid_server.dados.SituacaoCadastro
 import com.example.rfid_server.dados.TipoCatalogo
+import com.example.rfid_server.erros.MascaraSensivel
 import com.example.rfid_server.service.RespostaServidor
 import com.example.rfid_server.service.TagService
+import com.google.android.material.appbar.MaterialToolbar
 import org.json.JSONException
 
 /**
@@ -56,6 +59,24 @@ class CadastroTagActivity : AppCompatActivity() {
 
     // Consultas do resultado do envio depois de salvar (ver aguardarEnvio)
     private val espera = Handler(Looper.getMainLooper())
+
+    // ===== Sessão do operador (ver SessaoNoCadastro) =====
+    // Avisa com 30 e 5 min e deixa renovar; renovada, volta a acompanhar a sessão nova
+    // Sessão encerrada pelo servidor (ou vencida) com o formulário aberto: tratarSemSessao pede a senha aqui se
+    // houver algo a perder; senão vai para o login como as outras telas
+    private val avisoSessao by lazy {
+        AvisoSessao(this, aoMudarSessao = { nova -> aoRenovarSessao(nova) }, aoSessaoAcabar = { tratarSemSessao(); true })
+    }
+    private val relogioSessao = Handler(Looper.getMainLooper())
+    private val pararAvisoSessao = Runnable { avisoSessao.parar() }
+    private val fimDaSessao = Runnable { if (SessaoAtual.get(this) == null) tratarSemSessao() }
+
+    // Email do operador da sessão desta tela: depois de vencida a sessão é apagada, e a renovação precisa dele
+    private var emailOperador: String? = null
+
+    // Cadastro que não foi guardado porque a sessão tinha acabado: renovada a sessão, é salvo de novo
+    private var cadastroEsperandoSessao: CadastroEntity? = null
+    private var dialogoSenha: AlertDialog? = null
 
     private var catalogo: CatalogoColetor? = null
     private var tipoAtual: TipoCatalogo? = null
@@ -98,6 +119,10 @@ class CadastroTagActivity : AppCompatActivity() {
         btnSalvar.setOnClickListener { salvar() }
 
         onBackPressedDispatcher.addCallback(this, confirmarDescarte)
+        // Seta da barra = botão voltar: com alteração não salva, pergunta "Descartar o cadastro?"
+        findViewById<MaterialToolbar>(R.id.barraCadastro).setNavigationOnClickListener {
+            onBackPressedDispatcher.onBackPressed()
+        }
         listOf(edtCodigoInterno, edtPatrimonio, edtNumeroSerie).forEach { campo ->
             campo.doAfterTextChanged { atualizarAlteracoes() }
         }
@@ -317,10 +342,21 @@ class CadastroTagActivity : AppCompatActivity() {
                     btnSalvar.setText(R.string.cadastro_enviando)
                     aguardarEnvio(cadastro.epc.trim(), SystemClock.elapsedRealtime())
                 } else {
-                    // A sessão acabou enquanto o formulário estava aberto (vai para o login) ou não deu para gravar
-                    // (ex.: memória cheia, já avisado): libera o botão para tentar de novo
                     btnSalvar.isEnabled = true
-                    exigirSessao()
+                    // false = sessão acabou com o formulário aberto OU falha ao gravar (ex.: memória cheia, já avisada)
+                    val temSessao = SessaoAtual.get(this) != null
+                    when (SessaoNoCadastro.aposNaoGuardar(temSessao, emailParaRenovar())) {
+                        SessaoNoCadastro.Acao.TENTAR_DE_NOVO ->
+                            Log.w(TAG, "Cadastro da etiqueta ${cadastro.epc} não foi guardado no coletor: o operador pode tentar de novo")
+
+                        SessaoNoCadastro.Acao.PEDIR_SENHA -> {
+                            Log.i(TAG, "Sessão terminou antes de salvar o cadastro da etiqueta ${cadastro.epc}: pedindo a senha para salvar de novo")
+                            cadastroEsperandoSessao = cadastro
+                            pedirSenha()
+                        }
+
+                        SessaoNoCadastro.Acao.LOGIN -> exigirSessao()
+                    }
                 }
             }
         }
@@ -370,12 +406,137 @@ class CadastroTagActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         espera.removeCallbacksAndMessages(null)
+        relogioSessao.removeCallbacksAndMessages(null)
+        dialogoSenha?.dismiss()
         super.onDestroy()
     }
 
     override fun onResume() {
         super.onResume()
-        exigirSessao()
+        val sessao = SessaoAtual.get(this) ?: return tratarSemSessao()
+        emailOperador = sessao.email
+        acompanharSessao(sessao)
+    }
+
+    override fun onPause() {
+        relogioSessao.removeCallbacksAndMessages(null)
+        avisoSessao.parar()
+        super.onPause()
+    }
+
+    // ================= SESSÃO DO OPERADOR =================
+
+    /**
+     * Avisos de 30 e 5 min do AvisoSessao, que é parado um pouco antes do fim: depois do fim ele mandaria para o
+     * login e o formulário se perderia. No fim, [tratarSemSessao] decide entre pedir a senha aqui ou ir para o login.
+     */
+    private fun acompanharSessao(sessao: SessaoOperador) {
+        relogioSessao.removeCallbacksAndMessages(null)
+        val agora = System.currentTimeMillis()
+        val ateParar = SessaoNoCadastro.esperaAtePararAviso(sessao.expiraEm, agora)
+        if (ateParar > 0) {
+            avisoSessao.iniciar()
+            relogioSessao.postDelayed(pararAvisoSessao, ateParar)
+        } else {
+            avisoSessao.parar()
+        }
+        relogioSessao.postDelayed(fimDaSessao, SessaoNoCadastro.esperaAteFim(sessao.expiraEm, agora))
+    }
+
+    private fun tratarSemSessao() {
+        if (isFinishing || isDestroyed) return
+        if (dialogoSenha?.isShowing == true) return
+        val alterado = confirmarDescarte.isEnabled
+        when (SessaoNoCadastro.semSessao(alterado, cadastroEsperandoSessao != null, emailParaRenovar())) {
+            SessaoNoCadastro.Acao.PEDIR_SENHA -> {
+                Log.i(TAG, "Sessão terminou com o cadastro da etiqueta $epc aberto e não salvo: pedindo a senha na própria tela")
+                avisoSessao.parar()
+                pedirSenha()
+            }
+
+            else -> exigirSessao()
+        }
+    }
+
+    private fun emailParaRenovar(): String? =
+        emailOperador ?: AppConfig.getUltimoEmail(this).takeIf { it.isNotBlank() }
+
+    /**
+     * Renovação da sessão vencida sem sair do cadastro: login de novo com a senha do mesmo operador.
+     * Igual à renovação do AvisoSessao, que não tem como ser chamada daqui (o pedido de senha dele é privado e
+     * exige a sessão ainda válida). Renovada, salva de novo o cadastro que estava esperando ([cadastroEsperandoSessao]).
+     */
+    private fun pedirSenha(erro: String? = null) {
+        val email = emailParaRenovar() ?: run {
+            exigirSessao()
+            return
+        }
+        if (dialogoSenha?.isShowing == true) return
+
+        // Mesmo campo do pedido de senha do AvisoSessao (dialogo_senha.xml)
+        val vista = layoutInflater.inflate(R.layout.dialogo_senha, null)
+        val campoSenha = vista.findViewById<EditText>(R.id.edtCampoDialogo)
+        val mensagem = listOfNotNull(erro, getString(R.string.cadastro_sessao_terminou), getString(R.string.sessao_senha_de, email))
+            .joinToString("\n\n")
+
+        val dialogo = AlertDialog.Builder(this)
+            .setTitle(R.string.sessao_renovar_titulo)
+            .setMessage(mensagem)
+            .setView(vista)
+            .setCancelable(false)
+            .setPositiveButton(R.string.sessao_renovar) { _, _ -> renovar(email, campoSenha.text.toString()) }
+            .setNegativeButton(R.string.comum_cancelar) { _, _ ->
+                Log.i(TAG, "Operador cancelou a renovação da sessão com o cadastro da etiqueta $epc aberto: o formulário continua na tela")
+                cadastroEsperandoSessao = null
+                Toast.makeText(this, R.string.cadastro_sessao_nao_renovada, Toast.LENGTH_LONG).show()
+            }
+            .create()
+        dialogoSenha = dialogo
+        CampoDialogo.mostrar(dialogo, campoSenha)
+    }
+
+    private fun renovar(email: String, senha: String) {
+        if (senha.isEmpty()) return pedirSenha(getString(R.string.sessao_informe_senha))
+
+        Log.i(TAG, "Renovando a sessão de ${MascaraSensivel.email(email)} na tela de cadastro")
+        TagService(this).entrar(email, senha) { resposta ->
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                when (resposta) {
+                    is RespostaServidor.Sucesso -> {
+                        val nova = resposta.valor
+                        AppConfig.saveSessao(this, nova)
+                        Log.i(TAG, "Sessão de ${MascaraSensivel.email(nova.email)} renovada no cadastro: vale até ${AvisoSessao.horario(nova.expiraEm)}")
+                        Toast.makeText(this, getString(R.string.sessao_renovada, AvisoSessao.horario(nova.expiraEm)), Toast.LENGTH_LONG).show()
+                        aoRenovarSessao(nova)
+                    }
+
+                    is RespostaServidor.Falha -> {
+                        Log.w(TAG, "Renovação da sessão de ${MascaraSensivel.email(email)} recusada no cadastro: ${resposta.mensagem}")
+                        pedirSenha(resposta.mensagem)
+                    }
+
+                    RespostaServidor.NaoEncontrado -> pedirSenha(getString(R.string.comum_servidor_nao_reconheceu_login))
+                }
+            }
+        }
+    }
+
+    /** Sessão renovada (aqui ou pelo AvisoSessao): volta a acompanhar e salva o cadastro que estava esperando. */
+    private fun aoRenovarSessao(nova: SessaoOperador) {
+        emailOperador = nova.email
+        acompanharSessao(nova)
+
+        val pendente = cadastroEsperandoSessao ?: return
+        cadastroEsperandoSessao = null
+        if (!nova.podeCadastrar || catalogo?.podeCadastrar != true) {
+            // A permissão pode ter mudado no servidor: mostra o motivo e desliga o Salvar
+            Log.w(TAG, "Sessão renovada, mas o cadastro da etiqueta ${pendente.epc} não pode ser salvo (sem permissão)")
+            aplicarCatalogo(catalogo, manterSelecao = true)
+            return
+        }
+        Log.i(TAG, "Sessão renovada: salvando de novo o cadastro da etiqueta ${pendente.epc}")
+        confirmar(pendente)
     }
 
     private fun aviso(texto: String?) {
