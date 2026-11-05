@@ -6,7 +6,12 @@ import com.example.rfid_server.AppConfig
 import com.example.rfid_server.BuildConfig
 import com.example.rfid_server.CofreSessoes
 import com.example.rfid_server.SessaoAtual
+import com.example.rfid_server.erros.RegistroErros
+import okhttp3.Headers
 import okhttp3.OkHttpClient
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
@@ -22,6 +27,8 @@ import javax.net.ssl.TrustManager
  *     header em branco = registro antigo, sem operador: o header é removido.
  * - NÃO segue redirecionamentos: se o servidor mandar para a tela de login, o app recebe
  *   o 302 e trata como falha, em vez de ler o HTML do login como se fosse sucesso.
+ * - Confere o relógio do coletor com o do servidor (cabeçalho Date das respostas, ver [RelogioServidor]) e manda a
+ *   hora do aparelho no header X-Relogio-Coletor.
  */
 object HttpClient {
 
@@ -30,6 +37,7 @@ object HttpClient {
     const val HEADER_MOMENTO = "X-Momento"
     const val HEADER_VERSAO_APP = "X-Versao-App"
     const val HEADER_VERSAO_CODIGO = "X-Versao-Codigo"
+    const val HEADER_RELOGIO_COLETOR = "X-Relogio-Coletor"
 
     private const val TAG = "HTTP_CLIENT"
 
@@ -43,6 +51,7 @@ object HttpClient {
                     sessaoAtual = { SessaoAtual.token(app) },
                     impressaoConfirmada = { AppConfig.getImpressaoDigital(app) },
                     resolverSessao = { CofreSessoes.get(app).token(it) },
+                    registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) },
                     chaveDispositivo = { AppConfig.getChaveDispositivo(app) }
                 )
             }.also { client = it }
@@ -54,6 +63,8 @@ object HttpClient {
         impressaoConfirmada: () -> String? = { null },
         /** Troca a referência guardada no banco local pelo token da sessão (ver CofreSessoes). */
         resolverSessao: (String) -> String = { it },
+        /** Guarda um erro para o servidor (tipo, mensagem): hoje só o relógio do coletor muito diferente do servidor. */
+        registrarErro: (String, String) -> Unit = { _, _ -> },
         // Último parâmetro: os testes passam a chave como lambda final (HttpClient.criar { "chave" })
         chaveDispositivo: () -> String
     ): OkHttpClient {
@@ -84,6 +95,8 @@ object HttpClient {
                     // Versão instalada: o servidor mostra na tela Coletores quem está com o app desatualizado
                     .header(HEADER_VERSAO_APP, BuildConfig.VERSION_NAME)
                     .header(HEADER_VERSAO_CODIGO, BuildConfig.VERSION_CODE.toString())
+                    // Hora do aparelho: o servidor pode comparar com a dele (e pode ignorar)
+                    .header(HEADER_RELOGIO_COLETOR, horaDoAparelho())
                     .apply {
                         when {
                             sessaoDoRegistro == null -> sessaoAtual()?.let { header(HEADER_SESSAO, it) }
@@ -96,11 +109,24 @@ object HttpClient {
 
                 val inicio = System.currentTimeMillis()
                 val response = chain.proceed(request)
+                val fim = System.currentTimeMillis()
 
-                Log.d(TAG, "${request.method} ${request.url.encodedPath} → ${response.code} (${System.currentTimeMillis() - inicio} ms)")
+                Log.d(TAG, "${request.method} ${request.url.encodedPath} → ${response.code} (${fim - inicio} ms)")
+
+                // Confere o relógio do coletor com o do servidor (cabeçalho Date de qualquer resposta, até de erro)
+                conferirRelogio(response.headers, inicio, fim, registrarErro)
 
                 response
             }
             .build()
     }
+
+    /** Mede o desvio do relógio pelo cabeçalho Date da resposta (ver [RelogioServidor]). Sem Date, não mede. */
+    internal fun conferirRelogio(headers: Headers, inicio: Long, fim: Long, registrarErro: (String, String) -> Unit) {
+        val dataServidor = runCatching { headers.getDate("Date")?.time }.getOrNull() ?: return
+        RelogioServidor.registrarMedicao(RelogioServidor.calcularDesvio(dataServidor, inicio, fim), fim, registrarErro)
+    }
+
+    private fun horaDoAparelho(): String =
+        DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(OffsetDateTime.now(ZoneId.systemDefault()))
 }

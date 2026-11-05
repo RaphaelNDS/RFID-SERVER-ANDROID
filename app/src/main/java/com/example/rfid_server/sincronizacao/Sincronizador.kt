@@ -49,7 +49,10 @@ class Sincronizador internal constructor(
     private val cadastros: SincronizadorCadastros? = null,
     /** Guarda um erro para o servidor (tipo, mensagem): recusas definitivas e erros do servidor. */
     private val registrarErro: (String, String) -> Unit = { _, _ -> },
-    /** Envia ao servidor os erros do app guardados (no fim de cada passada com o servidor respondendo). */
+    /**
+     * Envia ao servidor os erros do app guardados: no fim de cada passada, menos quando a falha é do ambiente (sem
+     * rede, chave, endereço, certificado). Também quando a passada termina com exceção.
+     */
     private val enviarErros: () -> Unit = {},
     private val relogio: () -> Long = System::currentTimeMillis,
     /** Desde quando cada sessão está sendo recusada pelo servidor (as leituras dela esperam um prazo antes de virar recusadas). */
@@ -101,20 +104,32 @@ class Sincronizador internal constructor(
         // Leituras retidas por sessão recusada não impedem os inventários, mas a passada não está "sincronizada"
         disjuntor = DisjuntorRecusas()
         val falhas = mutableListOf<RespostaServidor.Falha>()
-        for (etapa in listOf({ cadastros?.processar() }, { processarLeituras() }, { inventarios?.processar() }, { falhaDaRetencao() })) {
-            val f = etapa() ?: continue
-            falhas += f
-            // O disjuntor das leituras (servidor recusando tudo) também para: os inventários seriam recusados igual
-            if (RegraFalhas.paraTudo(f) || disjuntor.disparou) break
+        var falha: RespostaServidor.Falha? = null
+        try {
+            for (etapa in listOf({ cadastros?.processar() }, { processarLeituras() }, { inventarios?.processar() }, { falhaDaRetencao() })) {
+                val f = etapa() ?: continue
+                falhas += f
+                // O disjuntor das leituras (servidor recusando tudo) também para: os inventários seriam recusados igual
+                if (RegraFalhas.paraTudo(f) || disjuntor.disparou) break
+            }
+            falha = falhas.firstOrNull { RegraFalhas.paraTudo(it) } ?: falhas.firstOrNull()
+
+            // Erro do servidor (5xx, resposta inválida): vai para a tela de erros do coletor no servidor.
+            // Sem conexão, chave, endereço ou certificado não: são do ambiente e já aparecem na tela do coletor
+            if (falha?.motivo == MotivoFalha.ERRO_SERVIDOR) registrarErro(TipoErro.ERRO_SERVIDOR, "Sincronização interrompida: ${falha.mensagem}")
+        } finally {
+            // Uma vez por passada, mesmo se a passada terminar com exceção (ex.: banco local cheio): os erros guardados
+            // vão ao servidor sempre que ele pode estar respondendo. Falha do ambiente (sem rede, chave, endereço,
+            // certificado) não: o envio daria a mesma falha
+            if (falhas.none { RegraFalhas.paraTudo(it) }) {
+                try {
+                    enviarErros()
+                } catch (e: Throwable) {
+                    // Não esconde a exceção da passada (se houver) nem o resultado
+                    Log.e(TAG, "Falha ao enviar os erros do app guardados", e)
+                }
+            }
         }
-        val falha = falhas.firstOrNull { RegraFalhas.paraTudo(it) } ?: falhas.firstOrNull()
-
-        // Erro do servidor (5xx, resposta inválida): vai para a tela de erros do coletor no servidor.
-        // Sem conexão, chave, endereço ou certificado não: são do ambiente e já aparecem na tela do coletor
-        if (falha?.motivo == MotivoFalha.ERRO_SERVIDOR) registrarErro(TipoErro.ERRO_SERVIDOR, "Sincronização interrompida: ${falha.mensagem}")
-
-        // O servidor está respondendo: aproveita para mandar os erros do app guardados
-        if (falha == null || falha.motivo == MotivoFalha.ERRO_SERVIDOR || falha.motivo == MotivoFalha.SESSAO_INVALIDA) enviarErros()
 
         if (falha != null) {
             val estado = estadoPara(falha.motivo)
@@ -492,7 +507,12 @@ class Sincronizador internal constructor(
                         agendarNovaTentativa = { SincronizacaoWorker.agendarNovaTentativa(app) },
                         inventarios = SincronizadorInventarios(banco.inventarioDao(), tagService,
                             registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) }),
-                        cadastros = SincronizadorCadastros(banco.cadastroDao(), banco.leituraDao(), tagService, emTransacao),
+                        cadastros = SincronizadorCadastros(
+                            banco.cadastroDao(), banco.leituraDao(), tagService,
+                            registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) },
+                            recusasDeSessao = RecusasDeSessaoGuardadas(app, RecusasDeSessaoGuardadas.ARQUIVO_CADASTROS),
+                            emTransacao = emTransacao
+                        ),
                         registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) },
                         enviarErros = { RegistroErros.enviarPendentes(app) },
                         recusasDeSessao = RecusasDeSessaoGuardadas(app),

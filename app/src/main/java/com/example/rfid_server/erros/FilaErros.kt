@@ -28,9 +28,9 @@ object TipoErro {
  * precisa funcionar até dentro do tratamento de um travamento). Sem dependência do Android, para os testes.
  *
  * - O texto passa pela [MascaraSensivel] antes de ser guardado.
- * - Repetidos em sequência (mesmo tipo, mensagem e primeira linha do stack em até [JANELA_AGRUPAMENTO_MS])
- *   viram um registro só, com [ocorrencias]: um app em loop de falha não gera milhares de registros.
- * - No máximo [MAXIMO_GUARDADOS]: acima disso, os mais antigos saem.
+ * - Repetidos (mesmo tipo, mensagem e primeira linha do stack em até [JANELA_AGRUPAMENTO_MS], em qualquer ponto da
+ *   fila) viram um registro só, com ocorrencias: um app em loop de falha não gera milhares de registros.
+ * - No máximo [MAXIMO_GUARDADOS] registros e [MAXIMO_BYTES]: ver [limitar] (a primeira ocorrência de cada erro fica).
  */
 class FilaErros(
     private val arquivo: File,
@@ -40,6 +40,11 @@ class FilaErros(
     private val gerarId: () -> String = { UUID.randomUUID().toString() }
 ) {
 
+    // Muda a cada gravação; com o momento do último envio sem sucesso, evita repetir o mesmo envio (só na memória)
+    private var versao = 0L
+    private var versaoTentada = -1L
+    private var momentoTentativa: Long? = null
+
     @Synchronized
     fun registrar(tipo: String, mensagem: String, detalhe: String? = null, operador: String? = null) {
         val agora = relogio()
@@ -48,11 +53,14 @@ class FilaErros(
         val chave = "$tipo|$msg|${det?.lineSequence()?.drop(1)?.firstOrNull()?.trim().orEmpty()}"
 
         val itens = ler()
-        val ultimo = (0 until itens.length()).map { itens.getJSONObject(it) }.lastOrNull()
+        // Procura em toda a fila (o mais recente primeiro), não só no último: num loop de travamento com dois erros
+        // alternados, cada um continua agrupado no seu registro
+        val mesmo = (itens.length() - 1 downTo 0).map { itens.getJSONObject(it) }
+            .firstOrNull { it.optString("chave") == chave && agora - it.optLong("ultimoMs") <= JANELA_AGRUPAMENTO_MS }
 
-        if (ultimo != null && ultimo.optString("chave") == chave && agora - ultimo.optLong("ultimoMs") <= JANELA_AGRUPAMENTO_MS) {
-            ultimo.put("ocorrencias", ultimo.optInt("ocorrencias", 1) + 1)
-            ultimo.put("ultimoMs", agora)
+        if (mesmo != null) {
+            mesmo.put("ocorrencias", mesmo.optInt("ocorrencias", 1) + 1)
+            mesmo.put("ultimoMs", agora)
         } else {
             itens.put(
                 JSONObject()
@@ -70,7 +78,7 @@ class FilaErros(
             )
         }
 
-        gravar(manterUltimos(itens))
+        gravar(limitar(itens))
     }
 
     /** Até [maximo] erros para enviar (os mais antigos primeiro), já no formato do servidor. */
@@ -139,12 +147,77 @@ class FilaErros(
     @Synchronized
     fun quantidade(): Int = ler().length()
 
-    private fun manterUltimos(itens: JSONArray): JSONArray {
-        if (itens.length() <= MAXIMO_GUARDADOS) return itens
-        val ultimos = JSONArray()
-        for (i in itens.length() - MAXIMO_GUARDADOS until itens.length()) ultimos.put(itens.get(i))
-        return ultimos
+    /**
+     * true se a fila não mudou desde o último envio que não deu certo, feito há menos de [JANELA_REENVIO_MS]: tentar
+     * de novo agora daria o mesmo resultado (ex.: o envio do início do SincronizacaoWorker e o do fim da passada).
+     */
+    @Synchronized
+    fun envioRecenteSemNovidade(): Boolean {
+        val momento = momentoTentativa ?: return false
+        return versaoTentada == versao && relogio() - momento in 0 until JANELA_REENVIO_MS
     }
+
+    /** Um envio não deu certo agora (sem rede, servidor antigo, erro do servidor): ver [envioRecenteSemNovidade]. */
+    @Synchronized
+    fun marcarEnvioSemSucesso() {
+        versaoTentada = versao
+        momentoTentativa = relogio()
+    }
+
+    /**
+     * Mantém a fila dentro dos limites sem perder a causa original de um problema:
+     *  1. acima de [MAXIMO_GUARDADOS] registros, saem primeiro as REPETIÇÕES (mesma chave de um registro mais antigo,
+     *     fora da janela de agrupamento), das mais novas para as mais antigas; as ocorrências delas são somadas na
+     *     primeira ocorrência, que fica. Só sem repetições saem os mais antigos;
+     *  2. acima de [MAXIMO_BYTES], primeiro some o detalhe (stack) dos mais antigos; se ainda não bastar, saem
+     *     registros na mesma ordem do item 1.
+     */
+    private fun limitar(itens: JSONArray): JSONArray {
+        val lista = (0 until itens.length()).map { itens.getJSONObject(it) }.toMutableList()
+        val tamanhos = lista.map { tamanho(it) }.toMutableList()
+
+        fun total() = tamanhos.sum() + lista.size + 1
+
+        fun descartarUm() {
+            // A repetição mais nova (índice maior) de uma chave que aparece antes na fila
+            val primeiraPorChave = mutableMapOf<String, Int>()
+            var repetida = -1
+            lista.forEachIndexed { i, item ->
+                val chave = item.optString("chave")
+                if (chave in primeiraPorChave) repetida = i else primeiraPorChave[chave] = i
+            }
+            if (repetida >= 0) {
+                val item = lista[repetida]
+                val primeira = primeiraPorChave.getValue(item.optString("chave"))
+                val original = lista[primeira]
+                original.put("ocorrencias", original.optInt("ocorrencias", 1) + item.optInt("ocorrencias", 1))
+                original.put("ultimoMs", maxOf(original.optLong("ultimoMs"), item.optLong("ultimoMs")))
+                tamanhos[primeira] = tamanho(original)
+                lista.removeAt(repetida)
+                tamanhos.removeAt(repetida)
+            } else {
+                lista.removeAt(0)
+                tamanhos.removeAt(0)
+            }
+        }
+
+        while (lista.size > MAXIMO_GUARDADOS) descartarUm()
+
+        if (total() > MAXIMO_BYTES) {
+            for (i in lista.indices) {
+                if (total() <= MAXIMO_BYTES) break
+                if (lista[i].isNull("detalhe")) continue
+                lista[i].put("detalhe", JSONObject.NULL)
+                tamanhos[i] = tamanho(lista[i])
+            }
+            while (lista.size > 1 && total() > MAXIMO_BYTES) descartarUm()
+        }
+
+        return JSONArray().apply { lista.forEach { put(it) } }
+    }
+
+    // Em bytes (UTF-8), como fica no arquivo
+    private fun tamanho(item: JSONObject): Int = item.toString().toByteArray().size
 
     // Arquivo ilegível (ex.: gravação interrompida) não pode travar o app: recomeça vazio
     private fun ler(): JSONArray =
@@ -155,6 +228,7 @@ class FilaErros(
         }
 
     private fun gravar(itens: JSONArray) {
+        versao++
         arquivo.parentFile?.mkdirs()
         val temporario = File(arquivo.parentFile, arquivo.name + ".tmp")
         temporario.writeText(itens.toString())
@@ -171,5 +245,9 @@ class FilaErros(
         const val MAXIMO_POR_ENVIO = 50
         const val MAXIMO_GUARDADOS = 200
         const val JANELA_AGRUPAMENTO_MS = 10 * 60 * 1000L
+        /** Tamanho máximo do arquivo (aprox.): acima disso some o stack dos mais antigos, depois registros. */
+        const val MAXIMO_BYTES = 512 * 1024
+        /** Dentro deste tempo, um envio sem sucesso não é repetido se a fila não mudou. */
+        const val JANELA_REENVIO_MS = 60 * 1000L
     }
 }

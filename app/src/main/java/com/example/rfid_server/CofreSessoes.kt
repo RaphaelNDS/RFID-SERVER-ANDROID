@@ -21,7 +21,13 @@ class CofreSessoes internal constructor(
     private val todas: () -> Map<String, String>,
     private val apagar: (Collection<String>) -> Unit,
     private val cifra: () -> Cifra,
-    private val relogio: () -> Long = System::currentTimeMillis
+    private val relogio: () -> Long = System::currentTimeMillis,
+    /**
+     * Referências ([PREFIXO]...) ainda usadas no banco local (leituras, inventários, itens e cadastros pendentes):
+     * essas nunca são apagadas por [limparAntigas], mesmo que pareçam velhas (ex.: o relógio do aparelho pulou para
+     * frente). Se a consulta falhar, nada é apagado.
+     */
+    private val emUso: () -> Set<String> = { emptySet() }
 ) {
 
     private val tokens = ConcurrentHashMap<String, String>()
@@ -53,12 +59,29 @@ class CofreSessoes internal constructor(
         return token
     }
 
-    /** Apaga os tokens guardados há mais de [GUARDA_MS]: o servidor já não aceita ações tão antigas. */
+    /**
+     * Apaga os tokens guardados há mais de [GUARDA_MS]: o servidor já não aceita ações tão antigas. A idade é medida
+     * pelo relógio do aparelho, que pode estar errado: por isso as referências ainda usadas no banco ([emUso]) ficam
+     * sempre (sem o token, a leitura na fila seria recusada pela sessão).
+     */
     fun limparAntigas(): Int {
         val limite = relogio() - GUARDA_MS
-        val vencidas = todas().filterKeys { it.endsWith(SUFIXO_DATA) }
+        val candidatas = todas().filterKeys { it.endsWith(SUFIXO_DATA) }
             .filterValues { (it.toLongOrNull() ?: 0) < limite }
             .keys.map { it.removeSuffix(SUFIXO_DATA) }
+        if (candidatas.isEmpty()) return 0
+
+        val usadas = try {
+            emUso()
+        } catch (e: Exception) {
+            Log.w(TAG, "Não foi possível conferir as sessões ainda usadas no aparelho: nenhuma é apagada agora", e)
+            return 0
+        }
+        val vencidas = candidatas.filter { it !in usadas }
+        if (vencidas.size < candidatas.size) {
+            Log.w(TAG, "${candidatas.size - vencidas.size} sessão(ões) com mais de ${GUARDA_MS / 86_400_000} dias ainda têm " +
+                "registros na fila: ficam guardadas (o relógio do aparelho pode estar adiantado)")
+        }
         if (vencidas.isEmpty()) return 0
         apagar(vencidas.flatMap { listOf(it, it + SUFIXO_DATA) })
         vencidas.forEach { tokens.remove(it) }
@@ -91,6 +114,8 @@ class CofreSessoes internal constructor(
                         todas = { prefs.all.mapNotNull { (k, v) -> (v as? String)?.let { k to it } }.toMap() },
                         apagar = { chaves -> prefs.edit { chaves.forEach { remove(it) } } },
                         cifra = { AppConfig.cifra }
+                        // emUso: falta ligar as referências usadas no banco (leituras, inventários, itens e cadastros
+                        // pendentes; ver CadastroDao.sessoesEmUso). Enquanto isso, vale o padrão (nenhuma)
                     ).also { it.limparAntigas() }
                 }.also { instancia = it }
             }

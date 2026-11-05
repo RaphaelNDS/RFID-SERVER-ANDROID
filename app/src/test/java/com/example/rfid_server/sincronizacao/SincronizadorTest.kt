@@ -104,6 +104,49 @@ class SincronizadorTest {
         assertEquals(0, enviosDeErros)
     }
 
+    @Test(timeout = 10_000)
+    fun `passada que termina com excecao ainda envia os erros guardados uma vez`() {
+        // Ex.: banco local cheio ao ler a fila
+        val daoQuebrado = object : com.example.rfid_server.dados.LeituraDao by dao {
+            override fun pendentes(): List<LeituraEntity> = throw IllegalStateException("database or disk is full")
+        }
+        val sincronizador = Sincronizador(
+            dao = daoQuebrado,
+            tagService = TagService(HttpClient.criar { "chave-teste" }) { servidor.url("/").toString().trimEnd('/') },
+            executor = executorDireto,
+            agendarNovaTentativa = {},
+            enviarErros = { enviosDeErros++ }
+        )
+
+        val erro = runCatching { sincronizador.processarPendentes() }.exceptionOrNull()
+
+        assertTrue("A exceção continua chegando ao SincronizacaoWorker", erro is IllegalStateException)
+        assertEquals(1, enviosDeErros)
+    }
+
+    @Test(timeout = 10_000)
+    fun `falha ao enviar os erros nao esconde o resultado da passada`() {
+        val sincronizador = Sincronizador(
+            dao = dao,
+            tagService = TagService(HttpClient.criar { "chave-teste" }) { servidor.url("/").toString().trimEnd('/') },
+            executor = executorDireto,
+            agendarNovaTentativa = {},
+            enviarErros = { throw IllegalStateException("falhou") }
+        )
+
+        assertEquals(EstadoSincronizacao.SINCRONIZADO, sincronizador.processarPendentes())
+    }
+
+    @Test(timeout = 10_000)
+    fun `chave invalida nao tenta enviar os erros`() {
+        dao.inserir(LeituraEntity(epc = "E1", lidoEm = 0))
+        servidor.enqueue(json(401))
+
+        assertEquals(EstadoSincronizacao.CHAVE_INVALIDA, sincronizador().processarPendentes())
+
+        assertEquals(0, enviosDeErros)
+    }
+
     private fun json(codigo: Int, corpo: String = "{}") =
         MockResponse().setResponseCode(codigo).setHeader("Content-Type", "application/json").setBody(corpo)
 

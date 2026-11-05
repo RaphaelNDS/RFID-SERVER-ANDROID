@@ -26,6 +26,10 @@ class SincronizacaoWorker(context: Context, params: WorkerParameters) : Worker(c
     override fun doWork(): Result {
         Log.i(TAG, "Sincronização em segundo plano iniciada (tentativa ${runAttemptCount + 1})")
 
+        // Os erros guardados vão primeiro: se a passada travar (ex.: banco local cheio), eles já chegaram ao servidor.
+        // Não lança erro. Se este envio falhar, o do fim da passada não repete a mesma tentativa (ver FilaErros)
+        RegistroErros.enviarPendentes(applicationContext)
+
         // Sem agendar outra tentativa lá dentro: quem pede a nova tentativa aqui é o Result.retry()
         val estado = try {
             Sincronizador.get(applicationContext).processarPendentes(agendarSeFalhar = false)

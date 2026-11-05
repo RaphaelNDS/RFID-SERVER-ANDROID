@@ -14,7 +14,8 @@ import java.io.StringWriter
 
 /**
  * Erros do app que vão para o servidor (tela Coletores → Erros): guarda na [FilaErros] e envia quando há rede
- * ([enviarPendentes], chamado pelo Sincronizador e pela tela de login). Nunca lança erro: registrar ou enviar
+ * ([enviarPendentes], chamado no início do SincronizacaoWorker, no fim de cada passada do Sincronizador e pela tela
+ * de login). Nunca lança erro: registrar ou enviar
  * um erro não pode causar outro.
  */
 object RegistroErros {
@@ -58,14 +59,22 @@ object RegistroErros {
         val lote = fila.pendentes()
         if (lote.length() == 0) return
 
+        // Mesma fila de um envio que acabou de falhar (ex.: início do SincronizacaoWorker e fim da passada): não repete
+        if (fila.envioRecenteSemNovidade()) {
+            Log.d(TAG, "Erros do app não reenviados agora: o último envio falhou há pouco e nada mudou desde então")
+            return
+        }
+
         when (val resposta = enviar(lote)) {
             is RespostaServidor.Sucesso -> {
                 // Só o que foi enviado: um erro repetido durante o envio continua na fila com as ocorrências novas
                 val removidos = fila.confirmarEnvio(lote)
                 Log.i(TAG, "$removidos erro(s) do app enviado(s) ao servidor (${fila.quantidade()} ainda guardado(s))")
             }
-            RespostaServidor.NaoEncontrado ->
+            RespostaServidor.NaoEncontrado -> {
+                fila.marcarEnvioSemSucesso()
                 Log.d(TAG, "Servidor sem a rota de erros (versão antiga): ${lote.length()} erro(s) continuam guardados")
+            }
             is RespostaServidor.Falha ->
                 if (resposta.motivo == MotivoFalha.REQUISICAO_RECUSADA) {
                     // Recusa definitiva deste lote (ex.: 400 por um campo que o servidor não aceita): reenviar daria
@@ -73,6 +82,7 @@ object RegistroErros {
                     fila.confirmarEnvio(lote)
                     Log.w(TAG, "Servidor recusou ${lote.length()} erro(s) do app (${resposta.mensagem}): descartados para não travar os outros")
                 } else {
+                    fila.marcarEnvioSemSucesso()
                     Log.d(TAG, "Erros do app não enviados agora (${resposta.mensagem}): ficam guardados para a próxima")
                 }
         }
