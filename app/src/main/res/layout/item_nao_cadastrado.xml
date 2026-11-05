@@ -36,12 +36,12 @@
                 android:layout_height="wrap_content"/>
         </LinearLayout>
 
-        <!-- Indica que o item abre outra tela (decorativa: o leitor de tela não lê a seta) -->
+        <!-- Diz o que o toque faz (antes era o título da aba, "toque para cadastrar"); o toque é no cartão inteiro -->
         <TextView
-            android:text="@string/nao_cadastradas_seta"
-            android:importantForAccessibility="no"
-            android:textColor="@color/texto_terciario"
-            android:textSize="24sp"
+            android:text="@string/nao_cadastradas_cadastrar"
+            android:textColor="@color/azul"
+            android:textSize="14sp"
+            android:textStyle="bold"
             android:layout_marginStart="8dp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"/>

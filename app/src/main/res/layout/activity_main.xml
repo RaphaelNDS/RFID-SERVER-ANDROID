@@ -1,3 +1,5 @@
+<!-- Tela principal. Tela de ~4" (~320x533dp): o que fica acima da lista é o mínimo, em faixas de uma linha
+     sempre que dá, para sobrar lugar para as etiquetas lidas. Inventário e Localizar ficam no rodapé (botões grandes) -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:orientation="vertical"
     android:keepScreenOn="true"
@@ -21,47 +23,177 @@
         android:background="@color/superficie"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="10dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
-        <!-- Operador e até quando vale a sessão (na barra de cima não cabe, com os ícones do menu) -->
+        <!-- Operador e até quando vale a sessão (na barra de cima não cabe). Uma linha só: o fim do nome
+             pode sumir, mas a lista ganha a altura -->
         <TextView
             android:id="@+id/txtSessao"
             android:textAppearance="@style/Texto.RFID.Secundario"
-            android:maxLines="2"
+            android:textSize="14sp"
+            android:maxLines="1"
             android:ellipsize="end"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
 
-        <!-- Contadores da leitura atual (zeram no botão "Nova leitura"). Tocar mostra as leituras recusadas -->
-        <TextView
-            android:id="@+id/txtContadores"
-            android:background="?attr/selectableItemBackground"
-            android:textColor="@color/marinho"
-            android:textSize="15sp"
-            android:textStyle="bold"
+        <!-- Contadores da leitura atual (zeram no botão "Nova leitura"): número grande, rótulo pequeno.
+             O leitor de tela lê a fileira inteira de uma vez (descrição = ContagemSessao.resumo()) -->
+        <LinearLayout
+            android:id="@+id/linhaContadores"
+            android:focusable="true"
+            android:importantForAccessibility="yes"
+            android:orientation="horizontal"
+            android:baselineAligned="false"
+            android:layout_marginTop="2dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <LinearLayout
+                android:orientation="vertical"
+                android:gravity="center_horizontal"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    android:id="@+id/txtNumLidas"
+                    android:textColor="@color/marinho"
+                    android:textSize="26sp"
+                    android:textStyle="bold"
+                    android:includeFontPadding="false"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"/>
+
+                <TextView
+                    android:text="@string/main_contador_lidas"
+                    android:textColor="@color/texto_secundario"
+                    android:textSize="12sp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"/>
+            </LinearLayout>
+
+            <LinearLayout
+                android:orientation="vertical"
+                android:gravity="center_horizontal"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    android:id="@+id/txtNumCadastradas"
+                    android:textColor="@color/sucesso"
+                    android:textSize="26sp"
+                    android:textStyle="bold"
+                    android:includeFontPadding="false"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"/>
+
+                <TextView
+                    android:text="@string/main_contador_cadastradas"
+                    android:textColor="@color/texto_secundario"
+                    android:textSize="12sp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"/>
+            </LinearLayout>
+
+            <LinearLayout
+                android:orientation="vertical"
+                android:gravity="center_horizontal"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content">
+
+                <TextView
+                    android:id="@+id/txtNumNaoCadastradas"
+                    android:textColor="@color/atencao"
+                    android:textSize="26sp"
+                    android:textStyle="bold"
+                    android:includeFontPadding="false"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"/>
+
+                <TextView
+                    android:text="@string/main_contador_nao_cadastradas"
+                    android:textColor="@color/texto_secundario"
+                    android:textSize="12sp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"/>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Selos que só aparecem quando há o que mostrar. Tocar em "Recusadas" mostra quais são, o motivo
+             e "Tentar de novo" -->
+        <LinearLayout
+            android:id="@+id/linhaSelos"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:visibility="gone"
             android:layout_marginTop="4dp"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:id="@+id/seloAguardando"
+                android:background="@drawable/selo_atencao"
+                android:textColor="@color/atencao"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:minHeight="32dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:layout_marginEnd="8dp"
+                android:visibility="gone"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
+
+            <TextView
+                android:id="@+id/seloRecusadas"
+                android:background="@drawable/selo_erro"
+                android:foreground="?attr/selectableItemBackground"
+                android:textColor="@color/erro"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:minHeight="44dp"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:visibility="gone"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"/>
+        </LinearLayout>
     </LinearLayout>
 
-    <!-- Aparece só com leituras guardadas no aparelho aguardando envio ou com o relógio errado.
-         Tocar na faixa (ou no botão) pede o envio na hora; problema das Configurações: "Chame o responsável" -->
+    <!-- Aparece só com leituras guardadas no aparelho aguardando envio ou com o relógio errado. Uma linha:
+         texto à esquerda (até 2 linhas) e "Enviar agora" à direita. Tocar na faixa (ou no botão) pede o envio
+         na hora; problema das Configurações: "Chame o responsável" -->
     <LinearLayout
         android:id="@+id/faixaSincronizacao"
-        android:orientation="vertical"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
         android:background="@color/atencao_fundo"
         android:foreground="?attr/selectableItemBackground"
+        android:paddingStart="12dp"
+        android:paddingEnd="4dp"
+        android:minHeight="48dp"
         android:visibility="gone"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
         <TextView
             android:id="@+id/txtSincronizacao"
-            style="@style/Texto.RFID.Aviso"
-            android:layout_width="match_parent"
+            android:textColor="@color/atencao"
+            android:textStyle="bold"
+            android:textSize="14sp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp"
+            android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="wrap_content"/>
 
         <Button
@@ -69,6 +201,7 @@
             style="@style/Widget.RFID.Botao.Texto"
             android:text="@string/main_enviar_agora"
             android:textColor="@color/marinho"
+            android:textStyle="bold"
             android:minHeight="48dp"
             android:layout_marginStart="4dp"
             android:visibility="gone"
@@ -81,6 +214,7 @@
         android:layout_width="match_parent"
         android:layout_height="1dp"/>
 
+    <!-- Os títulos das abas trazem a quantidade: "Leitura (12)" e "Não cadastradas (3)" -->
     <com.google.android.material.tabs.TabLayout
         android:id="@+id/tabs"
         android:layout_width="match_parent"
@@ -94,5 +228,38 @@
     <androidx.viewpager2.widget.ViewPager2
         android:id="@+id/pager"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"/>
+        android:layout_height="0dp"
+        android:layout_weight="1"/>
+
+    <!-- Rodapé: as duas outras tarefas do operador, em botões grandes (luva). Antes eram ícones na barra -->
+    <LinearLayout
+        android:orientation="horizontal"
+        android:background="@color/superficie"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <Button
+            android:id="@+id/btnInventario"
+            style="@style/Widget.RFID.Botao"
+            android:text="@string/main_rodape_inventario"
+            android:minHeight="56dp"
+            android:layout_marginEnd="4dp"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"/>
+
+        <Button
+            android:id="@+id/btnLocalizar"
+            style="@style/Widget.RFID.Botao.Contorno"
+            android:text="@string/main_rodape_localizar"
+            android:minHeight="56dp"
+            android:layout_marginStart="4dp"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"/>
+    </LinearLayout>
 </LinearLayout>

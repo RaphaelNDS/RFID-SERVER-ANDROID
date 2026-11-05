@@ -54,6 +54,18 @@
     <string name="sessao_renovada">Sessão renovada até %1$s</string>
 
     <!-- Tela principal (leitura) -->
+    <string name="main_contador_lidas">Lidas</string>
+    <string name="main_contador_cadastradas">Cadastradas</string>
+    <string name="main_contador_nao_cadastradas">Não cad.</string>
+    <string name="main_selo_aguardando">Aguardando %1$d</string>
+    <string name="main_selo_recusadas">Recusadas %1$d ›</string>
+    <string name="main_selo_recusadas_descricao">%1$d leitura(s) recusada(s) pelo servidor. Toque para ver quais são.</string>
+    <string name="main_rodape_inventario">Inventário</string>
+    <string name="main_rodape_localizar">Localizar</string>
+    <string name="nao_cadastradas_cadastrar">Cadastrar ›</string>
+    <string name="tag_sem_patrimonio">Sem patrimônio</string>
+    <string name="tag_sem_descricao">Tipo, marca e modelo não informados</string>
+    <string name="tag_codigo_serie">Cód. %1$s · Série %2$s</string>
     <string name="main_enviar_agora">Enviar agora</string>
     <string name="main_enviando_agora">Enviando as leituras ao servidor…</string>
     <string name="main_chame_responsavel">Chame o responsável pelo coletor.</string>    <string name="main_operador">Operador: %1$s · sessão até %2$s</string>
@@ -63,8 +75,6 @@
     <string name="main_aviso_sincronizacao">%1$s — %2$d leitura(s) guardada(s) no coletor, aguardando envio</string>
     <string name="main_nova_leitura">Nova leitura</string>
     <string name="main_configuracoes">Configurações</string>
-    <string name="main_localizar">Localizar patrimônio</string>
-    <string name="main_inventario">Inventário por local</string>
     <string name="main_sair_menu">Sair (trocar operador)</string>
     <string name="main_sair_titulo">Sair do coletor</string>
     <string name="main_sair_mensagem">Sair como %1$s? O próximo operador entra com o próprio usuário.</string>
@@ -74,13 +84,9 @@
     <string name="main_nova_leitura_titulo">Começar nova leitura?</string>
     <string name="main_nova_leitura_mensagem">As %1$d tag(s) lidas vão sair da tela, e a mesma tag poderá ser lida de novo.</string>
     <string name="main_nova_leitura_pendentes">%1$d leitura(s) ainda não chegaram ao servidor: elas continuam guardadas no coletor e serão enviadas assim que possível.</string>
-    <string name="leitura_titulo">Etiquetas lidas</string>
     <string name="leitura_vazia">Nenhuma etiqueta cadastrada lida nesta leitura. Aperte o gatilho; as não cadastradas ficam na outra aba.</string>
-    <string name="leitura_aguardando_servidor">EPC %1$s · aguardando o servidor identificar</string>
-    <string name="nao_cadastradas_titulo">Etiquetas não cadastradas · toque para cadastrar</string>
+    <string name="leitura_aguardando_servidor">⏳ EPC %1$s · aguardando o servidor identificar</string>
     <string name="nao_cadastradas_vazia">Nenhuma etiqueta não cadastrada lida. Aperte o gatilho.</string>
-    <string name="nao_cadastradas_seta" translatable="false">›</string>
-    <string name="main_recusadas_toque">"  (toque para ver as recusadas)"</string>
 
     <!-- Leituras recusadas pelo servidor (toque no contador da tela principal) -->
     <string name="recusadas_titulo">Recusadas pelo servidor nos últimos 30 dias (%1$d)</string>
@@ -100,13 +106,8 @@
     <string name="aviso_recusa_ciente">Ciente</string>
 
     <!-- Item da lista de etiquetas cadastradas -->
-    <string name="tag_codigo">Código: %1$s</string>
-    <string name="tag_tipo">Tipo: %1$s</string>
-    <string name="tag_marca">Marca: %1$s</string>
-    <string name="tag_modelo">Modelo: %1$s</string>
-    <string name="tag_patrimonio">Patrimônio: %1$s</string>
-    <string name="tag_serie">Série: %1$s</string>
-    <string name="tag_sem_valor" translatable="false">—</string>
+    <string name="tag_codigo">Cód. %1$s</string>
+    <string name="tag_patrimonio">Patrimônio %1$s</string>
 
     <!-- Faixa do estado do leitor -->
     <string name="estado_leitor_reconectar">Reconectar</string>

@@ -1,37 +1,55 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Situação do leitor RFID (IndicadorLeitor): conectado, conectando ou desconectado com botão "Reconectar" -->
+<!-- Situação do leitor RFID (IndicadorLeitor): conectado (discreto, fundo claro), atenção (conectando, bateria baixa)
+     e erro/desconectado em fundo SÓLIDO com texto branco e o botão "Reconectar". O fundo e as cores vêm do
+     IndicadorLeitor (EstiloFaixaLeitor). Usado também no Inventário e no Localizar -->
+<!-- Overdraw: é uma faixa incluída no meio da tela, não o fundo de uma tela inteira -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="Overdraw"
     android:id="@+id/painelEstadoLeitor"
     android:orientation="horizontal"
     android:gravity="center_vertical"
+    android:background="@color/sucesso_fundo"
     android:paddingStart="16dp"
     android:paddingEnd="8dp"
-    android:minHeight="40dp"
+    android:minHeight="36dp"
     android:layout_width="match_parent"
     android:layout_height="wrap_content">
 
-    <!-- Bolinha na cor da situação (IndicadorLeitor pinta junto com o texto) -->
+    <!-- Bolinha na cor da situação (IndicadorLeitor pinta junto com o texto; branca no fundo sólido) -->
     <View
         android:id="@+id/marcaEstadoLeitor"
         android:background="@drawable/marca_estado"
         android:importantForAccessibility="no"
         android:layout_marginEnd="10dp"
-        android:layout_width="10dp"
-        android:layout_height="10dp"/>
+        android:layout_width="14dp"
+        android:layout_height="14dp"/>
 
     <TextView
         android:id="@+id/txtEstadoLeitor"
         android:accessibilityLiveRegion="polite"
         android:textStyle="bold"
-        android:textSize="14sp"
+        android:textSize="15sp"
+        android:textColor="@color/sucesso"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
         android:layout_width="0dp"
         android:layout_weight="1"
         android:layout_height="wrap_content"/>
 
+    <!-- Só aparece desconectado (faixa vermelha sólida): contorno e texto brancos para se destacar no vermelho -->
     <Button
         android:id="@+id/btnReconectarLeitor"
-        style="@style/Widget.RFID.Botao.Texto"
+        style="@style/Widget.Material3.Button.OutlinedButton"
         android:text="@string/estado_leitor_reconectar"
+        android:textColor="@color/white"
+        android:textStyle="bold"
+        app:strokeColor="@color/white"
+        app:strokeWidth="2dp"
+        app:shapeAppearance="@style/Forma.RFID.Pequena"
+        android:minHeight="48dp"
+        android:layout_marginStart="8dp"
         android:visibility="gone"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"/>

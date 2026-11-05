@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Etiqueta lida que ainda espera o servidor identificar (TagAdapter): discreta, sem cartão, em cinza -->
+<!-- Etiqueta lida que ainda espera o servidor identificar (TagAdapter): discreta, sem cartão, com "⏳" no começo
+     (vem do texto). Cinza secundário (~5,4:1 sobre o fundo): o terciário ficava ilegível no galpão -->
 <TextView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/text1"
     android:typeface="monospace"
-    android:textColor="@color/texto_terciario"
-    android:textSize="13sp"
-    android:textStyle="italic"
+    android:textColor="@color/texto_secundario"
+    android:textSize="14sp"
     android:paddingStart="12dp"
     android:paddingEnd="12dp"
     android:paddingTop="8dp"

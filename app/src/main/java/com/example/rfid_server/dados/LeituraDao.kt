@@ -151,8 +151,15 @@ data class ContagemSessao(
     /** O servidor recusou de vez (não serão reenviadas). */
     val recusadas: Int = 0
 ) {
+    /** Tela principal: o selo "Aguardando N" só aparece quando há etiquetas esperando o servidor. */
+    fun mostrarSeloAguardando(): Boolean = aguardandoServidor > 0
+
+    /** Tela principal: o selo "Recusadas N" (tocar mostra quais são) só aparece quando há recusadas nesta leitura. */
+    fun mostrarSeloRecusadas(): Boolean = recusadas > 0
+
     /**
-     * Texto da linha de contadores da tela principal. "Aguardando" só aparece quando há.
+     * Resumo em uma linha dos contadores (descrição da fileira de contadores para o leitor de tela, logs e testes).
+     * "Aguardando" e "Recusadas" só aparecem quando há.
      * Dentro de cada contador os espaços são inseparáveis: com números maiores a linha quebra
      * entre um contador e outro, nunca no meio (ex.: "Não" numa linha e "cadastradas: 150" na outra).
      */

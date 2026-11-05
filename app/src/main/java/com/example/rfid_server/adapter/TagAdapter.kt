@@ -1,26 +1,25 @@
 package com.example.rfid_server.adapter
 
+import android.graphics.Typeface
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.example.rfid_server.R
 
 /**
- * Aba "Leitura": etiquetas cadastradas (cartão com os dados do equipamento) e, em estilo discreto, as lidas que
- * ainda esperam o servidor identificar (coletor sem rede).
+ * Aba "Leitura": etiquetas cadastradas (cartão com o patrimônio em destaque e os dados do equipamento embaixo) e,
+ * em estilo discreto, as lidas que ainda esperam o servidor identificar (coletor sem rede).
  */
 class TagAdapter : ListAdapter<ItemLeitura, RecyclerView.ViewHolder>(Diferenca { it.chave }) {
 
     class VH(view: View) : RecyclerView.ViewHolder(view) {
-        val txtCodigoInterno: TextView = view.findViewById(R.id.txtCodigoInterno)
-        val txtTipo: TextView = view.findViewById(R.id.txtTipo)
-        val txtMarca: TextView = view.findViewById(R.id.txtMarca)
-        val txtModelo: TextView = view.findViewById(R.id.txtModelo)
         val txtPatrimonio: TextView = view.findViewById(R.id.txtPatrimonio)
-        val txtSerie: TextView = view.findViewById(R.id.txtSerie)
+        val txtDescricao: TextView = view.findViewById(R.id.txtDescricao)
+        val txtCodigos: TextView = view.findViewById(R.id.txtCodigos)
     }
 
     class VHAguardando(view: View) : RecyclerView.ViewHolder(view) {
@@ -43,15 +42,25 @@ class TagAdapter : ListAdapter<ItemLeitura, RecyclerView.ViewHolder>(Diferenca {
 
             is ItemLeitura.Cadastrada -> {
                 val h = holder as VH
-                val t = item.tag
-                val semValor = ctx.getString(R.string.tag_sem_valor)
+                val linhas = ItemLeitura.LinhasTag.de(item.tag)
 
-                h.txtCodigoInterno.text = ctx.getString(R.string.tag_codigo, t.codigoInterno)
-                h.txtTipo.text = ctx.getString(R.string.tag_tipo, t.tipo ?: semValor)
-                h.txtMarca.text = ctx.getString(R.string.tag_marca, t.marca ?: semValor)
-                h.txtModelo.text = ctx.getString(R.string.tag_modelo, t.modelo ?: semValor)
-                h.txtPatrimonio.text = ctx.getString(R.string.tag_patrimonio, t.patrimonio)
-                h.txtSerie.text = ctx.getString(R.string.tag_serie, t.numeroSerie)
+                // Linha 1: patrimônio em destaque (é o número que o operador confere na plaqueta)
+                if (linhas.patrimonio != null) {
+                    h.txtPatrimonio.text = ctx.getString(R.string.tag_patrimonio, linhas.patrimonio)
+                    h.txtPatrimonio.setTextColor(ContextCompat.getColor(ctx, R.color.marinho))
+                    h.txtPatrimonio.setTypeface(null, Typeface.BOLD)
+                } else {
+                    h.txtPatrimonio.setText(R.string.tag_sem_patrimonio)
+                    h.txtPatrimonio.setTextColor(ContextCompat.getColor(ctx, R.color.texto_secundario))
+                    h.txtPatrimonio.setTypeface(null, Typeface.ITALIC)
+                }
+
+                // Linha 2: Tipo · Marca · Modelo
+                h.txtDescricao.text = linhas.descricao ?: ctx.getString(R.string.tag_sem_descricao)
+
+                // Linha 3: código interno e número de série
+                h.txtCodigos.text = if (linhas.serie != null) ctx.getString(R.string.tag_codigo_serie, linhas.codigo, linhas.serie)
+                    else ctx.getString(R.string.tag_codigo, linhas.codigo)
             }
         }
     }
