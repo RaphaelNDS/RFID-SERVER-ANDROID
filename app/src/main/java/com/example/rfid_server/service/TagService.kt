@@ -100,6 +100,8 @@ enum class StatusConexao(val descricao: String) {
     ENDERECO_INVALIDO("endereço do servidor inválido"),
     SEM_CONEXAO("sem conexão"),
     RESPOSTA_INESPERADA("resposta inesperada (servidor desatualizado?)"),
+    /** HTTP 429: o servidor bloqueou este coletor por um tempo depois de muitas tentativas com chave inválida. */
+    MUITAS_TENTATIVAS("muitas tentativas com chave inválida: aguarde alguns minutos e confira a chave"),
     CERTIFICADO_NAO_CONFIRMADO("certificado do servidor ainda não confirmado"),
     CERTIFICADO_DIFERENTE("certificado do servidor DIFERENTE do confirmado")
 }
@@ -158,6 +160,7 @@ class TagService internal constructor(
                     val status = when {
                         it.isSuccessful -> StatusConexao.CONECTADO
                         it.code == 401 || it.code == 403 -> StatusConexao.CHAVE_INVALIDA
+                        it.code == 429 -> StatusConexao.MUITAS_TENTATIVAS
                         else -> StatusConexao.RESPOSTA_INESPERADA
                     }
 
@@ -336,7 +339,7 @@ class TagService internal constructor(
     /** Campo "mensagem" do JSON de erro do servidor ({"status","mensagem",...}), se houver. */
     private fun mensagemDoServidor(response: Response): String? =
         try {
-            JSONObject(response.body?.string().orEmpty()).optString("mensagem").takeIf { it.isNotBlank() }
+            JSONObject(response.body?.string().orEmpty()).optString("mensagem").trim().takeIf { it.isNotEmpty() }?.let { limitarMensagem(it) }
         } catch (e: JSONException) {
             null
         }
@@ -764,8 +767,9 @@ class TagService internal constructor(
 
     private fun falhaHttp(response: Response, descricao: String): RespostaServidor.Falha {
         val codigo = response.code
-        // Lê o corpo só nos 401/403, que precisam dele para saber o motivo
-        val erro = if (codigo == 401 || codigo == 403) corpoDeErro(response) else null
+        // Lê o corpo só nos 4xx: o servidor manda {"status","mensagem",...} com o motivo em português
+        val erro = if (codigo in 400..499) corpoDeErro(response) else null
+        val mensagemServidor = mensagemCurta(erro)
 
         return when (codigo) {
             // O servidor diferencia: 401 da chave do coletor (sem "codigo") e 401 da sessão do operador
@@ -787,16 +791,27 @@ class TagService internal constructor(
                 RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, mensagem)
             }
 
-            // Passageiros: tempo esgotado (408), cedo demais (425), muitas requisições (429) e lote grande demais
-            // para um proxy no caminho (413). Tratar como recusa definitiva descartava leituras que iriam na próxima
-            408, 413, 425, 429 -> {
-                Log.w(TAG, "Servidor pediu para tentar depois ao $descricao (HTTP $codigo)")
-                RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Servidor ocupado ou indisponível agora (HTTP $codigo): nova tentativa depois")
+            // Muitas tentativas com chave inválida: o servidor bloqueia o coletor por alguns minutos. Continua
+            // passageiro (a fila tenta de novo depois), mas o operador precisa ler o motivo, não "servidor ocupado"
+            429 -> {
+                val mensagem = mensagemServidor ?: "Muitas tentativas recusadas pelo servidor: aguarde alguns minutos (HTTP 429)"
+                Log.w(TAG, "Servidor pediu para aguardar ao $descricao (HTTP 429): $mensagem")
+                RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, mensagem)
             }
 
+            // Passageiros: tempo esgotado (408), cedo demais (425) e lote grande demais para um proxy no caminho
+            // (413). Tratar como recusa definitiva descartava leituras que iriam na próxima
+            408, 413, 425 -> {
+                val mensagem = mensagemServidor ?: "Servidor ocupado ou indisponível agora (HTTP $codigo): nova tentativa depois"
+                Log.w(TAG, "Servidor pediu para tentar depois ao $descricao (HTTP $codigo): $mensagem")
+                RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, mensagem)
+            }
+
+            // 400, 409...: o servidor explica a recusa (ex.: patrimônio em várias etiquetas) e o operador precisa ler
             in 400..499 -> {
-                Log.e(TAG, "Servidor recusou a requisição ao $descricao (HTTP $codigo)")
-                RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, "Servidor recusou a requisição (HTTP $codigo)")
+                val mensagem = mensagemServidor ?: "Servidor recusou a requisição (HTTP $codigo)"
+                Log.e(TAG, "Servidor recusou a requisição ao $descricao (HTTP $codigo): $mensagem")
+                RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, mensagem)
             }
 
             in 300..399 -> {
@@ -810,6 +825,10 @@ class TagService internal constructor(
             }
         }
     }
+
+    /** "mensagem" do JSON de erro, limitada a [MAX_MENSAGEM_SERVIDOR] caracteres (vai para uma tela pequena). */
+    private fun mensagemCurta(erro: JSONObject?): String? =
+        erro?.optString("mensagem")?.trim()?.takeIf { it.isNotEmpty() }?.let { limitarMensagem(it) }
 
     private fun corpoDeErro(response: Response): JSONObject? =
         try {
@@ -879,6 +898,12 @@ class TagService internal constructor(
 
         /** Espera pela resposta do lote de leituras (segundos). */
         internal const val LEITURA_LOTE_S = 30L
+
+        /** Tamanho máximo da mensagem do servidor mostrada ao operador. */
+        internal const val MAX_MENSAGEM_SERVIDOR = 300
+
+        internal fun limitarMensagem(texto: String): String =
+            if (texto.length <= MAX_MENSAGEM_SERVIDOR) texto else texto.take(MAX_MENSAGEM_SERVIDOR - 1).trimEnd() + "…"
 
         /** Epoch em ms → ISO-8601 com o fuso do aparelho (ex.: 2026-10-13T13:03:51.337-03:00). */
         internal fun formatarDataHora(epochMs: Long): String =

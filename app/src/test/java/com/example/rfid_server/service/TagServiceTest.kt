@@ -802,4 +802,82 @@ class TagServiceTest {
             aguardar<RespostaServidor<Unit>> { service.liberarPin("admin@x.com", "segredo", it) }
         )
     }
+
+    // ================= mensagens do servidor nos 4xx =================
+
+    @Test
+    fun `409 do Localizar traz a mensagem do servidor e continua recusa definitiva`() {
+        val texto = "O patrimônio P1 está em 2 etiquetas. Corrija o cadastro na web para localizar."
+        servidor.enqueue(json(409, """{"status":409,"mensagem":"$texto"}"""))
+
+        val resposta = aguardar<RespostaServidor<String>> { service.buscarTagPorPatrimonio("P1", it) }
+
+        assertEquals(RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, texto), resposta)
+    }
+
+    @Test
+    fun `400 na abertura do inventario traz a mensagem do servidor`() {
+        servidor.enqueue(json(400, """{"status":400,"mensagem":"O local pode ter no máximo 120 caracteres"}"""))
+
+        assertEquals(
+            RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, "O local pode ter no máximo 120 caracteres"),
+            service.abrirInventarioAgora("inv-1", "x".repeat(130), 0L)
+        )
+    }
+
+    @Test
+    fun `4xx sem mensagem ou com corpo que nao e JSON usa o texto padrao`() {
+        servidor.enqueue(json(400, """{"status":400}"""))
+        servidor.enqueue(json(409, "não é json"))
+        servidor.enqueue(json(400, """{"status":400,"mensagem":"   "}"""))
+
+        assertEquals(
+            RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, "Servidor recusou a requisição (HTTP 400)"),
+            service.buscarTagAgora("E1")
+        )
+        assertEquals(
+            RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, "Servidor recusou a requisição (HTTP 409)"),
+            service.buscarTagAgora("E2")
+        )
+        assertEquals(
+            RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, "Servidor recusou a requisição (HTTP 400)"),
+            service.buscarTagAgora("E3")
+        )
+    }
+
+    @Test
+    fun `mensagem longa do servidor e cortada em 300 caracteres`() {
+        servidor.enqueue(json(400, """{"status":400,"mensagem":"${"a".repeat(1000)}"}"""))
+
+        val mensagem = (service.buscarTagAgora("E1") as RespostaServidor.Falha).mensagem
+
+        assertEquals(TagService.MAX_MENSAGEM_SERVIDOR, mensagem.length)
+        assertTrue(mensagem.endsWith("…"))
+    }
+
+    @Test
+    fun `429 traz a mensagem do servidor e continua passageiro`() {
+        val texto = "Muitas tentativas com chave inválida. Aguarde alguns minutos."
+        servidor.enqueue(json(429, """{"status":429,"mensagem":"$texto"}"""))
+        servidor.enqueue(json(429, "{}"))
+
+        assertEquals(RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, texto), service.enviarNaoCadastradaAgora("E1"))
+        val semMensagem = service.enviarNaoCadastradaAgora("E2") as RespostaServidor.Falha
+        assertEquals(MotivoFalha.ERRO_SERVIDOR, semMensagem.motivo)
+        assertTrue(semMensagem.mensagem, semMensagem.mensagem.contains("aguarde alguns minutos"))
+    }
+
+    @Test
+    fun `503 nao usa a mensagem do corpo`() {
+        servidor.enqueue(json(503, """{"status":503,"mensagem":"qualquer coisa"}"""))
+
+        assertEquals(RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Erro do servidor (HTTP 503)"), service.buscarTagAgora("E1"))
+    }
+
+    @Test
+    fun `testarConexao com 429 indica muitas tentativas e nao servidor desatualizado`() {
+        val status = statusParaResposta(json(429, """{"status":429,"mensagem":"Muitas tentativas com chave inválida. Aguarde alguns minutos."}"""))
+
+        assertEquals(StatusConexao.MUITAS_TENTATIVAS, status)
+    }
 }

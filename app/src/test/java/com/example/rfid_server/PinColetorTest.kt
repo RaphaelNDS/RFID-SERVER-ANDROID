@@ -145,4 +145,70 @@ class PinColetorTest {
         // Próximo erro depois do bloqueio antigo começa a contar do zero
         assertEquals(1, PinColetor.aposErro(antigo, parede + 3 * min, ligado).erros)
     }
+
+    // ================= liberação pela chave do coletor =================
+
+    private val chave = "chave-do-coletor-0123456789"
+
+    @Test
+    fun `chave do coletor confere so com a chave guardada`() {
+        assertTrue(PinColetor.chaveConfere(chave, chave))
+        assertTrue(PinColetor.chaveConfere("  $chave \n", chave))
+        assertFalse(PinColetor.chaveConfere(chave + "x", chave))
+        assertFalse(PinColetor.chaveConfere(chave.dropLast(1), chave))
+        assertFalse(PinColetor.chaveConfere(chave.uppercase(), chave))
+        assertFalse(PinColetor.chaveConfere("", chave))
+        // Sem chave guardada no aparelho, nada libera (nem a chave vazia)
+        assertFalse(PinColetor.chaveConfere("", ""))
+        assertFalse(PinColetor.chaveConfere("qualquer", ""))
+        assertFalse(PinColetor.chaveConfere("   ", "   "))
+    }
+
+    @Test
+    fun `chave certa libera o PIN`() {
+        val estado = PinColetor.EstadoTentativas(erros = 3)
+
+        assertEquals(PinColetor.LiberacaoPorChave.Liberado, PinColetor.liberarComChave(chave, chave, estado, parede, ligado))
+    }
+
+    @Test
+    fun `chave errada conta como PIN errado e bloqueia no quinto erro somado aos do PIN`() {
+        // 3 erros de PIN antes: a chave errada é o 4º e o 5º bloqueia por 5 min
+        var estado = PinColetor.EstadoTentativas(erros = 3)
+
+        val quarto = PinColetor.liberarComChave("errada", chave, estado, parede, ligado) as PinColetor.LiberacaoPorChave.Errada
+        assertEquals(4, quarto.estado.erros)
+        assertEquals(0, PinColetor.restanteBloqueio(quarto.estado, parede, ligado))
+        estado = quarto.estado
+
+        val quinto = PinColetor.liberarComChave("errada", chave, estado, parede, ligado) as PinColetor.LiberacaoPorChave.Errada
+        assertEquals(5, quinto.estado.erros)
+        assertEquals(5 * min, PinColetor.restanteBloqueio(quinto.estado, parede, ligado))
+    }
+
+    @Test
+    fun `bloqueado nem a chave certa libera e nada muda`() {
+        val bloqueado = PinColetor.aposErro(PinColetor.EstadoTentativas(erros = 4), parede, ligado)
+
+        assertEquals(
+            PinColetor.LiberacaoPorChave.Bloqueado(5 * min),
+            PinColetor.liberarComChave(chave, chave, bloqueado, parede, ligado)
+        )
+        assertEquals(
+            PinColetor.LiberacaoPorChave.Bloqueado(2 * min),
+            PinColetor.liberarComChave("errada", chave, bloqueado, parede + 3 * min, ligado + 3 * min)
+        )
+        // Acabado o bloqueio, a chave certa libera
+        assertEquals(
+            PinColetor.LiberacaoPorChave.Liberado,
+            PinColetor.liberarComChave(chave, chave, bloqueado, parede + 5 * min, ligado + 5 * min)
+        )
+    }
+
+    @Test
+    fun `sem chave guardada a liberacao pela chave so conta erro`() {
+        val resultado = PinColetor.liberarComChave("", "", PinColetor.EstadoTentativas(), parede, ligado)
+
+        assertEquals(1, (resultado as PinColetor.LiberacaoPorChave.Errada).estado.erros)
+    }
 }

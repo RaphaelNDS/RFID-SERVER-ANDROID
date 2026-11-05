@@ -10,7 +10,7 @@ import javax.crypto.spec.PBEKeySpec
  * PIN das Configurações do coletor: protege o IP do servidor, a chave do coletor e a confirmação do
  * certificado contra quem pega o coletor na mão. Só o hash (PBKDF2 com sal aleatório) fica no aparelho.
  * A cada [MAX_ERROS] erros as tentativas ficam bloqueadas por um tempo crescente ([duracaoBloqueio]).
- * O contador de erros só volta a zero com o PIN certo ou com a liberação por um ADMIN.
+ * O contador de erros só volta a zero com o PIN certo ou com a liberação (por um ADMIN ou pela chave do coletor).
  */
 object PinColetor {
 
@@ -110,4 +110,48 @@ object PinColetor {
 
     /** Tentativas que ainda restam antes do próximo bloqueio. */
     fun restantesAteBloqueio(erros: Int): Int = MAX_ERROS - erros % MAX_ERROS
+
+    // ================= LIBERAÇÃO PELA CHAVE DO COLETOR =================
+    // "Esqueci o PIN" na troca de servidor: o servidor novo não conecta, então o ADMIN não consegue liberar.
+    // Quem sabe a chave do coletor (a mesma cadastrada no servidor) libera o PIN no próprio aparelho.
+
+    /**
+     * A chave digitada é a chave guardada no coletor? Sem chave guardada, nunca. Compara o SHA-256 das duas
+     * com MessageDigest.isEqual: tempo constante e sem revelar nem o tamanho da chave.
+     */
+    fun chaveConfere(digitada: String, guardada: String): Boolean {
+        val chave = digitada.trim()
+        if (guardada.isBlank() || chave.isEmpty()) return false
+        return MessageDigest.isEqual(sha256(chave), sha256(guardada))
+    }
+
+    private fun sha256(texto: String): ByteArray =
+        MessageDigest.getInstance("SHA-256").digest(texto.toByteArray(Charsets.UTF_8))
+
+    /** Resultado de uma tentativa de liberar o PIN pela chave do coletor. */
+    sealed class LiberacaoPorChave {
+        /** Chave certa: apagar o PIN (e as tentativas, como na liberação pelo ADMIN). */
+        object Liberado : LiberacaoPorChave()
+        /** Chave errada: gravar [estado] (conta como um PIN errado; pode ter começado um bloqueio). */
+        data class Errada(val estado: EstadoTentativas) : LiberacaoPorChave()
+        /** Tentativas bloqueadas: a chave nem é conferida. [restanteMs] = quanto falta do bloqueio. */
+        data class Bloqueado(val restanteMs: Long) : LiberacaoPorChave()
+    }
+
+    /**
+     * Tenta liberar o PIN com a chave do coletor. Os erros contam junto com os do PIN, na mesma regra de
+     * bloqueio ([aposErro]): senão este diálogo viraria um jeito de adivinhar a chave (ou de fugir do bloqueio).
+     */
+    fun liberarComChave(
+        digitada: String,
+        guardada: String,
+        estado: EstadoTentativas,
+        agoraParede: Long,
+        agoraDecorrido: Long
+    ): LiberacaoPorChave {
+        val restante = restanteBloqueio(estado, agoraParede, agoraDecorrido)
+        if (restante > 0) return LiberacaoPorChave.Bloqueado(restante)
+        if (chaveConfere(digitada, guardada)) return LiberacaoPorChave.Liberado
+        return LiberacaoPorChave.Errada(aposErro(estado, agoraParede, agoraDecorrido))
+    }
 }
