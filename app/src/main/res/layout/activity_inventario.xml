@@ -84,7 +84,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
 
+        <!-- Some enquanto o teclado está aberto (InventarioActivity.abrirEspacoComTeclado), junto com "Finalizar" -->
         <LinearLayout
+            android:id="@+id/cabecalhoAndamento"
             android:orientation="vertical"
             android:background="@color/superficie"
             android:paddingStart="16dp"
