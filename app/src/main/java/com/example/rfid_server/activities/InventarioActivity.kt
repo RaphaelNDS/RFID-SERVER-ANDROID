@@ -271,8 +271,11 @@ class InventarioActivity : AppCompatActivity() {
         val mudou = inventario?.id != inventarioAtual?.id
         inventarioAtual = inventario
 
-        // "Cancelar inventário" só existe com inventário em andamento
-        barra.menu.findItem(R.id.menu_cancelar_inventario)?.isVisible = inventario != null
+        // "Cancelar inventário" só aparece enquanto o servidor ainda não conhece o inventário (na prática, sem rede):
+        // a abertura costuma ser enviada segundos depois de iniciar, e daí em diante o caminho é finalizar. Esta tela
+        // é chamada de novo quando a sincronização marca a abertura como enviada, e o item some sozinho
+        barra.menu.findItem(R.id.menu_cancelar_inventario)?.isVisible =
+            inventario != null && RepositorioInventario.podeCancelar(inventario, etiquetasEnviadas = 0)
 
         if (inventario == null) {
             painelInicio.visibility = View.VISIBLE
