@@ -2,6 +2,7 @@ package com.example.rfid_server.activities
 
 import android.content.Context
 import android.view.KeyEvent
+import android.view.ViewTreeObserver
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
@@ -29,16 +30,31 @@ object CampoDialogo {
         else -> RespostaTeclado.IGNORAR
     }
 
-    /** Chame no onShow do diálogo: foco no [campo] e teclado aberto. */
+    /**
+     * Chame no onShow do diálogo: foco no [campo] e teclado aberto. O diálogo encolhe para caber acima do teclado
+     * (ADJUST_RESIZE; o layout do campo rola), senão em 320x533dp os botões ficavam atrás do teclado.
+     */
     fun focarComTeclado(dialogo: AlertDialog, campo: EditText) {
         campo.requestFocus()
-        dialogo.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
-        // O modo acima vale quando a janela ganha o foco; se ela já ganhou, abre o teclado direto. Pedido explícito
-        // (flag 0): o MC3300x tem teclado físico, e com ele o Android ignora o pedido implícito (SHOW_IMPLICIT) —
-        // no coletor o diálogo do PIN abria sem teclado
-        campo.post {
+        dialogo.window?.setSoftInputMode(
+            WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE or WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+        )
+        // Pedido explícito e só com a janela do diálogo em foco: no coletor (MC3300x, com teclado físico) o pedido
+        // feito antes disso era descartado e o diálogo abria sem teclado
+        val abrir = {
             val teclado = campo.context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
             teclado?.showSoftInput(campo, 0)
+        }
+        if (campo.hasWindowFocus()) {
+            campo.post { abrir() }
+        } else {
+            campo.viewTreeObserver.addOnWindowFocusChangeListener(object : ViewTreeObserver.OnWindowFocusChangeListener {
+                override fun onWindowFocusChanged(temFoco: Boolean) {
+                    if (!temFoco) return
+                    campo.viewTreeObserver.removeOnWindowFocusChangeListener(this)
+                    campo.post { abrir() }
+                }
+            })
         }
     }
 
