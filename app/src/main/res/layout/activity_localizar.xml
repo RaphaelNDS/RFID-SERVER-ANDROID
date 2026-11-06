@@ -117,39 +117,36 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"/>
 
-            <LinearLayout
-                android:orientation="vertical"
+            <!-- Ocupa o que sobra, até 30sp e encolhendo (autoSize) para caber: em 320x533dp, com o cartão de
+                 busca aberto, o texto em 30sp fixo espremia e cortava a barra de baixo. A barra fica sempre inteira -->
+            <TextView
+                android:id="@+id/txtStatus"
+                android:text="@string/localizar_aguardando"
+                android:textColor="@color/texto"
+                android:textStyle="bold"
                 android:gravity="center"
+                android:accessibilityLiveRegion="polite"
+                app:autoSizeTextType="uniform"
+                app:autoSizeMinTextSize="14sp"
+                app:autoSizeMaxTextSize="30sp"
                 android:layout_weight="1"
                 android:layout_width="match_parent"
-                android:layout_height="0dp">
+                android:layout_height="0dp"/>
 
-                <TextView
-                    android:id="@+id/txtStatus"
-                    android:text="@string/localizar_aguardando"
-                    android:textColor="@color/texto"
-                    android:textSize="30sp"
-                    android:textStyle="bold"
-                    android:gravity="center"
-                    android:accessibilityLiveRegion="polite"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"/>
-
-                <!-- Barra de distância: quanto mais cheia, mais perto da etiqueta. A cor muda por faixa
-                     (Proximidade.faixa): cinza longe, âmbar aproximando, verde muito perto -->
-                <com.google.android.material.progressindicator.LinearProgressIndicator
-                    android:id="@+id/progressDistancia"
-                    android:max="100"
-                    android:progress="0"
-                    app:trackThickness="36dp"
-                    app:trackCornerRadius="8dp"
-                    app:trackStopIndicatorSize="0dp"
-                    app:indicatorColor="@color/texto_terciario"
-                    app:trackColor="@color/borda"
-                    android:layout_marginTop="24dp"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"/>
-            </LinearLayout>
+            <!-- Barra de distância: quanto mais cheia, mais perto da etiqueta. A cor muda por faixa
+                 (Proximidade.faixa): cinza longe, âmbar aproximando, verde muito perto -->
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/progressDistancia"
+                android:max="100"
+                android:progress="0"
+                app:trackThickness="36dp"
+                app:trackCornerRadius="8dp"
+                app:trackStopIndicatorSize="0dp"
+                app:indicatorColor="@color/texto_terciario"
+                app:trackColor="@color/borda"
+                android:layout_marginTop="12dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 </LinearLayout>

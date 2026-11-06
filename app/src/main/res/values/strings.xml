@@ -74,7 +74,10 @@
     <string name="tag_codigo_serie">Cód. %1$s · Série %2$s</string>
     <string name="main_enviar_agora">Enviar agora</string>
     <string name="main_enviando_agora">Enviando as leituras ao servidor…</string>
-    <string name="main_chame_responsavel">Chame o responsável pelo coletor.</string>    <string name="main_operador">%1$s · sessão até %2$s</string>
+    <string name="main_chame_responsavel">Chame o responsável pelo coletor.</string>
+    <!-- Horário primeiro: em 320dp o subtítulo divide a barra com "Nova leitura" e o fim é cortado ("…");
+         assim o que some é o fim do nome, não o horário -->
+    <string name="main_operador">Até %2$s · %1$s</string>
     <string name="main_aba_leitura">Leitura</string>
     <string name="main_aba_nao_cadastradas">Não cadastradas</string>
     <string name="main_enviando">Enviando</string>
@@ -200,7 +203,8 @@
     <string name="inventario_comparando_guardada">Comparando com o %1$s (lista guardada no coletor)</string>
     <string name="inventario_sem_conexao_esperado">Sem conexão: não deu para buscar o que é esperado neste local</string>
     <string name="inventario_comparando">Comparando com o %1$s: %2$d etiqueta(s) esperada(s)</string>
-    <string name="inventario_primeiro">Primeiro inventário deste local: não há lista do que é esperado</string>
+    <!-- Linha única (txtReferencia): o texto longo era cortado em 320dp -->
+    <string name="inventario_primeiro">Primeiro inventário: sem lista do esperado</string>
     <string name="inventario_informe_local">Informe o local do inventário</string>
     <string name="inventario_em_andamento">Já existe um inventário em andamento</string>
     <string name="inventario_finalizar_titulo">Finalizar inventário?</string>

@@ -62,8 +62,16 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
             .setView(vista)
             .setPositiveButton(R.string.pin_confirmar, null)
             .setNegativeButton(R.string.comum_cancelar, null)
-            .setNeutralButton(R.string.pin_esqueci, null)
             .create()
+
+        // Esqueci o PIN: no corpo do diálogo (ver dialogo_pin.xml), para Cancelar e Confirmar caberem lado a lado
+        vista.findViewById<View>(R.id.btnEsqueciPin).apply {
+            visibility = View.VISIBLE
+            setOnClickListener {
+                dialogo.dismiss()
+                esqueci(liberado)
+            }
+        }
 
         // Abre com o teclado numérico na tela; o Concluir do teclado confere o PIN como o botão
         CampoDialogo.confirmarPeloTeclado(dialogo, edtPin)
@@ -97,10 +105,6 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
                     Log.w(TAG, "PIN das Configurações errado ($erros erro(s) desde o último acerto; $restam até o próximo bloqueio)")
                     layoutPin.error = activity.getString(R.string.pin_incorreto, restam)
                 }
-            }
-            dialogo.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-                dialogo.dismiss()
-                esqueci(liberado)
             }
         }
         dialogo.show()
@@ -161,20 +165,23 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
             .setView(vista)
             .setPositiveButton(R.string.pin_liberar, null)
             .setNegativeButton(R.string.comum_cancelar, null)
-            .apply { if (temChave) setNeutralButton(R.string.pin_liberar_com_chave, null) }
             .create()
+
+        if (temChave) {
+            vista.findViewById<View>(R.id.btnLiberarComChave).apply {
+                visibility = View.VISIBLE
+                setOnClickListener {
+                    dialogo.dismiss()
+                    liberarComChave(liberado)
+                }
+            }
+        }
 
         // Email → Próximo → senha; na senha o Concluir libera
         CampoDialogo.confirmarPeloTeclado(dialogo, edtSenha)
 
         dialogo.setOnShowListener {
             CampoDialogo.focarComTeclado(dialogo, edtEmail)
-            if (temChave) {
-                dialogo.getButton(AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
-                    dialogo.dismiss()
-                    liberarComChave(liberado)
-                }
-            }
             val botao = dialogo.getButton(AlertDialog.BUTTON_POSITIVE)
             botao.setOnClickListener {
                 val email = edtEmail.text.toString().trim()

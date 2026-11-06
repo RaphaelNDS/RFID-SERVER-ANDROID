@@ -33,10 +33,12 @@ object CampoDialogo {
     fun focarComTeclado(dialogo: AlertDialog, campo: EditText) {
         campo.requestFocus()
         dialogo.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE)
-        // O modo acima vale quando a janela ganha o foco; se ela já ganhou, abre o teclado direto
+        // O modo acima vale quando a janela ganha o foco; se ela já ganhou, abre o teclado direto. Pedido explícito
+        // (flag 0): o MC3300x tem teclado físico, e com ele o Android ignora o pedido implícito (SHOW_IMPLICIT) —
+        // no coletor o diálogo do PIN abria sem teclado
         campo.post {
             val teclado = campo.context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-            teclado?.showSoftInput(campo, InputMethodManager.SHOW_IMPLICIT)
+            teclado?.showSoftInput(campo, 0)
         }
     }
 

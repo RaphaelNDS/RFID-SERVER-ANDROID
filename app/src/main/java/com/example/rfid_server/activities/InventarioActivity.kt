@@ -23,6 +23,8 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.LiveData
@@ -213,6 +215,7 @@ class InventarioActivity : AppCompatActivity() {
                 RegrasLocalizar.AcaoTecla.IGNORAR -> false
             }
         }
+        abrirEspacoComTeclado()
 
         mostrarEstadoLeitor(rfidManager)
         carregarLocais()
@@ -249,6 +252,22 @@ class InventarioActivity : AppCompatActivity() {
                 R.id.menu_cancelar_inventario -> { confirmarCancelamento(); true }
                 else -> false
             }
+        }
+    }
+
+    /**
+     * Com o teclado aberto no filtro, em 320x533dp a lista ficava com 0dp (o operador não via o resultado enquanto
+     * digitava). Enquanto o teclado estiver na tela, o cabeçalho (resumo, referência, envio) e "Finalizar" saem e
+     * a lista fica com o espaço; voltam quando o teclado fecha. A faixa do leitor fica (avisa leitor caído).
+     */
+    private fun abrirEspacoComTeclado() {
+        val cabecalho = findViewById<View>(R.id.cabecalhoAndamento)
+        val finalizar = findViewById<View>(R.id.btnFinalizar)
+        ViewCompat.setOnApplyWindowInsetsListener(painelAndamento) { _, insets ->
+            val semTeclado = !insets.isVisible(WindowInsetsCompat.Type.ime())
+            cabecalho.isVisible = semTeclado
+            finalizar.isVisible = semTeclado
+            insets
         }
     }
 
