@@ -15,9 +15,41 @@ import java.security.MessageDigest
  */
 class EsperadoGuardado(private val pasta: File) {
 
-    fun salvar(local: String, json: String) {
+    /**
+     * Guarda a lista do [local] e o [etag] dela (servidor 1.4.4 em diante; null = servidor sem ETag). O ETag antigo sai
+     * antes de trocar a lista e o novo só entra depois: se o app fechar no meio, fica a lista sem ETag (a próxima
+     * consulta baixa inteira), nunca um ETag apontando para a lista errada.
+     */
+    fun salvar(local: String, json: String, etag: String? = null) {
         pasta.mkdirs()
-        val destino = arquivo(chave(local))
+        val chave = chave(local)
+        arquivoEtag(chave).delete()
+        salvarLista(local, chave, json)
+        if (etag != null) salvarEtag(local, etag)
+    }
+
+    /** ETag da lista guardada do [local], para o If-None-Match; null se não há (lista sem ETag ou nunca baixada). */
+    fun lerEtag(local: String): String? {
+        val chave = chave(local)
+        if (!arquivo(chave).isFile) return null
+        return arquivoEtag(chave).takeIf { it.isFile }?.readText()?.trim()?.ifEmpty { null }
+    }
+
+    /** O servidor confirmou que a lista guardada é a atual (mesmo conteúdo, ETag novo): troca só o ETag. */
+    fun salvarEtag(local: String, etag: String) {
+        val chave = chave(local)
+        if (!arquivo(chave).isFile) return
+        val destino = arquivoEtag(chave)
+        val temporario = File(pasta, destino.name + ".tmp")
+        gravarNoDisco(temporario, etag)
+        if (!temporario.renameTo(destino)) {
+            destino.delete()
+            if (!temporario.renameTo(destino)) temporario.delete()
+        }
+    }
+
+    private fun salvarLista(local: String, chave: String, json: String) {
+        val destino = arquivo(chave)
         // Grava num temporário e troca: o app fechar no meio não deixa uma lista pela metade
         val temporario = File(pasta, destino.name + ".tmp")
         gravarNoDisco(temporario, json)
@@ -59,6 +91,8 @@ class EsperadoGuardado(private val pasta: File) {
     }
 
     private fun arquivo(chave: String) = File(pasta, sha256(chave) + ".json")
+
+    private fun arquivoEtag(chave: String) = File(pasta, sha256(chave) + ".etag")
 
     companion object {
         /** Mesma regra do servidor: ignora maiúsculas e espaços extras. */

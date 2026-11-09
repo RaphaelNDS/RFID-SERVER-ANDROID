@@ -8,6 +8,7 @@ import okhttp3.mockwebserver.RecordedRequest
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
@@ -492,9 +493,9 @@ class TagServiceTest {
              "itens":[{"tag":"E1","patrimonio":"PAT-1","codigoInterno":null,"tipo":"Notebook","marca":"Dell","modelo":null}]}
         """))
 
-        val resposta = aguardar<RespostaServidor<com.example.rfid_server.dados.EsperadoLocal>> { service.buscarEsperado("Sala 1/A", it) }
+        val resposta = aguardar<RespostaServidor<EsperadoBaixado>> { service.buscarEsperado("Sala 1/A", callback = it) }
 
-        val esperado = (resposta as RespostaServidor.Sucesso).valor
+        val esperado = (resposta as RespostaServidor.Sucesso).valor.esperado!!
         assertTrue(esperado.temReferencia)
         assertEquals("Ana", esperado.operador)
         assertEquals("PAT-1", esperado.itens.single().patrimonio)
@@ -506,9 +507,40 @@ class TagServiceTest {
     fun `buscarEsperado em servidor antigo volta NaoEncontrado`() {
         servidor.enqueue(json(404, "{}"))
 
-        val resposta = aguardar<RespostaServidor<com.example.rfid_server.dados.EsperadoLocal>> { service.buscarEsperado("Sala 1", it) }
+        val resposta = aguardar<RespostaServidor<EsperadoBaixado>> { service.buscarEsperado("Sala 1", callback = it) }
 
         assertEquals(RespostaServidor.NaoEncontrado, resposta)
+    }
+
+    @Test
+    fun `buscarEsperado manda o ETag guardado e o 304 volta sem lista`() {
+        servidor.enqueue(MockResponse().setResponseCode(304).setHeader("ETag", "\"abc123\""))
+
+        val resposta = aguardar<RespostaServidor<EsperadoBaixado>> { service.buscarEsperado("Sala 1", "\"abc123\"", it) }
+
+        assertEquals(RespostaServidor.Sucesso(EsperadoBaixado(esperado = null, etag = "\"abc123\"")), resposta)
+        assertEquals("\"abc123\"", proximaRequisicao().getHeader("If-None-Match"))
+    }
+
+    @Test
+    fun `buscarEsperado devolve o ETag da lista nova e sem ETag guardado nao manda If-None-Match`() {
+        servidor.enqueue(json(200, """{"local":"Sala 1","temReferencia":false,"itens":[]}""").setHeader("ETag", "\"novo\""))
+
+        val resposta = aguardar<RespostaServidor<EsperadoBaixado>> { service.buscarEsperado("Sala 1", callback = it) }
+
+        val baixado = (resposta as RespostaServidor.Sucesso).valor
+        assertEquals("\"novo\"", baixado.etag)
+        assertFalse(baixado.esperado!!.temReferencia)
+        assertNull(proximaRequisicao().getHeader("If-None-Match"))
+    }
+
+    @Test
+    fun `servidor sem ETag devolve a lista com etag nulo`() {
+        servidor.enqueue(json(200, """{"local":"Sala 1","temReferencia":false,"itens":[]}"""))
+
+        val resposta = aguardar<RespostaServidor<EsperadoBaixado>> { service.buscarEsperado("Sala 1", "\"velho\"", it) }
+
+        assertNull((resposta as RespostaServidor.Sucesso).valor.etag)
     }
 
     // ================= erros do app =================

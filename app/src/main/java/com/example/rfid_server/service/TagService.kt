@@ -77,6 +77,12 @@ enum class MotivoFalha {
  */
 data class Autoria(val sessao: String?, val momento: Long)
 
+/**
+ * Resposta de GET /api/android/inventarios/esperado. [esperado] null = 304: a lista guardada com o ETag enviado ainda
+ * é a atual. [etag] null = servidor anterior à 1.4.4 (sem ETag): a lista vem inteira sempre, como antes.
+ */
+data class EsperadoBaixado(val esperado: EsperadoLocal?, val etag: String?)
+
 /** Resultado de uma leitura enviada em lote (POST /api/android/leituras/lote). */
 enum class StatusLote {
     CADASTRADA,
@@ -606,13 +612,24 @@ class TagService internal constructor(
      * O que é esperado no [local] (o que foi encontrado no último inventário finalizado dele).
      * NaoEncontrado = servidor de uma versão sem essa rota: o inventário segue sem a lista.
      */
-    fun buscarEsperado(local: String, callback: (RespostaServidor<EsperadoLocal>) -> Unit) {
+    fun buscarEsperado(local: String, etagGuardado: String? = null, callback: (RespostaServidor<EsperadoBaixado>) -> Unit) {
         val url = url("inventarios", "esperado")?.newBuilder()?.addQueryParameter("local", local)?.build()
             ?: return callback(falhaEndereco())
         val descricao = "buscar o esperado do local '$local'"
 
-        enfileirar(Request.Builder().url(url).get().build(), descricao, callback) {
-            interpretarConsulta(it, descricao) { json -> EsperadoLocal.deJson(json.toString()) }
+        // Com o ETag da lista guardada, o servidor 1.4.4+ responde 304 sem corpo quando nada mudou: com milhares de
+        // etiquetas, a tela do inventário não baixa a lista inteira toda vez que abre. Servidor antigo ignora o header
+        val request = Request.Builder().url(url).get()
+            .apply { if (!etagGuardado.isNullOrBlank()) header("If-None-Match", etagGuardado) }
+            .build()
+
+        enfileirar(request, descricao, callback) { response ->
+            if (response.code == 304) {
+                RespostaServidor.Sucesso(EsperadoBaixado(esperado = null, etag = response.header("ETag") ?: etagGuardado))
+            } else {
+                val etag = response.header("ETag")?.trim()?.ifEmpty { null }
+                interpretarConsulta(response, descricao) { json -> EsperadoBaixado(EsperadoLocal.deJson(json.toString()), etag) }
+            }
         }
     }
 
