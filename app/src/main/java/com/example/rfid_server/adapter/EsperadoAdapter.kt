@@ -4,6 +4,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.core.view.isVisible
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.example.rfid_server.R
@@ -16,6 +17,7 @@ class EsperadoAdapter(private val aoTocar: (ItemEsperado) -> Unit) :
     class VH(view: View) : RecyclerView.ViewHolder(view) {
         val patrimonio: TextView = view.findViewById(R.id.txtPatrimonio)
         val descricao: TextView = view.findViewById(R.id.txtDescricao)
+        val situacao: TextView = view.findViewById(R.id.txtSituacao)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH =
@@ -28,6 +30,10 @@ class EsperadoAdapter(private val aoTocar: (ItemEsperado) -> Unit) :
         holder.patrimonio.text = item.patrimonio?.let { ctx.getString(R.string.esperado_patrimonio, it) }
             ?: ctx.getString(R.string.esperado_sem_patrimonio, item.epc)
         holder.descricao.text = item.descricao().ifEmpty { item.codigoInterno?.let { ctx.getString(R.string.esperado_codigo, it) } ?: item.epc }
+        // Servidor 1.6.1: situação no cadastro diferente de "em uso" (emprestado, em manutenção, extraviado...)
+        val situacao = item.situacao?.takeIf { it != "EM_USO" }?.let { item.situacaoRotulo ?: it }
+        holder.situacao.isVisible = situacao != null
+        holder.situacao.text = situacao?.let { ctx.getString(R.string.esperado_situacao, it) }
         holder.itemView.setOnClickListener { aoTocar(item) }
     }
 

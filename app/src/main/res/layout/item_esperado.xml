@@ -27,5 +27,16 @@
             android:layout_marginTop="2dp"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
+
+        <!-- Situação no cadastro que explica a falta (emprestado, em manutenção): o operador não perde tempo procurando -->
+        <TextView
+            android:id="@+id/txtSituacao"
+            android:textColor="@color/atencao"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            android:layout_marginTop="2dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
