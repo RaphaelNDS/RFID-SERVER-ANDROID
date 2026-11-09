@@ -69,6 +69,22 @@ class HistoricoInventariosTest {
     }
 
     @Test
+    fun `observacao do outro fica guardada e sai ao trocar o motivo`() {
+        val historico = HistoricoInventarios(pasta.root)
+        historico.salvar(resumo("inv-o", 5_000L))
+
+        historico.justificar("inv-o", listOf("E2"), Motivo.OUTRO, "  levado para a obra ")
+        assertEquals(mapOf("E2" to "levado para a obra"), historico.observacoes("inv-o"))
+        // Guardar o resumo de novo mantém a observação
+        historico.salvar(resumo("inv-o", 5_000L))
+        assertEquals(mapOf("E2" to "levado para a obra"), historico.observacoes("inv-o"))
+
+        historico.justificar("inv-o", listOf("E2"), Motivo.EMPRESTADO)
+        assertEquals(emptyMap<String, String>(), historico.observacoes("inv-o"))
+        assertEquals(mapOf("E2" to Motivo.EMPRESTADO), historico.motivos("inv-o"))
+    }
+
+    @Test
     fun `justificar inventario fora do historico nao cria arquivo`() {
         val historico = HistoricoInventarios(pasta.root)
         historico.justificar("inv-x", listOf("E1"), Motivo.BAIXADO)

@@ -157,6 +157,11 @@ class MainActivity : AppCompatActivity() {
         findViewById<android.widget.EditText>(R.id.edtBusca).doAfterTextChanged { viewModel.termoBusca.value = it?.toString().orEmpty() }
         // Voltar com a busca aberta fecha a busca (e mostra a leitura inteira de novo) em vez de sair da tela
         onBackPressedDispatcher.addCallback(this, voltarFechaBusca)
+        // Embaixo do campo: "Mostrando 3 de 40 etiqueta(s)" (a lista filtrada parecia leitura que não pegou)
+        viewModel.contagemBusca.observe(this) { c ->
+            findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.campoBusca).helperText =
+                c?.let { getString(R.string.main_buscar_contagem, it.first, it.second) }
+        }
 
         // Plaqueta de patrimônio lida na tela principal: abre o Localizar já buscando o bem
         CodigoDeBarras.ouvir(this) { codigo ->

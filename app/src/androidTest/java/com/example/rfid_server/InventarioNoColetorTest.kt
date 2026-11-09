@@ -124,6 +124,9 @@ class InventarioNoColetorTest {
             aguardar("lista dos anteriores com o local") {
                 onView(withText(org.hamcrest.Matchers.containsString(local))).inRoot(isDialog()).check(matches(isDisplayed())); true
             }
+            // Das duas que faltaram, uma foi justificada: a linha avisa que ainda falta justificar uma
+            onView(withText(org.hamcrest.Matchers.containsString("faltaram 2 (1 sem justificativa)"))).inRoot(isDialog())
+                .check(matches(isDisplayed()))
             foto("09-inventarios-anteriores")
         }
     }

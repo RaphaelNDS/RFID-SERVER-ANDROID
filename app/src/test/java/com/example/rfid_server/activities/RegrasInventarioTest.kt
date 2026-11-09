@@ -138,6 +138,18 @@ class RegrasInventarioTest {
     }
 
     @Test
+    fun `texto compartilhado mostra a justificativa de cada faltante`() {
+        val c = ComparacaoInventario.comparar(
+            esperado.copy(itens = listOf(item("E2", "777"), item("E3", patrimonio = null, tipo = null, marca = null))),
+            emptyList()
+        )
+        val texto = ResumoFinalizacao("Sala 101", finalizadoEm, "Ana", 0, c)
+            .textoCompartilhar(fuso, justificativas = mapOf("E2" to "Outro: levado para a obra"))
+
+        assertTrue(texto, texto.endsWith("- Patrimônio 777 - Notebook · Dell (Outro: levado para a obra)\n- EPC E3"))
+    }
+
+    @Test
     fun `texto sem comparacao e sem operador`() {
         val texto = ResumoFinalizacao("Almoxarifado", finalizadoEm, null, 5, null).textoCompartilhar(fuso)
 

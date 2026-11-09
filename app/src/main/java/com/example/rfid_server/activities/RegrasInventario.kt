@@ -141,8 +141,11 @@ data class ResumoFinalizacao(
             .joinToString(";") { com.example.rfid_server.CelulaCsv.formatar(it) })
     }
 
-    /** Texto para compartilhar (WhatsApp, e-mail...): local, data/hora, operador, contagens e o que faltou. */
-    fun textoCompartilhar(fuso: ZoneId = ZoneId.systemDefault()): String = buildString {
+    /**
+     * Texto para compartilhar (WhatsApp, e-mail...): local, data/hora, operador, contagens e o que faltou, com a
+     * justificativa de cada faltante entre parênteses quando houver ([justificativas]: EPC → texto).
+     */
+    fun textoCompartilhar(fuso: ZoneId = ZoneId.systemDefault(), justificativas: Map<String, String> = emptyMap()): String = buildString {
         val data = FORMATO_DATA.format(Instant.ofEpochMilli(finalizadoEm).atZone(fuso))
 
         appendLine("Inventário de $local")
@@ -162,7 +165,10 @@ data class ResumoFinalizacao(
 
         if (c.faltando.isNotEmpty()) {
             appendLine().appendLine().append("O que faltou:")
-            c.faltando.forEach { appendLine().append("- ").append(descreverFaltante(it)) }
+            c.faltando.forEach { item ->
+                appendLine().append("- ").append(descreverFaltante(item))
+                justificativas[item.epc]?.let { append(" (").append(it).append(')') }
+            }
         }
     }
 

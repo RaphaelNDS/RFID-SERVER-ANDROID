@@ -875,6 +875,8 @@ class InventarioActivity : AppCompatActivity() {
     private fun mostrarAnteriores() {
         emSegundoPlano {
             val anteriores = historico().listar()
+            // Quantos faltantes de cada um ainda estão sem justificativa (lê arquivos: aqui, fora da tela)
+            val semMotivo = anteriores.map { faltantesSemJustificativa(it).size }
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 if (anteriores.isEmpty()) {
@@ -882,10 +884,14 @@ class InventarioActivity : AppCompatActivity() {
                     return@runOnUiThread
                 }
                 val formato = java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.forLanguageTag("pt-BR"))
-                val linhas = anteriores.map { r ->
-                    val faltam = r.comparacao?.faltando?.size
-                    getString(R.string.inventario_anterior_linha, formato.format(java.util.Date(r.finalizadoEm)), r.local, r.lidas) +
-                        (faltam?.takeIf { it > 0 }?.let { " · " + getString(R.string.inventario_anterior_faltam, it) } ?: "")
+                val linhas = anteriores.mapIndexed { i, r ->
+                    val faltam = r.comparacao?.faltando?.size ?: 0
+                    val sufixo = when {
+                        faltam == 0 -> ""
+                        semMotivo[i] > 0 -> " · " + getString(R.string.inventario_anterior_sem_motivo, faltam, semMotivo[i])
+                        else -> " · " + getString(R.string.inventario_anterior_faltam, faltam)
+                    }
+                    getString(R.string.inventario_anterior_linha, formato.format(java.util.Date(r.finalizadoEm)), r.local, r.lidas) + sufixo
                 }
                 AlertDialog.Builder(this)
                     .setTitle(R.string.inventario_anteriores)
@@ -904,6 +910,22 @@ class InventarioActivity : AppCompatActivity() {
      */
     private fun motivosDe(resumo: ResumoFinalizacao): Map<String, FilaJustificativas.Motivo> =
         historico().motivos(resumo.inventarioId) + SincronizadorJustificativas.fila(this).motivos(resumo.inventarioId)
+
+    /**
+     * Justificativa de cada faltante como texto para a planilha e o texto compartilhado: "Emprestado" ou, com
+     * observação, "Outro: levado para a obra". A observação vem de onde veio o motivo (fila ou histórico): justificar
+     * de novo com outro motivo não pode trazer de volta a observação antiga.
+     */
+    private fun textosJustificativas(resumo: ResumoFinalizacao): Map<String, String> {
+        val fila = SincronizadorJustificativas.fila(this)
+        val motivosFila = fila.motivos(resumo.inventarioId)
+        val obsFila = fila.observacoes(resumo.inventarioId)
+        val obsHistorico = historico().observacoes(resumo.inventarioId)
+        return motivosDe(resumo).mapValues { (epc, motivo) ->
+            val obs = if (epc in motivosFila) obsFila[epc] else obsHistorico[epc]
+            getString(textoMotivo(motivo)) + (obs?.let { ": $it" } ?: "")
+        }
+    }
 
     private fun faltantesSemJustificativa(resumo: ResumoFinalizacao): List<ItemEsperado> {
         val justificados = motivosDe(resumo).keys
@@ -974,7 +996,7 @@ class InventarioActivity : AppCompatActivity() {
         // de tarefas que guardou o resumo, então o resumo recém-finalizado já está lá
         emSegundoPlano {
             try {
-                historico().justificar(resumo.inventarioId, epcs, motivo)
+                historico().justificar(resumo.inventarioId, epcs, motivo, observacao)
             } catch (e: Exception) {
                 Log.w(TAG, "Justificativas do inventário de ${resumo.local} não guardadas no histórico", e)
             }
@@ -1000,7 +1022,7 @@ class InventarioActivity : AppCompatActivity() {
         val envio = Intent(Intent.ACTION_SEND)
             .setType("text/plain")
             .putExtra(Intent.EXTRA_SUBJECT, getString(R.string.inventario_compartilhar_assunto, resumo.local))
-            .putExtra(Intent.EXTRA_TEXT, resumo.textoCompartilhar())
+            .putExtra(Intent.EXTRA_TEXT, resumo.textoCompartilhar(justificativas = textosJustificativas(resumo)))
 
         planilha(resumo)?.let { uri ->
             envio.setType("text/csv")
@@ -1020,8 +1042,7 @@ class InventarioActivity : AppCompatActivity() {
     /** Grava a planilha no cache (pasta liberada no FileProvider) e devolve o endereço para anexar; null se não deu. */
     private fun planilha(resumo: ResumoFinalizacao): android.net.Uri? =
         try {
-            val motivos = motivosDe(resumo)
-                .mapValues { getString(textoMotivo(it.value)) }
+            val motivos = textosJustificativas(resumo)
             val pasta = java.io.File(cacheDir, "relatorios").apply { mkdirs() }
             pasta.listFiles()?.forEach { it.delete() } // só a última planilha fica guardada
             val nome = "inventario-" + resumo.local.replace(Regex("[^A-Za-z0-9]+"), "-").trim('-').take(40).ifEmpty { "local" } + ".csv"

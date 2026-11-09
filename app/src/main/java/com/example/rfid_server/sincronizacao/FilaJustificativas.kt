@@ -46,6 +46,11 @@ class FilaJustificativas(private val arquivo: File) {
     fun motivos(inventarioId: String): Map<String, Motivo> =
         ler().filter { it.inventarioId == inventarioId }.associate { it.epc to it.motivo }
 
+    /** Observações (texto do "Outro") das etiquetas do [inventarioId] que têm uma. */
+    @Synchronized
+    fun observacoes(inventarioId: String): Map<String, String> =
+        ler().filter { it.inventarioId == inventarioId && it.observacao != null }.associate { it.epc to it.observacao!! }
+
     @Synchronized
     fun remover(inventarioId: String, epcs: Collection<String>) {
         gravar(ler().filterNot { it.inventarioId == inventarioId && it.epc in epcs })
