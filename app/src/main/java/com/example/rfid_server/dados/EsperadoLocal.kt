@@ -32,10 +32,14 @@ data class EsperadoLocal(
     val itens: List<ItemEsperado> = emptyList()
 ) {
     /** "inventário de 10/10/2026 (Ana)", para a tela dizer com o que está comparando. */
+    /** "01/11/2026 (Ana)": a referência sem a palavra "inventário", para as linhas curtas da tela. */
+    fun descricaoCurta(): String = descricaoReferencia().removePrefix("inventário").removePrefix(" de ").trim().ifEmpty { "inventário anterior" }
+
     fun descricaoReferencia(): String = buildString {
         append("inventário")
         dataReferencia()?.let { append(" de $it") }
-        operador?.let { append(" ($it)") }
+        // Só o primeiro nome: com o nome completo a linha da referência cortava na tela de 320dp
+        operador?.trim()?.substringBefore(" ")?.takeIf { it.isNotEmpty() }?.let { append(" ($it)") }
     }
 
     private fun dataReferencia(): String? =
