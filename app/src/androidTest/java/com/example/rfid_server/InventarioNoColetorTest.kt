@@ -48,6 +48,11 @@ class InventarioNoColetorTest {
             SessaoOperador("sessao-de-teste", System.currentTimeMillis() + 3_600_000, "Operador Teste", "teste@exemplo.com",
                 podeLer = true, podeCadastrar = true)
         )
+        // Começa limpo: uma rodada interrompida (coletor que caiu do adb) deixa o app de teste instalado com a fila de
+        // justificativas e o histórico da rodada anterior, e as conferências abaixo achavam duas em vez de uma
+        File(contexto.filesDir, "justificativas.json").delete()
+        File(contexto.filesDir, "historico_inventarios").deleteRecursively()
+
         // Local conhecido (sem a pergunta "local novo") e com a lista do esperado já guardada no coletor
         AppConfig.saveLocais(contexto, listOf(local))
         val esperado = EsperadoLocal(
