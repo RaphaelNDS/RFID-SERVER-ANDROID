@@ -53,6 +53,17 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"/>
 
+                    <!-- Grava na etiqueta o código da empresa a partir do patrimônio (CodigoEtiqueta). Some quando a
+                         etiqueta já tem o código da empresa -->
+                    <Button
+                        android:id="@+id/btnGravarCodigo"
+                        style="@style/Widget.RFID.Botao.Contorno"
+                        android:text="@string/cadastro_gravar_codigo"
+                        android:visibility="gone"
+                        android:layout_marginTop="8dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"/>
+
                     <TextView
                         android:id="@+id/txtAviso"
                         style="@style/Texto.RFID.Aviso"

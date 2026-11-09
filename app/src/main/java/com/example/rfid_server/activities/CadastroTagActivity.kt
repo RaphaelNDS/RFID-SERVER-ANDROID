@@ -15,11 +15,14 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AlertDialog
+import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
 import com.google.android.material.textfield.TextInputLayout
 import com.example.rfid_server.AppConfig
+import com.example.rfid_server.CodigoEtiqueta
+import com.example.rfid_server.RfidManager
 import com.example.rfid_server.R
 import com.example.rfid_server.SessaoAtual
 import com.example.rfid_server.SessaoOperador
@@ -58,6 +61,8 @@ class CadastroTagActivity : AppCompatActivity() {
     private lateinit var spnMarca: Spinner
     private lateinit var spnModelo: Spinner
     private lateinit var btnSalvar: Button
+    private lateinit var btnGravarCodigo: Button
+    private var gravando = false
 
     // Consultas do resultado do envio depois de salvar (ver aguardarEnvio)
     private val espera = Handler(Looper.getMainLooper())
@@ -108,7 +113,8 @@ class CadastroTagActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_cadastro_tag)
 
-        epc = intent.getStringExtra(EXTRA_EPC) ?: run {
+        // Etiqueta já regravada nesta tela (e a tela foi recriada): continua com o código novo
+        epc = savedInstanceState?.getString(ESTADO_EPC_GRAVADO) ?: intent.getStringExtra(EXTRA_EPC) ?: run {
             Log.e(TAG, "Tela de cadastro aberta sem EPC")
             finish()
             return
@@ -116,6 +122,9 @@ class CadastroTagActivity : AppCompatActivity() {
         repositorio = RepositorioCadastros.get(this)
 
         findViewById<TextView>(R.id.txtEpc).text = epc // o título da seção já diz "Etiqueta"
+        btnGravarCodigo = findViewById(R.id.btnGravarCodigo)
+        btnGravarCodigo.isVisible = !CodigoEtiqueta.daEmpresa(epc)
+        btnGravarCodigo.setOnClickListener { if (CliqueUnico.permitir()) confirmarGravacao() }
         txtAviso = findViewById(R.id.txtAviso)
         edtCodigoInterno = findViewById(R.id.edtCodigoInterno)
         edtPatrimonio = findViewById(R.id.edtPatrimonio)
@@ -314,6 +323,52 @@ class CadastroTagActivity : AppCompatActivity() {
         (spnTipo.selectedItem as? Opcao)?.id?.let { outState.putLong(ESTADO_TIPO, it) }
         (spnMarca.selectedItem as? Opcao)?.id?.let { outState.putLong(ESTADO_MARCA, it) }
         (spnModelo.selectedItem as? Opcao)?.id?.let { outState.putLong(ESTADO_MODELO, it) }
+        if (epc != intent.getStringExtra(EXTRA_EPC)) outState.putString(ESTADO_EPC_GRAVADO, epc)
+    }
+
+    // ================= GRAVAR O CÓDIGO DA EMPRESA NA ETIQUETA =================
+
+    private fun confirmarGravacao() {
+        if (gravando) return
+        val patrimonio = FormularioCadastro.normalizarCodigo(edtPatrimonio.text.toString())
+        val novo = CodigoEtiqueta.gerar(patrimonio) ?: run {
+            edtPatrimonio.error = getString(R.string.cadastro_gravar_falta_patrimonio)
+            edtPatrimonio.requestFocus()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.cadastro_gravar_titulo)
+            .setMessage(getString(R.string.cadastro_gravar_mensagem, epc, novo, patrimonio))
+            .setPositiveButton(R.string.cadastro_gravar_confirmar) { _, _ -> gravar(novo) }
+            .setNegativeButton(R.string.comum_cancelar, null)
+            .show()
+    }
+
+    private fun gravar(novo: String) {
+        val anterior = epc
+        gravando = true
+        btnGravarCodigo.isEnabled = false
+        btnGravarCodigo.setText(R.string.cadastro_gravando)
+        Log.i(TAG, "Operador pediu para gravar a etiqueta $anterior com o código da empresa $novo")
+
+        RfidManager.get(this).gravarEpc(anterior, novo) { resultado ->
+            runOnUiThread {
+                gravando = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                btnGravarCodigo.isEnabled = true
+                btnGravarCodigo.setText(R.string.cadastro_gravar_codigo)
+                when (resultado) {
+                    is RfidManager.ResultadoGravacao.Gravada -> {
+                        // O cadastro passa a ser do código novo; a leitura antiga (não cadastrada) fica como estava
+                        epc = resultado.epc
+                        findViewById<TextView>(R.id.txtEpc).text = epc
+                        btnGravarCodigo.isVisible = false
+                        Toast.makeText(this, R.string.cadastro_gravada, Toast.LENGTH_LONG).show()
+                    }
+                    is RfidManager.ResultadoGravacao.Falhou -> aviso(resultado.mensagem)
+                }
+            }
+        }
     }
 
     private fun salvar() {
@@ -634,6 +689,7 @@ class CadastroTagActivity : AppCompatActivity() {
         private const val ESTADO_TIPO = "tipo"
         private const val ESTADO_MARCA = "marca"
         private const val ESTADO_MODELO = "modelo"
+        private const val ESTADO_EPC_GRAVADO = "epc_gravado"
 
         private fun Bundle.idOuNull(chave: String): Long? = if (containsKey(chave)) getLong(chave) else null
         private const val ESPERA_ENVIO_MS = 5_000L

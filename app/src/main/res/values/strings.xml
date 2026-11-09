@@ -158,6 +158,13 @@
     <string name="cadastro_completar">Completar</string>
     <string name="cadastro_enviando">Enviando ao servidor…</string>
     <string name="cadastro_enviado">Etiqueta cadastrada</string>
+    <string name="cadastro_gravar_codigo">Gravar código da empresa na etiqueta</string>
+    <string name="cadastro_gravar_falta_patrimonio">Preencha o patrimônio antes: o código gravado na etiqueta sai dele</string>
+    <string name="cadastro_gravar_titulo">Gravar a etiqueta?</string>
+    <string name="cadastro_gravar_mensagem">A etiqueta %1$s vai passar a ter o código %2$s (empresa + patrimônio %3$s).\n\nDeixe só esta etiqueta perto do coletor durante a gravação.</string>
+    <string name="cadastro_gravar_confirmar">Gravar</string>
+    <string name="cadastro_gravando">Gravando a etiqueta…</string>
+    <string name="cadastro_gravada">Etiqueta gravada com o código da empresa. Agora salve o cadastro.</string>
     <string name="cadastro_sem_conexao">Sem conexão com o servidor: o cadastro ficou guardado no coletor e será enviado quando a conexão voltar</string>
     <string name="cadastro_nao_enviado">Não foi enviado agora (%1$s): o cadastro ficou guardado no coletor e será enviado depois, sozinho</string>
     <string name="cadastro_guardado">Cadastro guardado: será enviado ao servidor</string>

@@ -16,6 +16,7 @@ import com.zebra.rfid.api3.ENUM_TRANSPORT
 import com.zebra.rfid.api3.ENUM_TRIGGER_MODE
 import com.zebra.rfid.api3.HANDHELD_TRIGGER_EVENT_TYPE
 import com.zebra.rfid.api3.InvalidUsageException
+import com.zebra.rfid.api3.MEMORY_BANK
 import com.zebra.rfid.api3.OperationFailureException
 import com.zebra.rfid.api3.RFIDReader
 import com.zebra.rfid.api3.RFIDResults
@@ -376,6 +377,70 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
             // Sem leitor, não há configuração falha para mostrar (a próxima conexão configura de novo)
             atualizarDetalhe { it.copy(falhaConfiguracao = null) }
         }
+    }
+
+    // ================= GRAVAÇÃO DA ETIQUETA =================
+
+    /** Resultado de [gravarEpc]: [mensagem] para o operador quando não deu certo. */
+    sealed class ResultadoGravacao {
+        data class Gravada(val epc: String) : ResultadoGravacao()
+        data class Falhou(val mensagem: String) : ResultadoGravacao()
+    }
+
+    /**
+     * Grava [novo] (24 hexadecimais, ver CodigoEtiqueta) na etiqueta que hoje responde com [atual], e confere relendo.
+     * Escreve a palavra PC (tamanho de 96 bits) junto com o EPC: uma etiqueta que vinha com EPC de 128 bits também
+     * passa a responder só com os 96 novos. Sem trava (decisão de 09/11): dá para regravar se o cadastro estiver errado.
+     * Conecta o leitor se preciso. [aoTerminar] roda na thread do leitor.
+     */
+    fun gravarEpc(atual: String, novo: String, aoTerminar: (ResultadoGravacao) -> Unit) {
+        executor.execute {
+            val resultado = try {
+                if (!conectado) tentarConectar()
+                val r = reader?.takeIf { it.isConnected }
+                if (r == null) {
+                    ResultadoGravacao.Falhou("Leitor RFID desconectado: encaixe o leitor e tente de novo")
+                } else {
+                    gravarNoLeitor(r, atual.uppercase(), novo.uppercase())
+                }
+            } catch (e: Exception) {
+                val motivo = motivoDe(e)
+                Log.e(TAG, "Falha ao gravar a etiqueta $atual com $novo: ${descricaoLog(motivo)}", e)
+                ResultadoGravacao.Falhou(
+                    "Não foi possível gravar a etiqueta (${motivo.detalhe.ifBlank { motivo.causa.name }}). " +
+                        "Aproxime só esta etiqueta do coletor e tente de novo"
+                )
+            }
+            aoTerminar(resultado)
+        }
+    }
+
+    // Roda na thread do executor
+    private fun gravarNoLeitor(r: RFIDReader, atual: String, novo: String): ResultadoGravacao {
+        val acesso = r.Actions.TagAccess
+        val escrita = acesso.WriteAccessParams().apply {
+            memoryBank = MEMORY_BANK.MEMORY_BANK_EPC
+            offset = 1                      // palavra 1 = PC; o EPC começa na palavra 2
+            setWriteData(CodigoEtiqueta.PC_96_BITS + novo)
+            writeDataLength = 7             // em palavras de 16 bits: PC + 6 do EPC
+            accessPassword = 0
+        }
+        acesso.writeWait(atual, escrita, null, null)
+
+        // Confere: a etiqueta tem que responder pelo código novo e devolver exatamente os 96 bits gravados
+        val leitura = acesso.ReadAccessParams().apply {
+            memoryBank = MEMORY_BANK.MEMORY_BANK_EPC
+            offset = 2
+            count = 6
+            accessPassword = 0
+        }
+        val lido = acesso.readWait(novo, leitura, null)?.memoryBankData?.uppercase()
+        if (lido != novo) {
+            Log.e(TAG, "Etiqueta $atual gravada com $novo, mas a conferência leu '$lido'")
+            return ResultadoGravacao.Falhou("A gravação não pôde ser conferida. Leia a etiqueta de novo antes de cadastrar")
+        }
+        Log.i(TAG, "Etiqueta $atual gravada com o código $novo e conferida")
+        return ResultadoGravacao.Gravada(novo)
     }
 
     // ================= FALHAS E BATERIA =================
