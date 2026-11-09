@@ -31,6 +31,9 @@ import androidx.lifecycle.LiveData
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.rfid_server.CodigoDeBarras
+import com.example.rfid_server.CofreSessoes
+import com.example.rfid_server.sincronizacao.FilaJustificativas
+import com.example.rfid_server.sincronizacao.SincronizadorJustificativas
 import com.example.rfid_server.ConfigQr
 import com.example.rfid_server.AppConfig
 import com.example.rfid_server.AvisoLeitura
@@ -778,9 +781,11 @@ class InventarioActivity : AppCompatActivity() {
                 val finalizadoEm = System.currentTimeMillis()
                 val operador = SessaoAtual.get(this)?.nome
                 var final: ComparacaoInventario? = null
+                var etiquetasGravadas: List<String> = emptyList()
 
                 repositorio.finalizar(
                     etiquetas = { gravadas ->
+                        etiquetasGravadas = gravadas
                         final = esperadoAgora?.takeIf { it.temReferencia }?.let { ComparacaoInventario.comparar(it, gravadas.toSet()) }
                     }
                 ) { total ->
@@ -790,7 +795,12 @@ class InventarioActivity : AppCompatActivity() {
                     } ?: Log.i(TAG, "Operador finalizou o inventário de ${inventario.local} com $total etiqueta(s)")
                     runOnUiThread {
                         when {
-                            total != null -> mostrarResumoFinal(ResumoFinalizacao(inventario.local, finalizadoEm, operador, total, final))
+                            total != null -> mostrarResumoFinal(
+                                ResumoFinalizacao(
+                                    inventario.local, finalizadoEm, operador, total, final, inventario.id,
+                                    etiquetasGravadas, esperadoAgora?.itens.orEmpty()
+                                )
+                            )
                             isFinishing || isDestroyed -> Unit
                             // Não finalizou porque a sessão terminou: manda para o login ("entre de novo para continuar")
                             SessaoAtual.get(this) == null -> exigirSessao()
@@ -826,19 +836,87 @@ class InventarioActivity : AppCompatActivity() {
             }
         }
 
+        val faltantes = faltantesSemJustificativa(resumo)
         AlertDialog.Builder(this)
             .setTitle(getString(R.string.inventario_finalizado, resumo.local, resumo.lidas))
             .setMessage(mensagem)
             .setPositiveButton(R.string.inventario_compartilhar) { _, _ -> compartilhar(resumo) }
             .setNegativeButton(R.string.comum_ok, null)
+            .apply {
+                // Justificar os que faltaram (emprestado, em manutenção...): vai para o servidor junto com o inventário
+                if (faltantes.isNotEmpty() && resumo.inventarioId.isNotEmpty()) {
+                    setNeutralButton(getString(R.string.inventario_justificar, faltantes.size)) { _, _ -> escolherMotivo(resumo) }
+                }
+            }
             .show()
     }
 
+    // ================= JUSTIFICATIVAS DOS NÃO ENCONTRADOS =================
+
+    private fun faltantesSemJustificativa(resumo: ResumoFinalizacao): List<ItemEsperado> {
+        val justificados = SincronizadorJustificativas.fila(this).motivos(resumo.inventarioId).keys
+        return resumo.comparacao?.faltando.orEmpty().filter { it.epc !in justificados }
+    }
+
+    /** Passo 1: o motivo. Passo 2 ([escolherFaltantes]): quais faltantes têm esse motivo. Repete até acabar ou desistir. */
+    private fun escolherMotivo(resumo: ResumoFinalizacao) {
+        if (isFinishing || isDestroyed) return
+        val motivos = FilaJustificativas.Motivo.entries
+        AlertDialog.Builder(this)
+            .setTitle(R.string.inventario_justificar_motivo)
+            .setItems(motivos.map { getString(textoMotivo(it)) }.toTypedArray()) { _, i -> escolherFaltantes(resumo, motivos[i]) }
+            .setNegativeButton(R.string.comum_cancelar) { _, _ -> mostrarResumoFinal(resumo) }
+            .show()
+    }
+
+    private fun escolherFaltantes(resumo: ResumoFinalizacao, motivo: FilaJustificativas.Motivo) {
+        if (isFinishing || isDestroyed) return
+        val faltantes = faltantesSemJustificativa(resumo)
+        if (faltantes.isEmpty()) return mostrarResumoFinal(resumo)
+        val marcados = BooleanArray(faltantes.size)
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.inventario_justificar_quais, getString(textoMotivo(motivo))))
+            .setMultiChoiceItems(faltantes.map { ResumoFinalizacao.descreverFaltante(it) }.toTypedArray(), marcados) { _, i, marcado ->
+                marcados[i] = marcado
+            }
+            .setPositiveButton(R.string.inventario_justificar_salvar) { _, _ ->
+                val escolhidos = faltantes.filterIndexed { i, _ -> marcados[i] }.map { it.epc }
+                if (escolhidos.isNotEmpty()) {
+                    val sessao = SessaoAtual.token(this)?.let { CofreSessoes.get(this).referencia(it) }
+                    SincronizadorJustificativas.fila(this).adicionar(resumo.inventarioId, escolhidos, motivo, sessao, System.currentTimeMillis())
+                    Log.i(TAG, "Operador justificou ${escolhidos.size} faltante(s) do inventário de ${resumo.local} como $motivo")
+                    Sincronizador.get(this).solicitarEmBreve()
+                }
+                // Ainda há faltantes sem motivo: volta ao resumo (com o botão de justificar mostrando quantos faltam)
+                mostrarResumoFinal(resumo)
+            }
+            .setNegativeButton(R.string.comum_cancelar) { _, _ -> mostrarResumoFinal(resumo) }
+            .show()
+    }
+
+    private fun textoMotivo(motivo: FilaJustificativas.Motivo): Int = when (motivo) {
+        FilaJustificativas.Motivo.EMPRESTADO -> R.string.justificativa_emprestado
+        FilaJustificativas.Motivo.MANUTENCAO -> R.string.justificativa_manutencao
+        FilaJustificativas.Motivo.BAIXADO -> R.string.justificativa_baixado
+        FilaJustificativas.Motivo.NAO_ENCONTRADO -> R.string.justificativa_nao_encontrado
+        FilaJustificativas.Motivo.OUTRO -> R.string.justificativa_outro
+    }
+
+    /**
+     * Texto do resumo e, anexada, a planilha (CSV) com uma linha por etiqueta e a justificativa dos que faltaram.
+     * Sem como gravar a planilha (memória cheia), vai só o texto, como antes.
+     */
     private fun compartilhar(resumo: ResumoFinalizacao) {
         val envio = Intent(Intent.ACTION_SEND)
             .setType("text/plain")
             .putExtra(Intent.EXTRA_SUBJECT, getString(R.string.inventario_compartilhar_assunto, resumo.local))
             .putExtra(Intent.EXTRA_TEXT, resumo.textoCompartilhar())
+
+        planilha(resumo)?.let { uri ->
+            envio.setType("text/csv")
+                .putExtra(Intent.EXTRA_STREAM, uri)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
 
         try {
             startActivity(Intent.createChooser(envio, getString(R.string.inventario_compartilhar_escolha)))
@@ -848,6 +926,23 @@ class InventarioActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.inventario_compartilhar_indisponivel, Toast.LENGTH_LONG).show()
         }
     }
+
+    /** Grava a planilha no cache (pasta liberada no FileProvider) e devolve o endereço para anexar; null se não deu. */
+    private fun planilha(resumo: ResumoFinalizacao): android.net.Uri? =
+        try {
+            val motivos = SincronizadorJustificativas.fila(this).motivos(resumo.inventarioId)
+                .mapValues { getString(textoMotivo(it.value)) }
+            val pasta = java.io.File(cacheDir, "relatorios").apply { mkdirs() }
+            pasta.listFiles()?.forEach { it.delete() } // só a última planilha fica guardada
+            val nome = "inventario-" + resumo.local.replace(Regex("[^A-Za-z0-9]+"), "-").trim('-').take(40).ifEmpty { "local" } + ".csv"
+            val arquivo = java.io.File(pasta, nome)
+            // BOM do UTF-8: o Excel reconhece os acentos
+            arquivo.writeText(BOM_UTF8 + resumo.csv(motivos), Charsets.UTF_8)
+            androidx.core.content.FileProvider.getUriForFile(this, "$packageName.atualizacao", arquivo)
+        } catch (e: Exception) {
+            Log.w(TAG, "Planilha do inventário de ${resumo.local} não gerada: compartilhando só o texto", e)
+            null
+        }
 
     /**
      * Cancelar: só enquanto nada foi enviado ao servidor (ex.: iniciado no local errado, sem rede). Depois disso
@@ -929,6 +1024,8 @@ class InventarioActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "INVENTARIO"
+        /** Marca de UTF-8 no início da planilha: o Excel reconhece os acentos. */
+        private val BOM_UTF8 = Char(0xFEFF).toString()
         private const val ABA_FALTANDO = 0
         private const val ABA_LIDAS = 1
 

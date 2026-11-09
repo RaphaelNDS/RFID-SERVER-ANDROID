@@ -26,6 +26,8 @@ class RegrasLeitorTest {
         assertEquals(CausaFalhaLeitor.OCUPADO_OUTRO_APP, causa("Reader is in use by another application"))
         assertEquals(CausaFalhaLeitor.OCUPADO_OUTRO_APP, causa("Device busy"))
         assertEquals("Visto no MC3300x com outro app segurando o leitor", CausaFalhaLeitor.OCUPADO_OUTRO_APP, causa("RFID_COMM_OPEN_ERROR"))
+        assertEquals("No berço, mesmo com o código de operação em andamento", CausaFalhaLeitor.CARREGANDO,
+            MotivoLeitor.classificar(CausaFalhaLeitor.OPERACAO_EM_ANDAMENTO, listOf("Charging in Progress-Command Not allowed")).causa)
         assertEquals(CausaFalhaLeitor.OPERACAO_EM_ANDAMENTO, causa("RFID_OPERATION_IN_PROGRESS"))
         assertEquals(CausaFalhaLeitor.REGIAO_NAO_CONFIGURADA, causa("Region not configured"))
         assertEquals(CausaFalhaLeitor.TEMPO_ESGOTADO, causa("Command timed out"))

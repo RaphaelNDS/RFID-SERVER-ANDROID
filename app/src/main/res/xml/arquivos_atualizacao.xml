@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Única pasta que o FileProvider expõe ao instalador: o APK baixado da atualização (AtualizadorApp) -->
+<!-- Pastas que o FileProvider expõe: o APK baixado da atualização (AtualizadorApp) e a planilha do inventário -->
 <paths>
     <cache-path name="atualizacao" path="atualizacao/" />
+    <!-- Planilha (CSV) do resumo do inventário, anexada ao Compartilhar -->
+    <cache-path name="relatorios" path="relatorios/" />
 </paths>

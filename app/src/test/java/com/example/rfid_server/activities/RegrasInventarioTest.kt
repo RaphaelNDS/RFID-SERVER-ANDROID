@@ -186,4 +186,20 @@ class RegrasInventarioTest {
         assertFalse(RegrasTelaInventario.mostrarInstrucao(1))
         assertFalse(RegrasTelaInventario.mostrarInstrucao(500))
     }
+
+    @Test
+    fun `planilha tem uma linha por etiqueta com a situacao e a justificativa dos que faltaram`() {
+        val itens = listOf(item("E1"), item("E2", patrimonio = "P;2"), item("E3"))
+        val local = EsperadoLocal("Sala 101", temReferencia = true, itens = itens)
+        val c = ComparacaoInventario.comparar(local, setOf("E1", "X9"))
+        val resumo = ResumoFinalizacao("Sala 101", finalizadoEm, "Ana", 2, c, "inv-1", listOf("E1", "X9"), itens)
+
+        val linhas = resumo.csv(mapOf("E2" to "Emprestado")).trim().lines()
+
+        assertEquals("Situação;Patrimônio;Descrição;Etiqueta (EPC);Justificativa", linhas[0])
+        assertEquals("Encontrada;P-E1;Notebook · Dell;E1;", linhas[1])
+        assertEquals("Fora da lista;;;X9;", linhas[2])
+        assertEquals("Ponto e vírgula no patrimônio vai entre aspas", "Faltando;\"P;2\";Notebook · Dell;E2;Emprestado", linhas[3])
+        assertEquals("Faltando;P-E3;Notebook · Dell;E3;", linhas[4])
+    }
 }
