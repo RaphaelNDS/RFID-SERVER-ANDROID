@@ -795,23 +795,27 @@ class InventarioActivity : AppCompatActivity() {
                         Log.i(TAG, "Operador finalizou o inventário de ${inventario.local} com $total etiqueta(s) " +
                             "(${f.encontradas} de ${f.esperados} esperada(s), faltando ${f.faltando.size}, ${f.foraDaLista} fora da lista)")
                     } ?: Log.i(TAG, "Operador finalizou o inventário de ${inventario.local} com $total etiqueta(s)")
+                    val resumo = total?.let {
+                        ResumoFinalizacao(
+                            inventario.local, finalizadoEm, operador, it, final, inventario.id,
+                            etiquetasGravadas, esperadoAgora?.itens.orEmpty()
+                        )
+                    }
+                    // Guarda o resumo para "Inventários anteriores" (o inventário sai do coletor quando chega ao
+                    // servidor). Já aqui, e não depois de voltar à tela: com a tela fechada nesse meio-tempo (Voltar
+                    // logo depois de finalizar) o resumo se perdia e os faltantes não podiam mais ser justificados
+                    resumo?.let { r ->
+                        noHistorico {
+                            try {
+                                historico().salvar(r)
+                            } catch (e: Exception) {
+                                Log.w(TAG, "Resumo do inventário de ${r.local} não guardado no histórico", e)
+                            }
+                        }
+                    }
                     runOnUiThread {
                         when {
-                            total != null -> {
-                                val resumo = ResumoFinalizacao(
-                                    inventario.local, finalizadoEm, operador, total, final, inventario.id,
-                                    etiquetasGravadas, esperadoAgora?.itens.orEmpty()
-                                )
-                                // Guarda o resumo para "Inventários anteriores" (o inventário sai do coletor quando chega ao servidor)
-                                emSegundoPlano {
-                                    try {
-                                        historico().salvar(resumo)
-                                    } catch (e: Exception) {
-                                        Log.w(TAG, "Resumo do inventário de ${resumo.local} não guardado no histórico", e)
-                                    }
-                                }
-                                mostrarResumoFinal(resumo)
-                            }
+                            resumo != null -> mostrarResumoFinal(resumo)
                             isFinishing || isDestroyed -> Unit
                             // Não finalizou porque a sessão terminou: manda para o login ("entre de novo para continuar")
                             SessaoAtual.get(this) == null -> exigirSessao()
@@ -849,31 +853,46 @@ class InventarioActivity : AppCompatActivity() {
             }
         }
 
-        val faltantes = faltantesSemJustificativa(resumo)
-        AlertDialog.Builder(this)
-            .setTitle(R.string.inventario_finalizado_titulo)
-            .setMessage(mensagem)
-            .setPositiveButton(R.string.inventario_compartilhar) { _, _ -> compartilhar(resumo) }
-            .apply {
-                // Justificar os que faltaram (emprestado, em manutenção...): vai para o servidor junto com o inventário.
-                // Com três botões eles empilham (positivo, negativo, neutro): Justificar fica no meio e o OK por último
-                if (faltantes.isNotEmpty() && resumo.inventarioId.isNotEmpty()) {
-                    setNegativeButton(getString(R.string.inventario_justificar, faltantes.size)) { _, _ -> escolherMotivo(resumo) }
-                    setNeutralButton(R.string.comum_ok, null)
-                } else {
-                    setNegativeButton(R.string.comum_ok, null)
+        // Quais faltam justificar: lê os arquivos do histórico e da fila fora da tela (com milhares de etiquetas, ler
+        // na tela travava a cada volta ao resumo)
+        carregar({ faltantesSemJustificativa(resumo) }) { faltantes ->
+            AlertDialog.Builder(this)
+                .setTitle(R.string.inventario_finalizado_titulo)
+                .setMessage(mensagem)
+                .setPositiveButton(R.string.inventario_compartilhar) { _, _ -> compartilhar(resumo) }
+                .apply {
+                    // Justificar os que faltaram (emprestado, em manutenção...): vai para o servidor junto com o inventário.
+                    // Com três botões eles empilham (positivo, negativo, neutro): Justificar fica no meio e o OK por último
+                    if (faltantes.isNotEmpty() && resumo.inventarioId.isNotEmpty()) {
+                        setNegativeButton(getString(R.string.inventario_justificar, faltantes.size)) { _, _ -> escolherMotivo(resumo) }
+                        setNeutralButton(R.string.comum_ok, null)
+                    } else {
+                        setNegativeButton(R.string.comum_ok, null)
+                    }
                 }
-            }
-            .show()
+                .show()
+        }
     }
 
     // ================= INVENTÁRIOS ANTERIORES =================
 
-    private fun historico() = HistoricoInventarios(java.io.File(filesDir, "historico_inventarios"))
+    private fun historico() = HistoricoInventarios(java.io.File(applicationContext.filesDir, "historico_inventarios"))
+
+    /**
+     * Tarefa no executor do histórico (do app, não da tela): guardar o resumo e as justificativas termina mesmo que a
+     * tela feche no meio, e as leituras que vêm depois (resumo, faltantes) já enxergam o que foi gravado antes.
+     */
+    private fun noHistorico(tarefa: () -> Unit) = executorHistorico(applicationContext).execute(tarefa)
+
+    /** Lê/grava no executor do histórico e mostra o resultado na tela (se ela ainda estiver aberta). */
+    private fun <T> carregar(trabalho: () -> T, depois: (T) -> Unit) = noHistorico {
+        val resultado = trabalho()
+        runOnUiThread { if (!isFinishing && !isDestroyed) depois(resultado) }
+    }
 
     /** Lista dos inventários finalizados neste coletor (os mais novos primeiro); tocar reabre o resumo. */
     private fun mostrarAnteriores() {
-        emSegundoPlano {
+        noHistorico {
             val anteriores = historico().listar()
             // Quantos faltantes de cada um ainda estão sem justificativa (lê arquivos: aqui, fora da tela)
             val semMotivo = anteriores.map { faltantesSemJustificativa(it).size }
@@ -945,7 +964,10 @@ class InventarioActivity : AppCompatActivity() {
 
     private fun escolherFaltantes(resumo: ResumoFinalizacao, motivo: FilaJustificativas.Motivo) {
         if (isFinishing || isDestroyed) return
-        val faltantes = faltantesSemJustificativa(resumo)
+        carregar({ faltantesSemJustificativa(resumo) }) { faltantes -> mostrarFaltantes(resumo, motivo, faltantes) }
+    }
+
+    private fun mostrarFaltantes(resumo: ResumoFinalizacao, motivo: FilaJustificativas.Motivo, faltantes: List<ItemEsperado>) {
         if (faltantes.isEmpty()) return mostrarResumoFinal(resumo)
         val marcados = BooleanArray(faltantes.size)
         AlertDialog.Builder(this)
@@ -989,21 +1011,25 @@ class InventarioActivity : AppCompatActivity() {
     }
 
     private fun salvarJustificativas(resumo: ResumoFinalizacao, epcs: List<String>, motivo: FilaJustificativas.Motivo, observacao: String?) {
-        val sessao = SessaoAtual.token(this)?.let { CofreSessoes.get(this).referencia(it) }
-        SincronizadorJustificativas.fila(this).adicionar(resumo.inventarioId, epcs, motivo, sessao, System.currentTimeMillis(), observacao)
-        Log.i(TAG, "Operador justificou ${epcs.size} faltante(s) do inventário de ${resumo.local} como $motivo")
-        // Também no histórico: a fila esquece a justificativa quando o servidor confirma, o histórico não. Na mesma fila
-        // de tarefas que guardou o resumo, então o resumo recém-finalizado já está lá
-        emSegundoPlano {
+        val token = SessaoAtual.token(this)
+        val agora = System.currentTimeMillis()
+        val app = applicationContext
+        // Fila de envio e histórico gravados fora da tela, no executor do histórico: termina mesmo com a tela fechada
+        carregar({
+            val sessao = token?.let { CofreSessoes.get(app).referencia(it) }
+            SincronizadorJustificativas.fila(app).adicionar(resumo.inventarioId, epcs, motivo, sessao, agora, observacao)
+            Log.i(TAG, "Operador justificou ${epcs.size} faltante(s) do inventário de ${resumo.local} como $motivo")
+            // Também no histórico: a fila esquece a justificativa quando o servidor confirma, o histórico não
             try {
                 historico().justificar(resumo.inventarioId, epcs, motivo, observacao)
             } catch (e: Exception) {
                 Log.w(TAG, "Justificativas do inventário de ${resumo.local} não guardadas no histórico", e)
             }
+            Sincronizador.get(app).solicitarEmBreve()
+        }) {
+            // Ainda há faltantes sem motivo: volta ao resumo (com o botão de justificar mostrando quantos faltam)
+            mostrarResumoFinal(resumo)
         }
-        Sincronizador.get(this).solicitarEmBreve()
-        // Ainda há faltantes sem motivo: volta ao resumo (com o botão de justificar mostrando quantos faltam)
-        mostrarResumoFinal(resumo)
     }
 
     private fun textoMotivo(motivo: FilaJustificativas.Motivo): Int = when (motivo) {
@@ -1019,12 +1045,20 @@ class InventarioActivity : AppCompatActivity() {
      * Sem como gravar a planilha (memória cheia), vai só o texto, como antes.
      */
     private fun compartilhar(resumo: ResumoFinalizacao) {
+        // Justificativas, texto e planilha preparados fora da tela (lê o histórico e grava o CSV)
+        carregar({
+            val textos = textosJustificativas(resumo)
+            resumo.textoCompartilhar(justificativas = textos) to planilha(resumo, textos)
+        }) { (texto, uri) -> abrirCompartilhar(resumo, texto, uri) }
+    }
+
+    private fun abrirCompartilhar(resumo: ResumoFinalizacao, texto: String, planilha: android.net.Uri?) {
         val envio = Intent(Intent.ACTION_SEND)
             .setType("text/plain")
             .putExtra(Intent.EXTRA_SUBJECT, getString(R.string.inventario_compartilhar_assunto, resumo.local))
-            .putExtra(Intent.EXTRA_TEXT, resumo.textoCompartilhar(justificativas = textosJustificativas(resumo)))
+            .putExtra(Intent.EXTRA_TEXT, texto)
 
-        planilha(resumo)?.let { uri ->
+        planilha?.let { uri ->
             envio.setType("text/csv")
                 .putExtra(Intent.EXTRA_STREAM, uri)
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -1040,9 +1074,8 @@ class InventarioActivity : AppCompatActivity() {
     }
 
     /** Grava a planilha no cache (pasta liberada no FileProvider) e devolve o endereço para anexar; null se não deu. */
-    private fun planilha(resumo: ResumoFinalizacao): android.net.Uri? =
+    private fun planilha(resumo: ResumoFinalizacao, motivos: Map<String, String>): android.net.Uri? =
         try {
-            val motivos = textosJustificativas(resumo)
             val pasta = java.io.File(cacheDir, "relatorios").apply { mkdirs() }
             pasta.listFiles()?.forEach { it.delete() } // só a última planilha fica guardada
             val nome = "inventario-" + resumo.local.replace(Regex("[^A-Za-z0-9]+"), "-").trim('-').take(40).ifEmpty { "local" } + ".csv"
@@ -1137,6 +1170,16 @@ class InventarioActivity : AppCompatActivity() {
         private const val TAG = "INVENTARIO"
         /** Marca de UTF-8 no início da planilha: o Excel reconhece os acentos. */
         private val BOM_UTF8 = Char(0xFEFF).toString()
+
+        // Um executor do app inteiro (não fecha com a tela) para o histórico e as justificativas, em ordem
+        @Volatile
+        private var historicoExecutor: java.util.concurrent.Executor? = null
+
+        private fun executorHistorico(context: android.content.Context): java.util.concurrent.Executor =
+            historicoExecutor ?: synchronized(this) {
+                historicoExecutor ?: com.example.rfid_server.ExecutorProtegido
+                    .umaThread(context, "guardar o histórico dos inventários").also { historicoExecutor = it }
+            }
         private const val ABA_FALTANDO = 0
         private const val ABA_LIDAS = 1
 
