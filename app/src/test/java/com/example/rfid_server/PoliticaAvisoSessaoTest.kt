@@ -55,4 +55,16 @@ class PoliticaAvisoSessaoTest {
         assertEquals("2 h 05 min", PoliticaAvisoSessao.restanteLegivel(125 * minuto))
         assertEquals("0 min", PoliticaAvisoSessao.restanteLegivel(-1))
     }
+
+    @Test
+    fun `confere logo depois do fim da sessao e nao espera os 30 s`() {
+        val agora = 1_000_000L
+        // Sessão longe do fim: intervalo de sempre
+        assertEquals(30_000L, PoliticaAvisoSessao.esperaAteConferir(agora + 3_600_000, agora, 30_000))
+        // Vence daqui a 10 s: confere meio segundo depois do fim
+        assertEquals(10_500L, PoliticaAvisoSessao.esperaAteConferir(agora + 10_000, agora, 30_000))
+        // Já venceu ou sem sessão
+        assertEquals(1_000L, PoliticaAvisoSessao.esperaAteConferir(agora - 5_000, agora, 30_000))
+        assertEquals(30_000L, PoliticaAvisoSessao.esperaAteConferir(null, agora, 30_000))
+    }
 }

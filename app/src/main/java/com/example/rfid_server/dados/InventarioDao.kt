@@ -24,8 +24,9 @@ interface InventarioDao {
     @Query("SELECT * FROM inventarios WHERE finalizadoEm IS NULL ORDER BY iniciadoEm DESC LIMIT 1")
     fun inventarioAbertoAgora(): InventarioEntity?
 
-    @Query("SELECT * FROM inventario_itens WHERE inventarioId = :inventarioId ORDER BY id DESC")
-    fun itens(inventarioId: String): LiveData<List<InventarioItemEntity>>
+    // Só o EPC: a tela do inventário não usa o resto da linha, e a lista é recarregada a cada etiqueta nova
+    @Query("SELECT epc FROM inventario_itens WHERE inventarioId = :inventarioId ORDER BY id DESC")
+    fun epcsLidos(inventarioId: String): LiveData<List<String>>
 
     @Query("SELECT epc FROM inventario_itens WHERE inventarioId = :inventarioId")
     fun epcs(inventarioId: String): List<String>

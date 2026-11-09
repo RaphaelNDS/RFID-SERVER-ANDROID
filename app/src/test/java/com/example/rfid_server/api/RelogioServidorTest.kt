@@ -89,7 +89,7 @@ class RelogioServidorTest {
         val desvio = RelogioServidor.desvioMs!!
         assertTrue("~10 min adiantado: $desvio", abs(desvio - 10 * 60_000) < 5_000)
         assertEquals("LiveData para a tela", desvio, RelogioServidor.desvio.value)
-        assertEquals("Uma vez só na mesma hora", listOf(TipoErro.FALHA_GERAL to "Relógio do coletor 10 min adiantado em relação ao servidor"), erros)
+        assertEquals("Uma vez só na mesma hora", listOf(TipoErro.RELOGIO to "Relógio do coletor 10 min adiantado em relação ao servidor"), erros)
     }
 
     @Test
@@ -98,7 +98,7 @@ class RelogioServidorTest {
 
         get(cliente())
 
-        assertEquals(listOf(TipoErro.FALHA_GERAL to "Relógio do coletor 30 min atrasado em relação ao servidor"), erros)
+        assertEquals(listOf(TipoErro.RELOGIO to "Relógio do coletor 30 min atrasado em relação ao servidor"), erros)
     }
 
     @Test

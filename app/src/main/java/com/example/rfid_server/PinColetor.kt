@@ -111,6 +111,15 @@ object PinColetor {
     /** Tentativas que ainda restam antes do próximo bloqueio. */
     fun restantesAteBloqueio(erros: Int): Int = MAX_ERROS - erros % MAX_ERROS
 
+    /**
+     * Depois de um PIN certo, a mesma tela não pede de novo por [CARENCIA_MS] (ex.: salvar o servidor novo e logo
+     * em seguida confirmar o certificado dele). [liberadoEm] e [agora] são tempo desde a ligação (elapsedRealtime).
+     */
+    fun dentroDaCarencia(liberadoEm: Long?, agora: Long): Boolean =
+        liberadoEm != null && agora >= liberadoEm && agora - liberadoEm < CARENCIA_MS
+
+    const val CARENCIA_MS = 2L * 60_000
+
     // ================= LIBERAÇÃO PELA CHAVE DO COLETOR =================
     // "Esqueci o PIN" na troca de servidor: o servidor novo não conecta, então o ADMIN não consegue liberar.
     // Quem sabe a chave do coletor (a mesma cadastrada no servidor) libera o PIN no próprio aparelho.

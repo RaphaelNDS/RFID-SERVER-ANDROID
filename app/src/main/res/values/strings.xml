@@ -89,6 +89,7 @@
     <string name="main_sair_titulo">Sair do coletor</string>
     <string name="main_sair_mensagem">Sair como %1$s? O próximo operador entra com o próprio usuário.</string>
     <string name="main_sair_pendentes">%1$d registro(s) ainda não chegaram ao servidor: continuam guardados no coletor e serão enviados com o seu nome.</string>
+    <string name="main_sair_inventario">O inventário de \"%1$s\" ainda não foi finalizado: ele continua aberto no coletor. Para encerrá-lo agora, toque em Cancelar e finalize em Inventário.</string>
     <string name="main_sair">Sair</string>
     <string name="main_tela_vazia">A tela já está vazia</string>
     <string name="main_nova_leitura_titulo">Começar nova leitura?</string>
@@ -158,6 +159,7 @@
     <string name="cadastro_enviando">Enviando ao servidor…</string>
     <string name="cadastro_enviado">Etiqueta cadastrada</string>
     <string name="cadastro_sem_conexao">Sem conexão com o servidor: o cadastro ficou guardado no coletor e será enviado quando a conexão voltar</string>
+    <string name="cadastro_nao_enviado">Não foi enviado agora (%1$s): o cadastro ficou guardado no coletor e será enviado depois, sozinho</string>
     <string name="cadastro_guardado">Cadastro guardado: será enviado ao servidor</string>
 
     <!-- Inventário -->
@@ -282,6 +284,8 @@
     <string name="config_status_testando">Servidor: testando...</string>
     <string name="config_status_conectado">Servidor: conectado com segurança (HTTPS) ✅</string>
     <string name="config_status_falha">Servidor: %1$s ❌</string>
+    <string name="config_status_digitado_conectado">Servidor digitado: conectado com segurança (HTTPS) ✅. Toque em Salvar para usar este endereço</string>
+    <string name="config_status_salve_para_confirmar">Salve o endereço para conferir e confirmar o certificado dele</string>
     <string name="config_cert_apresentado">O servidor apresentou este certificado:</string>
     <string name="config_cert_diferente">ATENÇÃO: o certificado do servidor é DIFERENTE do confirmado antes.</string>
     <string name="config_cert_motivo">Isso acontece se o certificado foi trocado de propósito — ou se alguém está se passando pelo servidor na rede.</string>

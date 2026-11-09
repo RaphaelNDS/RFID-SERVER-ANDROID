@@ -47,8 +47,8 @@ class FakeInventarioDao : InventarioDao {
     override fun inventarioAbertoAgora(): InventarioEntity? =
         inventarios.filter { it.finalizadoEm == null }.maxByOrNull { it.iniciadoEm }
 
-    override fun itens(inventarioId: String): LiveData<List<InventarioItemEntity>> =
-        MutableLiveData(itens.filter { it.inventarioId == inventarioId }.sortedByDescending { it.id })
+    override fun epcsLidos(inventarioId: String): LiveData<List<String>> =
+        MutableLiveData(itens.filter { it.inventarioId == inventarioId }.sortedByDescending { it.id }.map { it.epc })
 
     override fun epcs(inventarioId: String): List<String> = itens.filter { it.inventarioId == inventarioId }.map { it.epc }
 

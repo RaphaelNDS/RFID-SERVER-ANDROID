@@ -192,7 +192,10 @@ class TagService internal constructor(
 
     fun buscarTagPorPatrimonio(patrimonio: String, callback: (RespostaServidor<String>) -> Unit) {
 
-        val url = url("tags", "patrimonio", patrimonio) ?: return callback(falhaEndereco())
+        // Patrimônio no parâmetro (?valor=, servidor 1.4.3 em diante), não no caminho: o Tomcat recusa
+        // "/" codificado (%2F) no caminho e patrimônios como 0123/2019 davam 400
+        val url = url("tags", "patrimonio")?.newBuilder()?.addQueryParameter("valor", patrimonio)?.build()
+            ?: return callback(falhaEndereco())
         val descricao = "buscar o patrimônio $patrimonio"
 
         enfileirar(Request.Builder().url(url).get().build(), descricao, callback) {
@@ -527,6 +530,11 @@ class TagService internal constructor(
                 when {
                     response.code == 404 -> RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "A versão não está mais disponível no servidor")
                     !response.isSuccessful -> falhaHttp(response, descricao)
+                    versaoTrocada(response, versao) -> {
+                        val servido = response.header(HttpClient.HEADER_VERSAO_CODIGO)
+                        Log.w(TAG, "O servidor entregou o APK do código $servido no lugar do ${versao.codigo} (${versao.versaoNome}): outra versão foi publicada no meio; download não feito")
+                        RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, MENSAGEM_VERSAO_TROCADA)
+                    }
                     else -> salvarConferindo(response, versao, destino, progresso)
                 }
             }
@@ -534,6 +542,12 @@ class TagService internal constructor(
             destino.delete()
             falhaConexao(descricao, e)
         }
+    }
+
+    // Servidor sem o header (versão antiga) não é recusado: o SHA-256 confere o arquivo do mesmo jeito
+    private fun versaoTrocada(response: Response, versao: VersaoPublicada): Boolean {
+        val servido = response.header(HttpClient.HEADER_VERSAO_CODIGO)?.trim()?.toIntOrNull() ?: return false
+        return servido != versao.codigo
     }
 
     private fun salvarConferindo(response: Response, versao: VersaoPublicada, destino: File, progresso: (Long) -> Unit): RespostaServidor<File> {
@@ -908,7 +922,12 @@ class TagService internal constructor(
     companion object {
         private const val TAG = "TAG_SERVICE"
 
+        /** Mesmo cliente (chave, certificado confirmado), mas falando com [endereco] — ex.: testar um IP ainda não salvo. */
+        fun paraEndereco(context: Context, endereco: String) = TagService(HttpClient.get(context)) { endereco }
+
         const val MENSAGEM_NAO_CONFIGURADO = "Servidor não configurado: informe o IP do servidor nas Configurações do coletor"
+
+        const val MENSAGEM_VERSAO_TROCADA = "Outra versão do app foi publicada enquanto baixava. Toque em atualizar de novo"
 
         /** Espera pela resposta do lote de leituras (segundos). */
         internal const val LEITURA_LOTE_S = 30L

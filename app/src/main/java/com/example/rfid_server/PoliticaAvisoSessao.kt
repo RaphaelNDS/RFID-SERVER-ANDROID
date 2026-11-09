@@ -31,6 +31,18 @@ object PoliticaAvisoSessao {
         return devido
     }
 
+    /**
+     * Espera até a próxima conferência da sessão numa tela aberta: o [intervaloMs] de sempre, ou menos, para conferir
+     * logo depois de a sessão vencer ([expiraEm]). Nunca menos de 1 s (sessão já vencida: a conferência trata).
+     */
+    fun esperaAteConferir(expiraEm: Long?, agora: Long, intervaloMs: Long): Long {
+        if (expiraEm == null) return intervaloMs
+        return (expiraEm - agora + MARGEM_FIM_MS).coerceIn(MINIMO_CONFERENCIA_MS, intervaloMs)
+    }
+
+    private const val MARGEM_FIM_MS = 500L
+    private const val MINIMO_CONFERENCIA_MS = 1_000L
+
     /** "18:30", "2 h 05 min", "12 min" para as mensagens. */
     fun restanteLegivel(restanteMs: Long): String {
         val minutos = (restanteMs / 60_000L).coerceAtLeast(0)

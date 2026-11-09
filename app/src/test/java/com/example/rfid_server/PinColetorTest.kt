@@ -10,6 +10,16 @@ import org.junit.Test
 class PinColetorTest {
 
     @Test
+    fun `carencia do PIN vale por 2 minutos depois de aceito e nunca sem aceite`() {
+        assertFalse(PinColetor.dentroDaCarencia(null, 1_000))
+        assertTrue(PinColetor.dentroDaCarencia(1_000, 1_000))
+        assertTrue(PinColetor.dentroDaCarencia(1_000, 1_000 + PinColetor.CARENCIA_MS - 1))
+        assertFalse(PinColetor.dentroDaCarencia(1_000, 1_000 + PinColetor.CARENCIA_MS))
+        // Aparelho reiniciado (tempo desde a ligação voltou): não vale
+        assertFalse(PinColetor.dentroDaCarencia(50_000, 1_000))
+    }
+
+    @Test
     fun `PIN certo confere e errado nao`() {
         val sal = PinColetor.novoSal()
         val hash = PinColetor.hash("4821", sal)
