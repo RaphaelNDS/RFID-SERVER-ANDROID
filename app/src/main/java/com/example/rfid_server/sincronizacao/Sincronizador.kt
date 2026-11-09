@@ -420,7 +420,10 @@ class Sincronizador internal constructor(
                     StatusLote.CADASTRADA -> {
                         val tag = resultado.tag
                         if (tag != null) {
-                            dao.marcarCadastrada(leitura.id, tag.codigoInterno, tag.tipo, tag.marca, tag.modelo, tag.patrimonio, tag.numeroSerie)
+                            dao.marcarCadastrada(
+                                leitura.id, tag.codigoInterno, tag.tipo, tag.marca, tag.modelo, tag.patrimonio, tag.numeroSerie,
+                                tag.situacao, tag.situacaoRotulo
+                            )
                         }
                         dao.marcarEnviada(leitura.id)
                         disjuntor.aceita()
@@ -486,7 +489,7 @@ class Sincronizador internal constructor(
                     Log.i(TAG, "Tag ${leitura.epc} cadastrada: patrimônio ${tag.patrimonio}")
                     dao.marcarCadastrada(
                         leitura.id, tag.codigoInterno, tag.tipo, tag.marca,
-                        tag.modelo, tag.patrimonio, tag.numeroSerie
+                        tag.modelo, tag.patrimonio, tag.numeroSerie, tag.situacao, tag.situacaoRotulo
                     )
                     situacao = Situacao.CADASTRADA
                 }

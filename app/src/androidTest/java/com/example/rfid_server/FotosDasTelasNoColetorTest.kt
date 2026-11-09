@@ -64,7 +64,8 @@ class FotosDasTelasNoColetorTest {
                 LeituraEntity(epc = "424B5030313233000000000A", lidoEm = agora, situacao = Situacao.CADASTRADA, envioConcluido = true,
                     codigoInterno = "TI-0412", tipo = "Notebook", marca = "Dell", modelo = "Latitude 5440", patrimonio = "0123/2019", numeroSerie = "SN-8H2K"),
                 LeituraEntity(epc = "E28011606000020000000001", lidoEm = agora, situacao = Situacao.CADASTRADA, envioConcluido = true,
-                    codigoInterno = "TI-0007", tipo = "Monitor", marca = "LG", modelo = "24MK430H", patrimonio = "PAT-1007", numeroSerie = "SN-77"),
+                    codigoInterno = "TI-0007", tipo = "Monitor", marca = "LG", modelo = "24MK430H", patrimonio = "PAT-1007", numeroSerie = "SN-77",
+                    situacaoBem = "BAIXADO", situacaoBemRotulo = "Baixado"),
                 LeituraEntity(epc = "E28011606000020000000002", lidoEm = agora, situacao = Situacao.NAO_CADASTRADA, envioConcluido = true),
                 LeituraEntity(epc = "E28011606000020000000003", lidoEm = agora, situacao = Situacao.PENDENTE)
             ).forEach { dao.inserir(it) }

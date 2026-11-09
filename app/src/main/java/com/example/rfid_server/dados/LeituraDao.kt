@@ -21,11 +21,13 @@ interface LeituraDao {
     @Query(
         """UPDATE leituras SET situacao = 'CADASTRADA', codigoInterno = :codigoInterno, tipo = :tipo,
            marca = :marca, modelo = :modelo, patrimonio = :patrimonio, numeroSerie = :numeroSerie,
+           situacaoBem = :situacaoBem, situacaoBemRotulo = :situacaoBemRotulo,
            ultimoErro = NULL WHERE id = :id"""
     )
     fun marcarCadastrada(
         id: Long, codigoInterno: String, tipo: String?, marca: String?,
-        modelo: String?, patrimonio: String, numeroSerie: String
+        modelo: String?, patrimonio: String, numeroSerie: String,
+        situacaoBem: String?, situacaoBemRotulo: String?
     )
 
     @Query("UPDATE leituras SET situacao = 'NAO_CADASTRADA', ultimoErro = NULL WHERE id = :id")

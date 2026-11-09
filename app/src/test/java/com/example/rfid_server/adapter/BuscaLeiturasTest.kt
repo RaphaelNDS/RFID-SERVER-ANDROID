@@ -3,6 +3,7 @@ package com.example.rfid_server.adapter
 import com.example.rfid_server.dados.ItemNaoCadastrada
 import com.example.rfid_server.view.TagView
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BuscaLeiturasTest {
@@ -32,10 +33,12 @@ class BuscaLeiturasTest {
     fun `planilha tem cadastradas aguardando e nao cadastradas`() {
         val csv = BuscaLeituras.csv(itens, listOf(ItemNaoCadastrada("E4", ItemNaoCadastrada.SEM_CADASTRO))).trim().lines()
 
-        assertEquals("Situação;Patrimônio;Tipo;Marca;Modelo;Código interno;Nº de série;Etiqueta (EPC)", csv[0])
-        assertEquals("Cadastrada;0123/2019;Notebook;Dell;Latitude;TI-0412;SN-8H2K;E1", csv[1])
-        assertEquals("Aguardando o servidor;;;;;;;E3FF", csv[3])
-        assertEquals("Não cadastrada;;;;;;;E4", csv[4])
+        assertEquals("Situação;Patrimônio;Tipo;Marca;Modelo;Código interno;Nº de série;Etiqueta (EPC);Situação no cadastro", csv[0])
+        assertEquals("Cadastrada;0123/2019;Notebook;Dell;Latitude;TI-0412;SN-8H2K;E1;", csv[1])
+        assertEquals("Aguardando o servidor;;;;;;;E3FF;", csv[3])
+        assertEquals("Não cadastrada;;;;;;;E4;", csv[4])
+        val baixado = ItemLeitura.Cadastrada(TagView("E9", "TI-9", "Mesa", null, null, "P-9", "", "BAIXADO", "Baixado"))
+        assertTrue(BuscaLeituras.csv(listOf(baixado), emptyList()).lines()[1].endsWith(";E9;Baixado"))
     }
 
     @Test

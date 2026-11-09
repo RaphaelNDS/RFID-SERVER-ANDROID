@@ -53,7 +53,7 @@ class BancoLocalRealTest {
         Room.databaseBuilder(context, BancoLocal::class.java, nome)
             .addMigrations(
                 BancoLocal.MIGRACAO_1_2, BancoLocal.MIGRACAO_2_3, BancoLocal.MIGRACAO_3_4,
-                BancoLocal.MIGRACAO_4_5, BancoLocal.MIGRACAO_5_6, BancoLocal.MIGRACAO_6_7
+                BancoLocal.MIGRACAO_4_5, BancoLocal.MIGRACAO_5_6, BancoLocal.MIGRACAO_6_7, BancoLocal.MIGRACAO_7_8
             )
             .allowMainThreadQueries()
             .build()
@@ -248,7 +248,7 @@ class BancoLocalRealTest {
         val dao = emMemoria().leituraDao()
         dao.inserir(LeituraEntity(epc = "ANTIGA", lidoEm = 1_000, arquivada = true))
         val cadastrada = dao.inserir(LeituraEntity(epc = "CAD", lidoEm = 1_000))
-        dao.marcarCadastrada(cadastrada, "CI", null, null, null, "PAT", "SN")
+        dao.marcarCadastrada(cadastrada, "CI", null, null, null, "PAT", "SN", null, null)
         dao.inserir(LeituraEntity(epc = "P1", lidoEm = 1_000))
         dao.inserir(LeituraEntity(epc = "P2", lidoEm = 1_000))
 

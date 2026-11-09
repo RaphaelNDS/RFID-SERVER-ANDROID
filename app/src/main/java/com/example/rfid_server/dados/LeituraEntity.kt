@@ -54,7 +54,10 @@ data class LeituraEntity(
     val sessaoOperador: String? = null,
     /** O servidor recusou de vez: não é reenviada, mas fica no aparelho (e na contagem) por 30 dias, com o motivo. */
     @ColumnInfo(defaultValue = "0")
-    val recusada: Boolean = false
+    val recusada: Boolean = false,
+    /** Situação do bem no cadastro (versão 8 do banco), quando o servidor informa: BAIXADO, EXTRAVIADO... */
+    val situacaoBem: String? = null,
+    val situacaoBemRotulo: String? = null
 ) {
     fun paraTagView() = TagView(
         epc = epc,
@@ -63,6 +66,8 @@ data class LeituraEntity(
         marca = marca,
         modelo = modelo,
         patrimonio = patrimonio.orEmpty(),
-        numeroSerie = numeroSerie.orEmpty()
+        numeroSerie = numeroSerie.orEmpty(),
+        situacao = situacaoBem,
+        situacaoRotulo = situacaoBemRotulo
     )
 }

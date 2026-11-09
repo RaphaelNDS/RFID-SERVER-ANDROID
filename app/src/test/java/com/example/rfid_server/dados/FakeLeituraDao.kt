@@ -64,11 +64,13 @@ class FakeLeituraDao(vararg iniciais: LeituraEntity) : LeituraDao {
 
     override fun marcarCadastrada(
         id: Long, codigoInterno: String, tipo: String?, marca: String?,
-        modelo: String?, patrimonio: String, numeroSerie: String
+        modelo: String?, patrimonio: String, numeroSerie: String,
+        situacaoBem: String?, situacaoBemRotulo: String?
     ) = alterar(id) {
         it.copy(
             situacao = Situacao.CADASTRADA, codigoInterno = codigoInterno, tipo = tipo, marca = marca,
-            modelo = modelo, patrimonio = patrimonio, numeroSerie = numeroSerie, ultimoErro = null
+            modelo = modelo, patrimonio = patrimonio, numeroSerie = numeroSerie, ultimoErro = null,
+            situacaoBem = situacaoBem, situacaoBemRotulo = situacaoBemRotulo
         )
     }
 

@@ -89,6 +89,20 @@ class TagServiceTest {
     }
 
     @Test
+    fun `buscarTagAgora le a situacao do bem e alerta so para baixado ou extraviado`() {
+        servidor.enqueue(json(200, """{"codigoInterno":"CI-01","patrimonio":"PAT-1","situacao":"BAIXADO","situacaoRotulo":"Baixado"}"""))
+        servidor.enqueue(json(200, """{"codigoInterno":"CI-02","patrimonio":"PAT-2","situacao":"EMPRESTADO","situacaoRotulo":"Emprestado"}"""))
+
+        val baixado = (service.buscarTagAgora("E1") as RespostaServidor.Sucesso).valor
+        val emprestado = (service.buscarTagAgora("E2") as RespostaServidor.Sucesso).valor
+
+        assertEquals("BAIXADO", baixado.situacao)
+        assertEquals("Baixado", baixado.alertaSituacao())
+        assertEquals("Emprestado: só na ficha, sem alerta no cartão", null, emprestado.alertaSituacao())
+        assertEquals("Extraviado sem rótulo usa o código", "EXTRAVIADO", baixado.copy(situacao = "EXTRAVIADO", situacaoRotulo = null).alertaSituacao())
+    }
+
+    @Test
     fun `buscarTagAgora chama o endpoint do android com a chave do coletor`() {
         servidor.enqueue(json(404, """{"status":404}"""))
 

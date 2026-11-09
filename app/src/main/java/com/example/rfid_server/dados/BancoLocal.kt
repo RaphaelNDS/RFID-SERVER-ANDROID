@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  */
 @Database(
     entities = [LeituraEntity::class, InventarioEntity::class, InventarioItemEntity::class, CadastroEntity::class],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class BancoLocal : RoomDatabase() {
@@ -129,13 +129,29 @@ abstract class BancoLocal : RoomDatabase() {
             "ALTER TABLE `inventario_itens` ADD COLUMN `ultimoErro` TEXT"
         )
 
+        /**
+         * Versão 8: situação do bem no cadastro (baixado, extraviado...) guardada com a leitura, para o cartão da
+         * tela de Leituras avisar. Colunas que aceitam nulo: as leituras antigas ficam sem situação.
+         */
+        internal val MIGRACAO_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                Log.i(TAG, "Atualizando o banco local da versão 7 para a 8: situação do bem nas leituras")
+                SQL_VERSAO_8.forEach { db.execSQL(it) }
+            }
+        }
+
+        internal val SQL_VERSAO_8 = listOf(
+            "ALTER TABLE `leituras` ADD COLUMN `situacaoBem` TEXT",
+            "ALTER TABLE `leituras` ADD COLUMN `situacaoBemRotulo` TEXT"
+        )
+
         @Volatile
         private var instancia: BancoLocal? = null
 
         fun get(context: Context): BancoLocal =
             instancia ?: synchronized(this) {
                 instancia ?: Room.databaseBuilder(context.applicationContext, BancoLocal::class.java, "rfid-local.db")
-                    .addMigrations(MIGRACAO_1_2, MIGRACAO_2_3, MIGRACAO_3_4, MIGRACAO_4_5, MIGRACAO_5_6, MIGRACAO_6_7)
+                    .addMigrations(MIGRACAO_1_2, MIGRACAO_2_3, MIGRACAO_3_4, MIGRACAO_4_5, MIGRACAO_5_6, MIGRACAO_6_7, MIGRACAO_7_8)
                     .build()
                     .also { instancia = it }
             }

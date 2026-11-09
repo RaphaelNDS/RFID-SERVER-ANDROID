@@ -97,11 +97,20 @@ class ConsultasDaoRealTest {
     }
 
     @Test
+    fun `situacao do bem gravada com a leitura volta na tag da tela`() {
+        val id = leituras.inserir(LeituraEntity(epc = "BAIXADA", lidoEm = 1))
+        leituras.marcarCadastrada(id, "CI", "Monitor", null, null, "PAT", "SN", "BAIXADO", "Baixado")
+
+        val tag = leituras.pendentes().single { it.epc == "BAIXADA" }.paraTagView()
+        assertEquals("Baixado", tag.alertaSituacao())
+    }
+
+    @Test
     fun `desfazerRecusas volta para a fila e so a que virou ERRO volta a PENDENTE`() {
         val semClassificar = leituras.inserir(LeituraEntity(epc = "SEM-CLASSE", lidoEm = 1))
         leituras.marcarRecusada(semClassificar, "Recusada")
         val cadastrada = leituras.inserir(LeituraEntity(epc = "CADASTRADA", lidoEm = 1))
-        leituras.marcarCadastrada(cadastrada, "CI", null, null, null, "PAT", "SN")
+        leituras.marcarCadastrada(cadastrada, "CI", null, null, null, "PAT", "SN", null, null)
         leituras.marcarRecusada(cadastrada, "Recusada")
         val foraDaLista = leituras.inserir(LeituraEntity(epc = "FORA", lidoEm = 1))
         leituras.marcarRecusada(foraDaLista, "Recusada")
@@ -120,7 +129,7 @@ class ConsultasDaoRealTest {
 
         leituras.inserir(LeituraEntity(epc = "ANTIGA", lidoEm = 1, arquivada = true))
         val cadastrada = leituras.inserir(LeituraEntity(epc = "CAD", lidoEm = 1))
-        leituras.marcarCadastrada(cadastrada, "CI", null, null, null, "PAT", "SN")
+        leituras.marcarCadastrada(cadastrada, "CI", null, null, null, "PAT", "SN", null, null)
         val naoCadastrada = leituras.inserir(LeituraEntity(epc = "NAO", lidoEm = 1))
         leituras.marcarNaoCadastrada(naoCadastrada)
         leituras.inserir(LeituraEntity(epc = "AGUARDA", lidoEm = 1))

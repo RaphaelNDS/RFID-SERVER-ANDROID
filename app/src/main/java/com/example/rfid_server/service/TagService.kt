@@ -400,7 +400,10 @@ class TagService internal constructor(
         marca = json.optStringOrNull("marca"),
         modelo = json.optStringOrNull("modelo"),
         patrimonio = json.optStringOrNull("patrimonio").orEmpty(),
-        numeroSerie = json.optStringOrNull("numeroSerie").orEmpty()
+        numeroSerie = json.optStringOrNull("numeroSerie").orEmpty(),
+        // Servidor 1.6.0+ (ficha) e 1.6.2+ (lote): situação no cadastro; servidor que não manda = null
+        situacao = json.optStringOrNull("situacao")?.ifBlank { null },
+        situacaoRotulo = json.optStringOrNull("situacaoRotulo")?.ifBlank { null }
     )
 
     // ================= CADASTRO DE ETIQUETA =================
