@@ -58,7 +58,9 @@ object MotivoLeitor {
         val causa = when {
             "batter" in tudo || "bateria" in tudo -> CausaFalhaLeitor.BATERIA
             "temperat" in tudo || "overheat" in tudo -> CausaFalhaLeitor.TEMPERATURA
-            "in use" in tudo || "busy" in tudo || "another application" in tudo -> CausaFalhaLeitor.OCUPADO_OUTRO_APP
+            // COMM_OPEN_ERROR: a porta do leitor já está aberta por outro app (ex.: os apps de demonstração da Zebra
+            // ou a versão de teste deste app); visto no MC3300x em 09/11
+            "in use" in tudo || "busy" in tudo || "another application" in tudo || "comm_open_error" in tudo -> CausaFalhaLeitor.OCUPADO_OUTRO_APP
             "in progress" in tudo || "in_progress" in tudo -> CausaFalhaLeitor.OPERACAO_EM_ANDAMENTO
             "region" in tudo -> CausaFalhaLeitor.REGIAO_NAO_CONFIGURADA
             "timeout" in tudo || "timed out" in tudo -> CausaFalhaLeitor.TEMPO_ESGOTADO

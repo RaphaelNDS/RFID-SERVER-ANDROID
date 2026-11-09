@@ -172,7 +172,7 @@
     <string name="cadastro_proxima_mensagem">Ainda há %1$d etiqueta(s) não cadastrada(s) nesta leitura. A próxima é %2$s.</string>
     <string name="cadastro_proxima">Próxima</string>
     <string name="cadastro_parar">Parar</string>
-    <string name="cadastro_gravar_codigo">Gravar código da empresa na etiqueta</string>
+    <string name="cadastro_gravar_codigo">Gravar código da empresa</string>
     <string name="cadastro_aguarde_gravacao">Aguarde: a etiqueta está sendo gravada</string>
     <string name="cadastro_codigo_divergente">A etiqueta foi gravada com o código de outro patrimônio: toque em \"Gravar código da empresa\" de novo</string>
     <string name="cadastro_gravar_falta_patrimonio">Preencha o patrimônio antes: o código gravado na etiqueta sai dele</string>
