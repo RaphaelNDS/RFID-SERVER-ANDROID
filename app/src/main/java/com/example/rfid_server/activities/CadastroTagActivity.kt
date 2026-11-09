@@ -21,6 +21,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.Lifecycle
 import com.google.android.material.textfield.TextInputLayout
 import com.example.rfid_server.AppConfig
+import com.example.rfid_server.CodigoDeBarras
+import com.example.rfid_server.ConfigQr
 import com.example.rfid_server.CodigoEtiqueta
 import com.example.rfid_server.RfidManager
 import com.example.rfid_server.R
@@ -135,6 +137,13 @@ class CadastroTagActivity : AppCompatActivity() {
         btnSalvar = findViewById(R.id.btnSalvar)
 
         configurarCascata()
+        // Código de barras: vai para o campo com foco; sem campo com foco, é a plaqueta de patrimônio
+        CodigoDeBarras.ouvir(this) { codigo ->
+            if (ConfigQr.ler(codigo) != null) return@ouvir true
+            if (CodigoDeBarras.noCampoComFoco(this, codigo)) return@ouvir true
+            edtPatrimonio.setText(codigo)
+            true
+        }
         btnSalvar.setOnClickListener { if (CliqueUnico.permitir()) salvar() }
 
         savedInstanceState?.let { estado ->

@@ -16,6 +16,8 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.example.rfid_server.AppConfig
+import com.example.rfid_server.CodigoDeBarras
+import com.example.rfid_server.ConfigQr
 import com.example.rfid_server.FiltroLeitura
 import com.example.rfid_server.R
 import com.example.rfid_server.RfidManager
@@ -44,6 +46,8 @@ class SettingsActivity : AppCompatActivity() {
     private var testeAtual = 0
     // Um pedido de confiança no certificado por vez (Testar várias vezes empilhava os diálogos)
     private var dialogoCertificado: AlertDialog? = null
+    // Impressão digital do certificado vinda do QR de configuração, confirmada ao salvar
+    private var impressaoDoQr: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -89,6 +93,17 @@ class SettingsActivity : AppCompatActivity() {
         btnTestar.setOnClickListener { testarDigitado() }
 
         btnSalvar.setOnClickListener { if (CliqueUnico.permitir()) salvar() }
+
+        // QR de configuração (tela Coletores do servidor): preenche servidor e chave; o responsável confere e salva com o PIN
+        CodigoDeBarras.ouvir(this) { codigo ->
+            val config = ConfigQr.ler(codigo) ?: return@ouvir false
+            edtIp.setText(config.servidor)
+            edtChave.setText(config.chave)
+            impressaoDoQr = config.impressaoDigital
+            Log.i(TAG, "QR de configuração lido: servidor ${config.servidor}" + if (config.impressaoDigital != null) ", com o certificado" else "")
+            Toast.makeText(this, R.string.config_qr_lido, Toast.LENGTH_LONG).show()
+            true
+        }
     }
 
     private fun mostrarSituacaoChave() {
@@ -121,7 +136,8 @@ class SettingsActivity : AppCompatActivity() {
         // Campo da chave em branco = manter a salva
         val chave = chaveDigitada.ifEmpty { AppConfig.getChaveDispositivo(this) }
 
-        if (ip == anterior && chave == AppConfig.getChaveDispositivo(this) && AppConfig.temPin(this)) {
+        val certificadoNovo = impressaoDoQr != null && impressaoDoQr != AppConfig.getImpressaoDigital(this)
+        if (ip == anterior && chave == AppConfig.getChaveDispositivo(this) && AppConfig.temPin(this) && !certificadoNovo) {
             Toast.makeText(this, R.string.config_nada_mudou, Toast.LENGTH_SHORT).show()
             edtChave.text = null
             Sincronizador.get(this).solicitar()
@@ -133,6 +149,13 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun gravar(ip: String, chave: String, anterior: String) {
+        // Certificado vindo do QR de configuração (lido do próprio servidor, pelo ADMIN): confirmado junto, com o mesmo PIN
+        impressaoDoQr?.let { impressao ->
+            AppConfig.saveImpressaoDigital(this, impressao)
+            Log.i(TAG, "Certificado do servidor confirmado pelo QR de configuração: $impressao")
+            impressaoDoQr = null
+            mostrarCertificadoConfirmado()
+        }
         AppConfig.saveServerIp(this, ip)
         AppConfig.saveChaveDispositivo(this, chave)
         edtChave.text = null

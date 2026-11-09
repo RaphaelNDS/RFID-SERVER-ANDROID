@@ -11,6 +11,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle
+import com.example.rfid_server.CodigoDeBarras
+import com.example.rfid_server.ConfigQr
 import com.example.rfid_server.AvisoLeitura
 import com.example.rfid_server.EstadoLeitor
 import com.example.rfid_server.Proximidade
@@ -130,6 +132,14 @@ class LocalizarActivity : AppCompatActivity() {
         // Aberta por outra tela (ex.: item que falta no inventário). Só na primeira criação, para não começar
         // de novo ao girar a tela
         if (savedInstanceState == null) iniciarPeloPedido(intent.getStringExtra(EXTRA_EPC), intent.getStringExtra(EXTRA_PATRIMONIO))
+
+        // Plaqueta de patrimônio lida pelo leitor de código de barras: busca na hora (sem digitar nem tocar em Buscar)
+        CodigoDeBarras.ouvir(this) { codigo ->
+            if (ConfigQr.ler(codigo) != null) return@ouvir true // QR de configuração: só nas Configurações
+            edtPatrimonio.setText(codigo)
+            buscarDoCampo()
+            true
+        }
     }
 
     private fun buscarDoCampo() {

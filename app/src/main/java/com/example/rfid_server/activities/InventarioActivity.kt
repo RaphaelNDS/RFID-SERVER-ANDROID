@@ -30,6 +30,8 @@ import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.LiveData
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.rfid_server.CodigoDeBarras
+import com.example.rfid_server.ConfigQr
 import com.example.rfid_server.AppConfig
 import com.example.rfid_server.AvisoLeitura
 import com.example.rfid_server.R
@@ -213,6 +215,16 @@ class InventarioActivity : AppCompatActivity() {
         }
         // Escolheu uma sugestão: o local está pronto, o teclado sai da frente do botão
         edtLocal.setOnItemClickListener { _, _, _, _ -> fecharTeclado(edtLocal) }
+        // Etiqueta de código de barras na porta da sala: preenche o local (o operador confere e toca em Iniciar).
+        // Com o inventário aberto, o código vai para o campo com foco (ex.: o filtro), como antes
+        CodigoDeBarras.ouvir(this) { codigo ->
+            if (ConfigQr.ler(codigo) != null) return@ouvir true
+            if (inventarioAtual != null) return@ouvir false
+            edtLocal.setText(codigo)
+            edtLocal.setSelection(edtLocal.text.length)
+            edtLocal.dismissDropDown()
+            true
+        }
         // Tocar no campo vazio mostra todos os locais: antes a lista só aparecia digitando uma letra, e no teste o
         // operador achou que o local "TESTE 171" não existia no coletor
         edtLocal.setOnClickListener { mostrarTodosOsLocais() }

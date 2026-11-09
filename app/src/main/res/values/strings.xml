@@ -295,6 +295,7 @@
     <string name="config_acao_salvar">salvar o servidor e a chave</string>
     <string name="config_salvo_sem_chave">Salvo, mas sem a chave do coletor o servidor recusa as chamadas</string>
     <string name="config_salvas">Configurações salvas!</string>
+    <string name="config_qr_lido">Configuração lida do QR: confira o servidor e toque em Salvar</string>
     <string name="config_status_nao_configurado">Servidor: não configurado. Informe o IP do servidor e a chave do coletor e toque em Salvar</string>
     <string name="config_status_testando">Servidor: testando...</string>
     <string name="config_status_conectado">Servidor: conectado com segurança (HTTPS) ✅</string>
