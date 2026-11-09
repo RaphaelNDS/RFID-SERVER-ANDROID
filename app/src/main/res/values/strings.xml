@@ -251,7 +251,7 @@
     <string name="inventario_finalizar_nao_enviadas">%1$d ainda não chegaram ao servidor: continuam guardadas no coletor e serão enviadas assim que possível.</string>
     <string name="inventario_finalizar_confirmar">Finalizar</string>
     <string name="inventario_continuar_lendo">Continuar lendo</string>
-    <string name="inventario_finalizado">Inventário de %1$s finalizado: %2$d etiqueta(s)</string>
+    <string name="inventario_finalizado_titulo">Inventário finalizado</string>
     <string name="inventario_local_novo_titulo">Local novo</string>
     <string name="inventario_local_novo_mensagem">\"%1$s\" não está na lista de locais. Iniciar mesmo assim?</string>
     <string name="inventario_iniciar_mesmo_assim">Iniciar mesmo assim</string>
