@@ -15,19 +15,26 @@ class FilaJustificativas(private val arquivo: File) {
     /** Motivos aceitos pelo servidor (código), na ordem em que o operador escolhe. */
     enum class Motivo { EMPRESTADO, MANUTENCAO, BAIXADO, NAO_ENCONTRADO, OUTRO }
 
+    companion object {
+        /** Limite do servidor para a observação. */
+        const val MAXIMO_OBSERVACAO = 500
+    }
+
     data class Item(
         val inventarioId: String,
         val epc: String,
         val motivo: Motivo,
         /** Referência da sessão de quem justificou (vai no X-Sessao-Operador). */
         val sessao: String?,
-        val criadoEm: Long
+        val criadoEm: Long,
+        /** Texto livre (até 500 caracteres no servidor), usado no motivo "Outro". */
+        val observacao: String? = null
     )
 
     @Synchronized
-    fun adicionar(inventarioId: String, epcs: Collection<String>, motivo: Motivo, sessao: String?, agora: Long) {
+    fun adicionar(inventarioId: String, epcs: Collection<String>, motivo: Motivo, sessao: String?, agora: Long, observacao: String? = null) {
         val itens = ler().filterNot { it.inventarioId == inventarioId && it.epc in epcs } +
-            epcs.map { Item(inventarioId, it, motivo, sessao, agora) }
+            epcs.map { Item(inventarioId, it, motivo, sessao, agora, observacao?.trim()?.take(MAXIMO_OBSERVACAO)?.ifEmpty { null }) }
         gravar(itens)
     }
 
@@ -62,7 +69,8 @@ class FilaJustificativas(private val arquivo: File) {
                     val motivo = Motivo.entries.firstOrNull { it.name == o.optString("motivo") } ?: return@mapNotNull null
                     Item(
                         o.getString("inventarioId"), o.getString("epc"), motivo,
-                        o.optString("sessao").ifEmpty { null }, o.optLong("criadoEm")
+                        o.optString("sessao").ifEmpty { null }, o.optLong("criadoEm"),
+                        o.optString("observacao").ifEmpty { null }
                     )
                 }
             }
@@ -76,7 +84,7 @@ class FilaJustificativas(private val arquivo: File) {
         val texto = JSONArray().apply {
             itens.forEach {
                 put(JSONObject().put("inventarioId", it.inventarioId).put("epc", it.epc).put("motivo", it.motivo.name)
-                    .put("sessao", it.sessao ?: "").put("criadoEm", it.criadoEm))
+                    .put("sessao", it.sessao ?: "").put("criadoEm", it.criadoEm).put("observacao", it.observacao ?: ""))
             }
         }.toString()
         val temporario = File(arquivo.parentFile, arquivo.name + ".tmp")

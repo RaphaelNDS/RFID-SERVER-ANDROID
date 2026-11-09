@@ -75,4 +75,14 @@ class SincronizadorJustificativasTest {
         sincronizador { RespostaServidor.Falha(MotivoFalha.REQUISICAO_RECUSADA, "Inventário de outro coletor") }.processar()
         assertTrue(fila.pendentes().isEmpty())
     }
+
+    @Test
+    fun `observacao do motivo Outro vai junto e sobrevive a reabrir o app`() {
+        fila.adicionar("inv-1", listOf("E9"), FilaJustificativas.Motivo.OUTRO, null, agora, "  levado para a sala 204 ")
+        assertEquals("levado para a sala 204", FilaJustificativas(pasta.root.resolve("justificativas.json")).pendentes().single().observacao)
+
+        sincronizador { RespostaServidor.Sucesso(ResultadoJustificativas(1, emptyList())) }.processar()
+
+        assertEquals("levado para a sala 204", enviados.single().second.getJSONObject(0).getString("observacao"))
+    }
 }

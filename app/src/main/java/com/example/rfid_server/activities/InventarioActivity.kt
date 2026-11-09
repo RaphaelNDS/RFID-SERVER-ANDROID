@@ -256,7 +256,7 @@ class InventarioActivity : AppCompatActivity() {
         }
         abrirEspacoComTeclado()
 
-        mostrarEstadoLeitor(rfidManager)
+        mostrarEstadoLeitor(rfidManager, mostrarFiltros = true, usaFiltroEmpresa = true)
         carregarLocais()
 
         repositorio.inventarioAberto.observe(this) { mostrar(it) }
@@ -881,17 +881,46 @@ class InventarioActivity : AppCompatActivity() {
             }
             .setPositiveButton(R.string.inventario_justificar_salvar) { _, _ ->
                 val escolhidos = faltantes.filterIndexed { i, _ -> marcados[i] }.map { it.epc }
-                if (escolhidos.isNotEmpty()) {
-                    val sessao = SessaoAtual.token(this)?.let { CofreSessoes.get(this).referencia(it) }
-                    SincronizadorJustificativas.fila(this).adicionar(resumo.inventarioId, escolhidos, motivo, sessao, System.currentTimeMillis())
-                    Log.i(TAG, "Operador justificou ${escolhidos.size} faltante(s) do inventário de ${resumo.local} como $motivo")
-                    Sincronizador.get(this).solicitarEmBreve()
+                when {
+                    escolhidos.isEmpty() -> mostrarResumoFinal(resumo)
+                    // "Outro" sem explicação não ajuda quem confere na web: pede uma observação curta (opcional)
+                    motivo == FilaJustificativas.Motivo.OUTRO -> pedirObservacao(resumo, escolhidos)
+                    else -> salvarJustificativas(resumo, escolhidos, motivo, null)
                 }
-                // Ainda há faltantes sem motivo: volta ao resumo (com o botão de justificar mostrando quantos faltam)
-                mostrarResumoFinal(resumo)
             }
             .setNegativeButton(R.string.comum_cancelar) { _, _ -> mostrarResumoFinal(resumo) }
             .show()
+    }
+
+    private fun pedirObservacao(resumo: ResumoFinalizacao, escolhidos: List<String>) {
+        if (isFinishing || isDestroyed) return
+        val campo = android.widget.EditText(this).apply {
+            setHint(R.string.inventario_justificar_observacao_dica)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            filters = arrayOf(android.text.InputFilter.LengthFilter(FilaJustificativas.MAXIMO_OBSERVACAO))
+        }
+        val margem = (20 * resources.displayMetrics.density).toInt()
+        val moldura = android.widget.FrameLayout(this).apply {
+            setPadding(margem, margem / 2, margem, 0)
+            addView(campo)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.inventario_justificar_observacao)
+            .setView(moldura)
+            .setPositiveButton(R.string.inventario_justificar_salvar) { _, _ ->
+                salvarJustificativas(resumo, escolhidos, FilaJustificativas.Motivo.OUTRO, campo.text.toString())
+            }
+            .setNegativeButton(R.string.comum_cancelar) { _, _ -> mostrarResumoFinal(resumo) }
+            .show()
+    }
+
+    private fun salvarJustificativas(resumo: ResumoFinalizacao, epcs: List<String>, motivo: FilaJustificativas.Motivo, observacao: String?) {
+        val sessao = SessaoAtual.token(this)?.let { CofreSessoes.get(this).referencia(it) }
+        SincronizadorJustificativas.fila(this).adicionar(resumo.inventarioId, epcs, motivo, sessao, System.currentTimeMillis(), observacao)
+        Log.i(TAG, "Operador justificou ${epcs.size} faltante(s) do inventário de ${resumo.local} como $motivo")
+        Sincronizador.get(this).solicitarEmBreve()
+        // Ainda há faltantes sem motivo: volta ao resumo (com o botão de justificar mostrando quantos faltam)
+        mostrarResumoFinal(resumo)
     }
 
     private fun textoMotivo(motivo: FilaJustificativas.Motivo): Int = when (motivo) {

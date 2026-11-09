@@ -78,7 +78,9 @@ class MainActivity : AppCompatActivity() {
 
         val toolbar = findViewById<Toolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
-        title = getString(R.string.app_name)
+        // Nome da função, como as outras telas ("Inventário por local", "Localizar patrimônio"): "RFID-Android" não cabia
+        // ao lado do "Nova leitura" na tela de 320dp e aparecia cortado ("RFID-Androi…"; visto nas fotos do coletor)
+        title = getString(R.string.main_titulo)
         mostrarOperador(sessao)
 
         pager = findViewById(R.id.pager)
@@ -96,7 +98,7 @@ class MainActivity : AppCompatActivity() {
         viewModel = ViewModelProvider(this).get(MainViewModel::class.java)
         rfidManager = RfidManager.get(this)
         aviso = AvisoLeitura(this)
-        mostrarEstadoLeitor(rfidManager)
+        mostrarEstadoLeitor(rfidManager, mostrarFiltros = true)
 
         // Visível: leituras vêm para cá, envia o pendente a cada minuto e avisa antes de a sessão acabar
         // (deixa renovar sem sair da tela). Ao pausar, solta o leitor e para o envio periódico
