@@ -228,8 +228,15 @@ object AppConfig {
 
     // Esperado de cada local (JSON de /api/android/inventarios/esperado): o inventário mostra o que falta
     // mesmo sem rede, com a última lista baixada. Fica em arquivo, um por local (EsperadoGuardado).
-    fun saveEsperadoJson(context: Context, local: String, json: String) {
-        esperadoGuardado(context).salvar(local, json)
+    fun saveEsperadoJson(context: Context, local: String, json: String, etag: String? = null) {
+        esperadoGuardado(context).salvar(local, json, etag)
+    }
+
+    /** ETag da lista guardada (servidor 1.4.4 em diante): vai no If-None-Match, e 304 = a guardada ainda vale. */
+    fun getEsperadoEtag(context: Context, local: String): String? = esperadoGuardado(context).lerEtag(local)
+
+    fun saveEsperadoEtag(context: Context, local: String, etag: String) {
+        esperadoGuardado(context).salvarEtag(local, etag)
     }
 
     /** null se o esperado deste local nunca foi baixado neste coletor. */

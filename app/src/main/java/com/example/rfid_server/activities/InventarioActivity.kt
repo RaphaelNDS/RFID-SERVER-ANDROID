@@ -519,27 +519,49 @@ class InventarioActivity : AppCompatActivity() {
                 Log.w(TAG, "Lista do esperado guardada para '$local' ilegível: ignorada", e)
                 null
             }
+            // ETag só junto de uma lista legível: 304 sem lista para usar deixaria o inventário sem comparação
+            val etag = guardado?.let { AppConfig.getEsperadoEtag(this, local) }
             runOnUiThread {
                 if (isDestroyed || inventarioAtual?.local != local) return@runOnUiThread
                 guardado?.let { aplicarEsperado(it, doServidor = false) }
-                buscarEsperadoNoServidor(local, guardado)
+                buscarEsperadoNoServidor(local, guardado, etag)
             }
         }
     }
 
-    private fun buscarEsperadoNoServidor(local: String, guardado: EsperadoLocal?) {
-        tagService.buscarEsperado(local) { resposta ->
+    private fun buscarEsperadoNoServidor(local: String, guardado: EsperadoLocal?, etag: String?) {
+        tagService.buscarEsperado(local, etag) { resposta ->
             runOnUiThread {
                 // O inventário pode ter sido finalizado (ou trocado) enquanto o servidor respondia
                 if (isDestroyed || inventarioAtual?.local != local) return@runOnUiThread
 
                 when (resposta) {
-                    // Igual à guardada (o caso comum ao voltar para a tela): não regrava o arquivo nem recalcula a lista
-                    is RespostaServidor.Sucesso -> if (resposta.valor == guardado) {
-                        Log.i(TAG, "Lista do esperado de '$local' do servidor igual à guardada no coletor (${guardado.itens.size} etiqueta(s)): mantida")
-                    } else {
-                        guardarEsperado(local, resposta.valor)
-                        aplicarEsperado(resposta.valor, doServidor = true)
+                    is RespostaServidor.Sucesso -> {
+                        val novo = resposta.valor.esperado
+                        val etagNovo = resposta.valor.etag
+                        when {
+                            // 304: a lista guardada continua valendo, sem baixar de novo (já está na tela)
+                            novo == null && guardado != null ->
+                                Log.i(TAG, "Lista do esperado de '$local' não mudou no servidor (${guardado.itens.size} etiqueta(s)): usando a guardada sem baixar")
+
+                            // 304 sem lista guardada (não deveria acontecer: o ETag só vai junto de uma lista): pede inteira
+                            novo == null -> {
+                                Log.w(TAG, "Servidor respondeu 'não mudou' para '$local' sem lista guardada: pedindo a lista inteira")
+                                buscarEsperadoNoServidor(local, null, null)
+                            }
+
+                            // Igual à guardada (servidor sem ETag, ou ETag novo com o mesmo conteúdo): não regrava a lista
+                            // nem recalcula; só guarda o ETag, para a próxima vez vir o 304
+                            novo == guardado -> {
+                                Log.i(TAG, "Lista do esperado de '$local' do servidor igual à guardada no coletor (${novo.itens.size} etiqueta(s)): mantida")
+                                if (etagNovo != null && etagNovo != etag) guardarEtag(local, etagNovo)
+                            }
+
+                            else -> {
+                                guardarEsperado(local, novo, etagNovo)
+                                aplicarEsperado(novo, doServidor = true)
+                            }
+                        }
                     }
 
                     RespostaServidor.NaoEncontrado -> {
@@ -562,13 +584,23 @@ class InventarioActivity : AppCompatActivity() {
      * Guarda a lista do servidor no coletor (vale sem rede da próxima vez), fora da thread principal. Se a gravação
      * falhar (ex.: memória cheia), só registra no log: a tela segue com a lista em memória.
      */
-    private fun guardarEsperado(local: String, esperado: EsperadoLocal) {
+    private fun guardarEsperado(local: String, esperado: EsperadoLocal, etag: String?) {
         emSegundoPlano {
             try {
-                AppConfig.saveEsperadoJson(this, local, esperado.paraJson())
+                AppConfig.saveEsperadoJson(this, local, esperado.paraJson(), etag)
             } catch (e: Exception) {
                 Log.w(TAG, "Não foi possível guardar no coletor a lista do esperado de '$local' (memória cheia?): " +
                     "o inventário segue com a lista em memória", e)
+            }
+        }
+    }
+
+    private fun guardarEtag(local: String, etag: String) {
+        emSegundoPlano {
+            try {
+                AppConfig.saveEsperadoEtag(this, local, etag)
+            } catch (e: Exception) {
+                Log.w(TAG, "Não foi possível guardar o ETag da lista do esperado de '$local': a próxima vez ela vem inteira", e)
             }
         }
     }

@@ -55,4 +55,27 @@ class EsperadoGuardadoTest {
         assertEquals("do arquivo", guardado().ler("Sala 101"))
         assertEquals("só nas configurações", guardado().ler("SALA 202"))
     }
+
+    @Test
+    fun `etag fica junto da lista e some quando a lista e trocada sem etag`() {
+        val g = guardado()
+        assertNull("Sem lista não há ETag", g.lerEtag("Sala 1"))
+
+        g.salvar("Sala 1", "lista-1", "\"e1\"")
+        assertEquals("\"e1\"", g.lerEtag(" sala 1 "))
+
+        g.salvarEtag("Sala 1", "\"e2\"")
+        assertEquals("lista-1", g.ler("Sala 1"))
+        assertEquals("\"e2\"", g.lerEtag("Sala 1"))
+
+        // Servidor antigo (sem ETag) mandou outra lista: o ETag antigo não pode ficar valendo para ela
+        g.salvar("Sala 1", "lista-2")
+        assertNull(g.lerEtag("Sala 1"))
+    }
+
+    @Test
+    fun `etag sem lista guardada nao e gravado`() {
+        guardado().salvarEtag("Sala 9", "\"x\"")
+        assertNull(guardado().lerEtag("Sala 9"))
+    }
 }
