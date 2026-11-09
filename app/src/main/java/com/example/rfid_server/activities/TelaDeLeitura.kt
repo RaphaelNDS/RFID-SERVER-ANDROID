@@ -1,5 +1,8 @@
 package com.example.rfid_server.activities
 
+import android.os.Handler
+import android.os.Looper
+import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -34,6 +37,13 @@ class TelaDeLeitura(
     private val avisoSessao = AvisoSessao(activity, aoMudarSessao)
     private val appContext = activity.applicationContext
 
+    // Tela acesa enquanto lê e 2 min depois (antes: o tempo todo, pelo keepScreenOn dos layouts)
+    private val telaAcesa = TelaAcesa(
+        Handler(Looper.getMainLooper()),
+        ligar = { activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) },
+        desligar = { activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+    )
+
     private val ciclo = CicloTelaDeLeitura(
         exigirSessao = { activity.exigirSessao() != null },
         // Conecta o leitor, se preciso, e reconecta sozinho se cair; a situação aparece na faixa do topo
@@ -49,13 +59,21 @@ class TelaDeLeitura(
 
     init {
         activity.lifecycle.addObserver(this)
+        // Só com a tela na frente (o LiveData não entrega com ela pausada): apertar mantém acesa, soltar conta 2 min
+        rfidManager.gatilhoApertado.observe(activity) { apertado ->
+            if (apertado) telaAcesa.aoApertar() else telaAcesa.aoSoltar()
+        }
     }
 
     override fun onResume(owner: LifecycleOwner) {
         ciclo.retomar()
+        telaAcesa.aoAbrir()
         // Bloqueio do PIN vencido com o aparelho ligado: apaga, senão voltaria no próximo reinício
         AppConfig.limparBloqueioPinVencido(appContext)
     }
 
-    override fun onPause(owner: LifecycleOwner) = ciclo.pausar()
+    override fun onPause(owner: LifecycleOwner) {
+        telaAcesa.parar()
+        ciclo.pausar()
+    }
 }

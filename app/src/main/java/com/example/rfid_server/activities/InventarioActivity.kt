@@ -204,6 +204,11 @@ class InventarioActivity : AppCompatActivity() {
         }
         // Escolheu uma sugestão: o local está pronto, o teclado sai da frente do botão
         edtLocal.setOnItemClickListener { _, _, _, _ -> fecharTeclado(edtLocal) }
+        // Tocar no campo vazio mostra todos os locais: antes a lista só aparecia digitando uma letra, e no teste o
+        // operador achou que o local "TESTE 171" não existia no coletor
+        edtLocal.setOnClickListener { mostrarTodosOsLocais() }
+        // Foco pelo listener global da janela: o do próprio campo é usado pela seta do Material (endIconMode dropdown_menu)
+        edtLocal.viewTreeObserver.addOnGlobalFocusChangeListener { _, novo -> if (novo === edtLocal) edtLocal.post { mostrarTodosOsLocais() } }
         // O aviso de local grande some quando o operador mexe no nome (volta o exemplo embaixo do campo)
         edtLocal.doAfterTextChanged { if (campoLocal.error != null) campoLocal.error = null }
 
@@ -883,6 +888,14 @@ class InventarioActivity : AppCompatActivity() {
 
     private fun mostrarSugestoes(locais: List<String>) {
         edtLocal.setAdapter(ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, locais.sortedBy { it.lowercase() }))
+    }
+
+    /** Campo vazio, na frente e com locais conhecidos: abre a lista inteira (com texto, valem as sugestões filtradas). */
+    private fun mostrarTodosOsLocais() {
+        if (isFinishing || isDestroyed || !edtLocal.isShown || !edtLocal.hasWindowFocus()) return
+        if (edtLocal.text.isNullOrBlank() && (edtLocal.adapter?.count ?: 0) > 0 && !edtLocal.isPopupShowing) {
+            edtLocal.showDropDown()
+        }
     }
 
     companion object {
