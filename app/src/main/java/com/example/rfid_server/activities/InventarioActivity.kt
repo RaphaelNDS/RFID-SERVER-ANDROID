@@ -898,8 +898,15 @@ class InventarioActivity : AppCompatActivity() {
 
     // ================= JUSTIFICATIVAS DOS NÃO ENCONTRADOS =================
 
+    /**
+     * Motivos já escolhidos para os faltantes: os guardados no histórico (inclusive os já enviados ao servidor) e os da
+     * fila de envio (os mais recentes, que podem ainda não ter chegado ao histórico).
+     */
+    private fun motivosDe(resumo: ResumoFinalizacao): Map<String, FilaJustificativas.Motivo> =
+        historico().motivos(resumo.inventarioId) + SincronizadorJustificativas.fila(this).motivos(resumo.inventarioId)
+
     private fun faltantesSemJustificativa(resumo: ResumoFinalizacao): List<ItemEsperado> {
-        val justificados = SincronizadorJustificativas.fila(this).motivos(resumo.inventarioId).keys
+        val justificados = motivosDe(resumo).keys
         return resumo.comparacao?.faltando.orEmpty().filter { it.epc !in justificados }
     }
 
@@ -963,6 +970,15 @@ class InventarioActivity : AppCompatActivity() {
         val sessao = SessaoAtual.token(this)?.let { CofreSessoes.get(this).referencia(it) }
         SincronizadorJustificativas.fila(this).adicionar(resumo.inventarioId, epcs, motivo, sessao, System.currentTimeMillis(), observacao)
         Log.i(TAG, "Operador justificou ${epcs.size} faltante(s) do inventário de ${resumo.local} como $motivo")
+        // Também no histórico: a fila esquece a justificativa quando o servidor confirma, o histórico não. Na mesma fila
+        // de tarefas que guardou o resumo, então o resumo recém-finalizado já está lá
+        emSegundoPlano {
+            try {
+                historico().justificar(resumo.inventarioId, epcs, motivo)
+            } catch (e: Exception) {
+                Log.w(TAG, "Justificativas do inventário de ${resumo.local} não guardadas no histórico", e)
+            }
+        }
         Sincronizador.get(this).solicitarEmBreve()
         // Ainda há faltantes sem motivo: volta ao resumo (com o botão de justificar mostrando quantos faltam)
         mostrarResumoFinal(resumo)
@@ -1004,7 +1020,7 @@ class InventarioActivity : AppCompatActivity() {
     /** Grava a planilha no cache (pasta liberada no FileProvider) e devolve o endereço para anexar; null se não deu. */
     private fun planilha(resumo: ResumoFinalizacao): android.net.Uri? =
         try {
-            val motivos = SincronizadorJustificativas.fila(this).motivos(resumo.inventarioId)
+            val motivos = motivosDe(resumo)
                 .mapValues { getString(textoMotivo(it.value)) }
             val pasta = java.io.File(cacheDir, "relatorios").apply { mkdirs() }
             pasta.listFiles()?.forEach { it.delete() } // só a última planilha fica guardada
