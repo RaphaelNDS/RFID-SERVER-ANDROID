@@ -227,6 +227,10 @@
     <string name="inventario_justificar">Justificar faltantes (%1$d)</string>
     <string name="inventario_ver_faltantes">Ver faltantes (%1$d)</string>
     <string name="inventario_faltantes_titulo">Faltantes: toque para procurar</string>
+    <string name="inventario_faltante_no_cadastro">(no cadastro: %1$s)</string>
+    <string name="inventario_usar_cadastro">Pelo cadastro (%1$d)</string>
+    <string name="inventario_usar_cadastro_titulo">Justificar %1$d pelo cadastro?</string>
+    <string name="inventario_usar_cadastro_mensagem">Estes faltantes constam no cadastro do patrimônio com uma situação que explica não estarem no local:\n\n%1$s\n\nA justificativa de cada um será a situação do cadastro.</string>
     <string name="inventario_resumo_sem_justificativa">Sem justificativa: %1$d</string>
     <string name="inventario_resumo_faltando_tipos">Faltando: %1$d (%2$s)</string>
     <string name="inventario_justificar_motivo">Motivo dos que faltaram</string>

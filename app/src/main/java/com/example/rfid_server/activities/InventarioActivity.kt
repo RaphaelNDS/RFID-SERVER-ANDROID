@@ -890,11 +890,20 @@ class InventarioActivity : AppCompatActivity() {
      */
     private fun verFaltantes(resumo: ResumoFinalizacao) {
         if (isFinishing || isDestroyed) return
-        carregar({ textosJustificativas(resumo) to faltantesSemJustificativa(resumo).size }) { (textos, semJustificativa) ->
+        carregar({ textosJustificativas(resumo) to faltantesSemJustificativa(resumo) }) { (textos, pendentes) ->
+            val semJustificativa = pendentes.size
             val faltando = resumo.comparacao?.faltando.orEmpty()
             if (faltando.isEmpty()) return@carregar mostrarResumoFinal(resumo)
+            // Faltantes que o cadastro já explica (emprestado, em manutenção): justificar de uma vez
+            val peloCadastro = ResumoFinalizacao.justificativasPeloCadastro(pendentes)
             val linhas = faltando.map { item ->
-                ResumoFinalizacao.descreverFaltante(item) + (textos[item.epc]?.let { "\n→ $it" } ?: "")
+                ResumoFinalizacao.descreverFaltante(item) + when {
+                    textos[item.epc] != null -> "\n→ ${textos[item.epc]}"
+                    // Situação diferente de "em uso" ajuda a decidir o motivo (e explica o "Usar o cadastro")
+                    item.situacao != null && item.situacao != "EM_USO" ->
+                        "\n" + getString(R.string.inventario_faltante_no_cadastro, item.situacaoRotulo ?: item.situacao)
+                    else -> ""
+                }
             }
             AlertDialog.Builder(this)
                 .setTitle(R.string.inventario_faltantes_titulo)
@@ -906,14 +915,40 @@ class InventarioActivity : AppCompatActivity() {
                     verFaltantes(resumo)
                 }
                 .apply {
-                    if (semJustificativa > 0) {
-                        setPositiveButton(getString(R.string.inventario_justificar, semJustificativa)) { _, _ -> escolherMotivo(resumo) }
+                    // Empilhados na ordem positivo, negativo, neutro: Voltar sempre por último, embaixo
+                    val voltar = { _: android.content.DialogInterface, _: Int -> mostrarResumoFinal(resumo) }
+                    val justificar = { _: android.content.DialogInterface, _: Int -> escolherMotivo(resumo) }
+                    val textoJustificar = getString(R.string.inventario_justificar, semJustificativa)
+                    if (peloCadastro.isNotEmpty()) {
+                        setPositiveButton(getString(R.string.inventario_usar_cadastro, peloCadastro.values.sumOf { it.size })) { _, _ ->
+                            confirmarPeloCadastro(resumo, peloCadastro)
+                        }
+                        setNegativeButton(textoJustificar, justificar)
+                        setNeutralButton(R.string.tela_voltar, voltar)
+                    } else {
+                        if (semJustificativa > 0) setPositiveButton(textoJustificar, justificar)
+                        setNegativeButton(R.string.tela_voltar, voltar)
                     }
                 }
-                .setNegativeButton(R.string.tela_voltar) { _, _ -> mostrarResumoFinal(resumo) }
                 .show()
                 .comDivisorias()
         }
+    }
+
+    /** Confirma antes de gravar: "Justificar 3 pelo cadastro? Emprestado: 2 · Em manutenção: 1". */
+    private fun confirmarPeloCadastro(resumo: ResumoFinalizacao, grupos: Map<FilaJustificativas.Motivo, List<String>>) {
+        if (isFinishing || isDestroyed) return
+        val total = grupos.values.sumOf { it.size }
+        val detalhe = grupos.entries.joinToString("\n") { (motivo, epcs) -> "${getString(textoMotivo(motivo))}: ${epcs.size}" }
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.inventario_usar_cadastro_titulo, total))
+            .setMessage(getString(R.string.inventario_usar_cadastro_mensagem, detalhe))
+            .setPositiveButton(R.string.inventario_justificar_salvar) { _, _ ->
+                Log.i(TAG, "Operador justificou $total faltante(s) do inventário de ${resumo.local} pela situação no cadastro")
+                gravarJustificativas(resumo, grupos, null)
+            }
+            .setNegativeButton(R.string.comum_cancelar) { _, _ -> verFaltantes(resumo) }
+            .show()
     }
 
     // ================= INVENTÁRIOS ANTERIORES =================
@@ -1073,20 +1108,26 @@ class InventarioActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun salvarJustificativas(resumo: ResumoFinalizacao, epcs: List<String>, motivo: FilaJustificativas.Motivo, observacao: String?) {
+    private fun salvarJustificativas(resumo: ResumoFinalizacao, epcs: List<String>, motivo: FilaJustificativas.Motivo, observacao: String?) =
+        gravarJustificativas(resumo, mapOf(motivo to epcs), observacao)
+
+    /** Grava os [grupos] (motivo → EPCs) de uma vez e volta uma vez só à lista dos faltantes. */
+    private fun gravarJustificativas(resumo: ResumoFinalizacao, grupos: Map<FilaJustificativas.Motivo, List<String>>, observacao: String?) {
         val token = SessaoAtual.token(this)
         val agora = System.currentTimeMillis()
         val app = applicationContext
         // Fila de envio e histórico gravados fora da tela, no executor do histórico: termina mesmo com a tela fechada
         carregar({
             val sessao = token?.let { CofreSessoes.get(app).referencia(it) }
-            SincronizadorJustificativas.fila(app).adicionar(resumo.inventarioId, epcs, motivo, sessao, agora, observacao)
-            Log.i(TAG, "Operador justificou ${epcs.size} faltante(s) do inventário de ${resumo.local} como $motivo")
-            // Também no histórico: a fila esquece a justificativa quando o servidor confirma, o histórico não
-            try {
-                historico().justificar(resumo.inventarioId, epcs, motivo, observacao)
-            } catch (e: Exception) {
-                Log.w(TAG, "Justificativas do inventário de ${resumo.local} não guardadas no histórico", e)
+            grupos.forEach { (motivo, epcs) ->
+                SincronizadorJustificativas.fila(app).adicionar(resumo.inventarioId, epcs, motivo, sessao, agora, observacao)
+                Log.i(TAG, "Operador justificou ${epcs.size} faltante(s) do inventário de ${resumo.local} como $motivo")
+                // Também no histórico: a fila esquece a justificativa quando o servidor confirma, o histórico não
+                try {
+                    historico().justificar(resumo.inventarioId, epcs, motivo, observacao)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Justificativas do inventário de ${resumo.local} não guardadas no histórico", e)
+                }
             }
             Sincronizador.get(app).solicitarEmBreve()
         }) {

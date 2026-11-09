@@ -213,6 +213,25 @@ data class ResumoFinalizacao(
         /** Nome usado para bens sem tipo cadastrado (o mesmo da tela de Leituras). */
         const val SEM_TIPO = "Sem tipo informado"
 
+        /**
+         * Motivo que a situação no cadastro já explica (o bem consta como emprestado ou em manutenção, então faltar
+         * no local é esperado). Null para as outras situações: aí só o operador sabe o motivo.
+         */
+        fun motivoPeloCadastro(item: ItemEsperado): com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo? =
+            when (item.situacao) {
+                "EMPRESTADO" -> com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo.EMPRESTADO
+                "EM_MANUTENCAO" -> com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo.MANUTENCAO
+                "BAIXADO" -> com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo.BAIXADO
+                else -> null
+            }
+
+        /** Faltantes sem justificativa que o cadastro explica, agrupados pelo motivo (EPCs). */
+        fun justificativasPeloCadastro(
+            semJustificativa: List<ItemEsperado>
+        ): Map<com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo, List<String>> =
+            semJustificativa.mapNotNull { item -> motivoPeloCadastro(item)?.let { it to item.epc } }
+                .groupBy({ it.first }, { it.second })
+
         /** "Patrimônio 123 - Notebook · Dell" ou, sem patrimônio, "EPC E200... - Notebook". */
         fun descreverFaltante(item: ItemEsperado): String {
             val identificacao = item.patrimonio?.let { "Patrimônio $it" } ?: "EPC ${item.epc}"
