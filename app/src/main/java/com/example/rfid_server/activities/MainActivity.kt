@@ -310,8 +310,9 @@ class MainActivity : AppCompatActivity() {
         val acoes = RegrasFaixaSincronizacao.acoes(pendentes, estado)
 
         val avisoPendentes = if (pendentes == 0) null else {
-            val motivo = if (estado == null || estado == EstadoSincronizacao.SINCRONIZADO) getString(R.string.main_enviando) else estado.descricao
-            getString(R.string.main_aviso_sincronizacao, motivo, pendentes)
+            // Sem problema conhecido: "Enviando N leitura(s)..." (antes "Enviando — N ..., aguardando envio", repetido)
+            if (estado == null || estado == EstadoSincronizacao.SINCRONIZADO) getString(R.string.main_aviso_enviando, pendentes)
+            else getString(R.string.main_aviso_sincronizacao, estado.descricao, pendentes)
         }
         // Problema que só se resolve nas Configurações (com PIN): o operador não tem o que fazer sozinho
         val avisoResponsavel = if (acoes.chamarResponsavel) getString(R.string.main_chame_responsavel) else null

@@ -891,15 +891,9 @@ class InventarioActivity : AppCompatActivity() {
             val linhas = faltando.map { item ->
                 ResumoFinalizacao.descreverFaltante(item) + (textos[item.epc]?.let { "\n→ $it" } ?: "")
             }
-            // Itens de várias linhas (bem e justificativa): com espaço e uma linha entre eles, para não parecer um bloco só
-            val espaco = (12 * resources.displayMetrics.density).toInt()
-            val adaptador = object : android.widget.ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, linhas) {
-                override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View =
-                    super.getView(position, convertView, parent).apply { setPadding(paddingLeft, espaco, paddingRight, espaco) }
-            }
             AlertDialog.Builder(this)
                 .setTitle(R.string.inventario_faltantes_titulo)
-                .setAdapter(adaptador) { _, i ->
+                .setAdapter(listaEspacada(linhas)) { _, i ->
                     val item = faltando[i]
                     Log.i(TAG, "Operador foi procurar a etiqueta ${item.epc}, que faltou no inventário de ${resumo.local}")
                     abrirLocalizar(item.epc, item.patrimonio)
@@ -913,10 +907,7 @@ class InventarioActivity : AppCompatActivity() {
                 }
                 .setNegativeButton(R.string.tela_voltar) { _, _ -> mostrarResumoFinal(resumo) }
                 .show()
-                .listView?.apply {
-                    divider = androidx.core.content.ContextCompat.getColor(context, R.color.borda).toDrawable()
-                    dividerHeight = maxOf(1, resources.displayMetrics.density.toInt())
-                }
+                .comDivisorias()
         }
     }
 
@@ -934,6 +925,26 @@ class InventarioActivity : AppCompatActivity() {
     private fun <T> carregar(trabalho: () -> T, depois: (T) -> Unit) = noHistorico {
         val resultado = trabalho()
         runOnUiThread { if (!isFinishing && !isDestroyed) depois(resultado) }
+    }
+
+    /**
+     * Lista de diálogo com itens de várias linhas (bem e justificativa, data e local): com espaço em cima e embaixo de
+     * cada item, que na lista comum ficavam colados e pareciam um bloco só. Ver também [comDivisorias].
+     */
+    private fun listaEspacada(linhas: List<String>): android.widget.ListAdapter {
+        val espaco = (12 * resources.displayMetrics.density).toInt()
+        return object : android.widget.ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, linhas) {
+            override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View =
+                super.getView(position, convertView, parent).apply { setPadding(paddingLeft, espaco, paddingRight, espaco) }
+        }
+    }
+
+    /** Linha fina entre os itens da lista do diálogo já aberto. */
+    private fun AlertDialog.comDivisorias() {
+        listView?.apply {
+            divider = androidx.core.content.ContextCompat.getColor(context, R.color.borda).toDrawable()
+            dividerHeight = maxOf(1, resources.displayMetrics.density.toInt())
+        }
     }
 
     /** Lista dos inventários finalizados neste coletor (os mais novos primeiro); tocar reabre o resumo. */
@@ -960,9 +971,10 @@ class InventarioActivity : AppCompatActivity() {
                 }
                 AlertDialog.Builder(this)
                     .setTitle(R.string.inventario_anteriores)
-                    .setItems(linhas.toTypedArray()) { _, i -> mostrarResumoFinal(anteriores[i]) }
+                    .setAdapter(listaEspacada(linhas)) { _, i -> mostrarResumoFinal(anteriores[i]) }
                     .setNegativeButton(R.string.comum_ok, null)
                     .show()
+                    .comDivisorias()
             }
         }
     }
