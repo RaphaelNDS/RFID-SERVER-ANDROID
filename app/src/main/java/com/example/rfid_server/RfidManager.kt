@@ -517,10 +517,14 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
     // som nem mensagem. Agora: bip de erro, faixa com o motivo por alguns segundos e registro para o servidor
     private fun falhaAoIniciarLeitura(e: Exception, oQue: String) {
         val motivo = motivoDe(e)
-        Log.e(TAG, "Erro ao iniciar $oQue: ${descricaoLog(motivo)}", e)
+        val doUso = !MotivoLeitor.ehDefeito(motivo.causa)
+        if (doUso) Log.w(TAG, "Leitura não começou ($oQue): ${descricaoLog(motivo)}")
+        else Log.e(TAG, "Erro ao iniciar $oQue: ${descricaoLog(motivo)}", e)
         atualizarDetalhe { it.copy(falhaLeitura = motivo, momentoFalhaLeitura = SystemClock.elapsedRealtime()) }
         avisoErro.erro()
-        registrarAgrupado(agrupadorFalhaLeitura, "Gatilho apertado e $oQue não começou: ${descricaoLog(motivo)}", e)
+        // Situação de uso (ex.: coletor no carregador) não é defeito: o operador vê na faixa, mas não vai para a tela de
+        // erros do servidor (visto em 09/11: cada aperto no berço virava um erro "LEITOR_RFID")
+        if (!doUso) registrarAgrupado(agrupadorFalhaLeitura, "Gatilho apertado e $oQue não começou: ${descricaoLog(motivo)}", e)
     }
 
     // A leitura começou: uma falha anterior ainda na faixa sai na hora

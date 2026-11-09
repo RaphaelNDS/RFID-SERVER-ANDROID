@@ -187,4 +187,11 @@ class RegrasLeitorTest {
         assertEquals("Leitor RFID voltou depois de 3 min e 7 tentativas", ReconexaoLeitor.mensagemVolta(3 * 60_000 + 59_000, 7))
         assertEquals("Leitor RFID voltou depois de menos de 1 min e 2 tentativas", ReconexaoLeitor.mensagemVolta(-10, 2))
     }
+
+    @Test
+    fun `coletor no carregador nao e defeito para a tela de erros`() {
+        assertEquals(false, MotivoLeitor.ehDefeito(CausaFalhaLeitor.CARREGANDO))
+        assertEquals(true, MotivoLeitor.ehDefeito(CausaFalhaLeitor.SEM_COMUNICACAO))
+        assertEquals(true, MotivoLeitor.ehDefeito(CausaFalhaLeitor.DESCONHECIDA))
+    }
 }

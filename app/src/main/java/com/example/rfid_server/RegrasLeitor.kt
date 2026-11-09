@@ -75,6 +75,12 @@ object MotivoLeitor {
         return MotivoFalhaLeitor(causa, detalhe)
     }
 
+    /**
+     * A causa é um defeito para registrar na tela de erros do servidor? Coletor no carregador é situação de uso: o
+     * operador resolve tirando do berço, e registrar cada aperto do gatilho só esconderia os defeitos de verdade.
+     */
+    fun ehDefeito(causa: CausaFalhaLeitor): Boolean = causa != CausaFalhaLeitor.CARREGANDO
+
     /** Primeiro texto não vazio, numa linha e com tamanho limitado ("" se não houver nenhum). */
     fun detalhe(textos: List<String?>): String =
         textos.firstOrNull { !it.isNullOrBlank() }
