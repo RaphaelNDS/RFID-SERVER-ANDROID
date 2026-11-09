@@ -20,9 +20,13 @@ class HistoricoInventarios(private val pasta: File) {
 
     fun salvar(resumo: ResumoFinalizacao): Unit = synchronized(TRAVA) {
         if (resumo.inventarioId.isEmpty()) return
-        // Justificativas que já estavam guardadas para este inventário continuam valendo
-        val anteriores = lerMotivos(arquivoDe(resumo.inventarioId))
-        gravar(arquivoDe(resumo.inventarioId), paraJson(resumo, anteriores))
+        // Justificativas (e observações) que já estavam guardadas para este inventário continuam valendo
+        val arquivo = arquivoDe(resumo.inventarioId)
+        val novo = JSONObject(paraJson(resumo))
+        lerObjeto(arquivo)?.let { antigo ->
+            CHAVES_JUSTIFICATIVA.forEach { chave -> antigo.optJSONObject(chave)?.let { novo.put(chave, it) } }
+        }
+        gravar(arquivo, novo.toString())
         // Só os mais novos (por data de finalização; a data de alteração do arquivo muda quando alguém justifica)
         lerTodos().drop(MAXIMO).forEach { it.first.delete() }
     }
@@ -31,25 +35,37 @@ class HistoricoInventarios(private val pasta: File) {
     fun listar(): List<ResumoFinalizacao> = synchronized(TRAVA) { lerTodos().map { it.second } }
 
     /** Guarda o motivo das etiquetas [epcs] do inventário [inventarioId] (justificar de novo troca o motivo). */
-    fun justificar(inventarioId: String, epcs: Collection<String>, motivo: FilaJustificativas.Motivo): Unit = synchronized(TRAVA) {
+    fun justificar(
+        inventarioId: String, epcs: Collection<String>, motivo: FilaJustificativas.Motivo, observacao: String? = null
+    ): Unit = synchronized(TRAVA) {
         val arquivo = arquivoDe(inventarioId)
-        if (!arquivo.exists()) return
-        val o = try { JSONObject(arquivo.readText()) } catch (e: Exception) { return }
+        val o = lerObjeto(arquivo) ?: return
         val motivos = o.optJSONObject("justificativas") ?: JSONObject()
-        epcs.forEach { motivos.put(it, motivo.name) }
-        gravar(arquivo, o.put("justificativas", motivos).toString())
+        val observacoes = o.optJSONObject("observacoes") ?: JSONObject()
+        val texto = observacao?.trim()?.ifEmpty { null }
+        epcs.forEach {
+            motivos.put(it, motivo.name)
+            // Justificar de novo sem observação apaga a antiga (ela era do motivo anterior)
+            if (texto != null) observacoes.put(it, texto) else observacoes.remove(it)
+        }
+        gravar(arquivo, o.put("justificativas", motivos).put("observacoes", observacoes).toString())
     }
 
     /** Motivos guardados para as etiquetas do [inventarioId] (vazio se o inventário não está no histórico). */
     fun motivos(inventarioId: String): Map<String, FilaJustificativas.Motivo> =
-        synchronized(TRAVA) { lerMotivos(arquivoDe(inventarioId)) }
+        synchronized(TRAVA) { lerObjeto(arquivoDe(inventarioId))?.let { motivosDe(it) }.orEmpty() }
 
-    private fun lerMotivos(arquivo: File): Map<String, FilaJustificativas.Motivo> =
+    /** Observações (texto do "Outro") guardadas para as etiquetas do [inventarioId]. */
+    fun observacoes(inventarioId: String): Map<String, String> = synchronized(TRAVA) {
+        val j = lerObjeto(arquivoDe(inventarioId))?.optJSONObject("observacoes") ?: return emptyMap()
+        j.keys().asSequence().associateWith { j.optString(it) }.filterValues { it.isNotEmpty() }
+    }
+
+    private fun lerObjeto(arquivo: File): JSONObject? =
         try {
-            if (!arquivo.exists()) emptyMap()
-            else motivosDe(JSONObject(arquivo.readText()))
+            if (arquivo.exists()) JSONObject(arquivo.readText()) else null
         } catch (e: Exception) {
-            emptyMap()
+            null
         }
 
     private fun lerTodos(): List<Pair<File, ResumoFinalizacao>> =
@@ -81,6 +97,9 @@ class HistoricoInventarios(private val pasta: File) {
 
         // Uma trava para todas as instâncias: a tela cria uma por uso, e o resumo e as justificativas mexem no mesmo arquivo
         private val TRAVA = Any()
+
+        // O que o operador acrescenta depois de finalizar: guardar o resumo de novo não apaga
+        private val CHAVES_JUSTIFICATIVA = listOf("justificativas", "observacoes")
 
         fun paraJson(r: ResumoFinalizacao, motivos: Map<String, FilaJustificativas.Motivo> = emptyMap()): String = JSONObject()
             .put("inventarioId", r.inventarioId)

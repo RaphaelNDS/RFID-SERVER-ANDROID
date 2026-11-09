@@ -210,6 +210,8 @@
     <string name="inventario_anteriores_vazio">Nenhum inventário finalizado neste coletor ainda</string>
     <string name="inventario_anterior_linha">%1$s · %2$s · %3$d lida(s)</string>
     <string name="inventario_anterior_faltam">faltaram %1$d</string>
+    <string name="inventario_anterior_sem_motivo">faltaram %1$d (%2$d sem justificativa)</string>
+    <string name="main_buscar_contagem">Mostrando %1$d de %2$d etiqueta(s)</string>
     <string name="inventario_justificar">Justificar faltantes (%1$d)</string>
     <string name="inventario_justificar_motivo">Motivo dos que faltaram</string>
     <string name="inventario_justificar_quais">Quais estão \"%1$s\"?</string>

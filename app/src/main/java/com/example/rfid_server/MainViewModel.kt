@@ -66,6 +66,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         addSource(termoBusca, montar)
     }
 
+    /**
+     * Com busca: (quantas aparecem, quantas foram lidas) somando as duas abas; null sem busca. Avisa o operador que a
+     * lista está filtrada (uma etiqueta lida agora que não bate com a busca não aparece, e parecia que não leu).
+     */
+    val contagemBusca: LiveData<Pair<Int, Int>?> = MediatorLiveData<Pair<Int, Int>?>().apply {
+        val montar = { _: Any? ->
+            value = if (termoBusca.value.isNullOrBlank()) null
+            else Pair(
+                leituras.value.orEmpty().size + naoCadastradas.value.orEmpty().size,
+                leiturasTodas.value.orEmpty().size + naoCadastradasTodas.value.orEmpty().size
+            )
+        }
+        addSource(leituras, montar)
+        addSource(naoCadastradas, montar)
+    }
+
     /** Planilha de TODA a leitura atual (sem o filtro da busca). */
     fun planilha(): String = BuscaLeituras.csv(leiturasTodas.value.orEmpty(), naoCadastradasTodas.value.orEmpty())
 
