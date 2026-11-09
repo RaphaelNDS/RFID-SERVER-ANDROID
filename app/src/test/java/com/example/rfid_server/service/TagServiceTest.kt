@@ -275,16 +275,18 @@ class TagServiceTest {
         val resposta = aguardar<RespostaServidor<String>> { service.buscarTagPorPatrimonio("PAT-100", it) }
 
         assertEquals(RespostaServidor.Sucesso("E200PAT"), resposta)
-        assertEquals("/api/android/tags/patrimonio/PAT-100", proximaRequisicao().path)
+        assertEquals("/api/android/tags/patrimonio?valor=PAT-100", proximaRequisicao().path)
     }
 
     @Test
-    fun `buscarTagPorPatrimonio codifica espaco e barra na URL`() {
+    fun `buscarTagPorPatrimonio manda o valor com espaco e barra no parametro e nao no caminho`() {
         servidor.enqueue(json(404, """{"status":404}"""))
 
         aguardar<RespostaServidor<String>> { service.buscarTagPorPatrimonio("PAT 01/A", it) }
 
-        assertEquals("/api/android/tags/patrimonio/PAT%2001%2FA", proximaRequisicao().path)
+        val requisicao = proximaRequisicao()
+        assertEquals("/api/android/tags/patrimonio", requisicao.requestUrl!!.encodedPath)
+        assertEquals("PAT 01/A", requisicao.requestUrl!!.queryParameter("valor"))
     }
 
     @Test
@@ -598,6 +600,28 @@ class TagServiceTest {
         assertTrue((resposta as RespostaServidor.Falha).mensagem.contains("maior que o esperado"))
         assertTrue("Arquivo errado não fica no aparelho", !destino.exists())
         assertTrue("Nada além do tamanho publicado foi gravado", progresso.all { it <= 16 })
+    }
+
+    @Test
+    fun `download de outra versao publicada no meio e recusado sem gravar nada`() {
+        servidor.enqueue(MockResponse().setResponseCode(200).setHeader("X-Versao-Codigo", "21").setBody(okio.Buffer().write(apkFalso)))
+        val destino = java.io.File.createTempFile("atualizacao", ".apk").apply { delete() }
+
+        val resposta = service.baixarAtualizacaoAgora(versao(), destino)
+
+        assertEquals(RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, TagService.MENSAGEM_VERSAO_TROCADA), resposta)
+        assertTrue("Nada gravado", !destino.exists())
+    }
+
+    @Test
+    fun `download com o codigo da versao consultada segue normal`() {
+        servidor.enqueue(MockResponse().setResponseCode(200).setHeader("X-Versao-Codigo", "20").setBody(okio.Buffer().write(apkFalso)))
+        val destino = java.io.File.createTempFile("atualizacao", ".apk").apply { delete() }
+
+        val resposta = service.baixarAtualizacaoAgora(versao(), destino)
+
+        assertTrue(resposta is RespostaServidor.Sucesso)
+        destino.delete()
     }
 
     // ================= cadastro de etiqueta =================

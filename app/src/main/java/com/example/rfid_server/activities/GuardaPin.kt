@@ -24,14 +24,32 @@ import com.google.android.material.textfield.TextInputLayout
  */
 class GuardaPin(private val activity: AppCompatActivity, private val tagService: TagService) {
 
+    // Quando o PIN foi aceito (ou criado/liberado) nesta tela; só em memória: sair da tela zera
+    private var liberadoEm: Long? = null
+
     /** Pede o PIN e chama [liberado] se estiver certo. Coletor ainda sem PIN: cria um antes (é obrigatório). */
     fun exigir(acao: String, liberado: () -> Unit) {
-        if (AppConfig.temPin(activity)) pedir(acao, liberado) else criar(liberado)
+        if (carenciaValida(acao, liberado)) return
+        if (AppConfig.temPin(activity)) pedir(acao, marcando(liberado)) else criar(marcando(liberado))
     }
 
     /** Pede o PIN só se já existir um (ex.: confirmar o certificado na primeira configuração, antes de salvar). */
     fun exigirSeTiver(acao: String, liberado: () -> Unit) {
-        if (AppConfig.temPin(activity)) pedir(acao, liberado) else liberado()
+        if (carenciaValida(acao, liberado)) return
+        if (AppConfig.temPin(activity)) pedir(acao, marcando(liberado)) else liberado()
+    }
+
+    // PIN acabou de ser digitado nesta tela (ex.: salvou o servidor novo e o certificado dele aparece logo depois)
+    private fun carenciaValida(acao: String, liberado: () -> Unit): Boolean {
+        if (!PinColetor.dentroDaCarencia(liberadoEm, SystemClock.elapsedRealtime())) return false
+        Log.i(TAG, "PIN não pedido de novo para $acao: confirmado nesta tela há menos de ${PinColetor.CARENCIA_MS / 60_000} min")
+        liberado()
+        return true
+    }
+
+    private fun marcando(liberado: () -> Unit): () -> Unit = {
+        liberadoEm = SystemClock.elapsedRealtime()
+        liberado()
     }
 
     private fun pedir(acao: String, liberado: () -> Unit) {

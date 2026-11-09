@@ -64,6 +64,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private lateinit var aviso: AvisoLeitura
+    private var inventarioEmAndamento: String? = null
 
     // A leitura vai direto para o banco local; o Sincronizador cuida do servidor. Tag nova: bip/vibração
     private val ouvinte = RfidManager.OuvinteLeitura { epc, _ -> repositorio.registrar(epc) { aviso.tagNova() } }
@@ -140,7 +141,10 @@ class MainActivity : AppCompatActivity() {
         btnEnviarAgora.setOnClickListener { enviarAgora() }
         faixaSincronizacao.setOnClickListener { if (btnEnviarAgora.isVisible) enviarAgora() }
 
-        FaixaRecusa.ligar(this, RepositorioInventario.get(this))
+        val inventarios = RepositorioInventario.get(this)
+        FaixaRecusa.ligar(this, inventarios)
+        // Guardado para o Sair avisar que há um inventário em andamento
+        inventarios.inventarioAberto.observe(this) { inventarioEmAndamento = it?.local }
 
         limitarBlocoDeAvisos()
     }
@@ -331,7 +335,11 @@ class MainActivity : AppCompatActivity() {
             if (pendentes > 0) {
                 append("\n\n").append(getString(R.string.main_sair_pendentes, pendentes))
             }
+            inventarioEmAndamento?.let { local ->
+                append("\n\n").append(getString(R.string.main_sair_inventario, local))
+            }
         }
+        inventarioEmAndamento?.let { Log.i(TAG, "Operador pediu para sair com o inventário de '$it' em andamento: avisado") }
 
         AlertDialog.Builder(this)
             .setTitle(R.string.main_sair_titulo)

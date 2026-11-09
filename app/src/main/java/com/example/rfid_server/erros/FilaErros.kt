@@ -21,6 +21,8 @@ object TipoErro {
     const val LEITOR_RFID = "LEITOR_RFID"
     /** A atualização do app não foi baixada ou não conferiu. */
     const val ATUALIZACAO = "ATUALIZACAO"
+    /** Relógio do coletor muito diferente do servidor (o servidor aceita qualquer tipo; antes ia como FALHA_GERAL e aparecia como travamento). */
+    const val RELOGIO = "RELOGIO"
 }
 
 /**

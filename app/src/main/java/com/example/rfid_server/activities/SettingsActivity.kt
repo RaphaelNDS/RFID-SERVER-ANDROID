@@ -79,9 +79,7 @@ class SettingsActivity : AppCompatActivity() {
 
         testarServidor()
 
-        btnTestar.setOnClickListener {
-            testarServidor()
-        }
+        btnTestar.setOnClickListener { testarDigitado() }
 
         btnSalvar.setOnClickListener { salvar() }
     }
@@ -165,6 +163,46 @@ class SettingsActivity : AppCompatActivity() {
             }
 
             override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+    }
+
+    /**
+     * Botão Testar: testa o endereço que está no campo, mesmo antes de salvar (antes testava sempre o salvo e
+     * quem digitava um IP novo via o resultado do antigo). Igual ao salvo: o teste de sempre.
+     */
+    private fun testarDigitado() {
+        val ip = edtIp.text.toString().trim()
+        if (ip.isEmpty() || ip == AppConfig.getServerIp(this)) {
+            testarServidor()
+            return
+        }
+        if (!AppConfig.enderecoValido(ip)) {
+            Log.w(TAG, "Teste não feito: endereço do servidor inválido '$ip'")
+            txtStatus.setText(R.string.config_endereco_invalido)
+            txtStatus.setTextColor(ContextCompat.getColor(this, R.color.erro))
+            return
+        }
+
+        val endereco = AppConfig.montarEndereco(ip)
+        Log.i(TAG, "Testando o endereço digitado (ainda não salvo): $endereco")
+        txtStatus.setText(R.string.config_status_testando)
+        txtStatus.setTextColor(ContextCompat.getColor(this, R.color.texto_secundario))
+
+        TagService.paraEndereco(this, endereco).testarConexao { resultado ->
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                // O certificado só é confirmado para o endereço salvo: confiar aqui trocaria o do servidor em uso
+                if (resultado.status == StatusConexao.CONECTADO) {
+                    txtStatus.setText(R.string.config_status_digitado_conectado)
+                    txtStatus.setTextColor(ContextCompat.getColor(this, R.color.sucesso))
+                } else {
+                    val texto = getString(R.string.config_status_falha, resultado.status.descricao)
+                    val certificado = resultado.status == StatusConexao.CERTIFICADO_NAO_CONFIRMADO ||
+                        resultado.status == StatusConexao.CERTIFICADO_DIFERENTE
+                    txtStatus.text = if (certificado) texto + "\n" + getString(R.string.config_status_salve_para_confirmar) else texto
+                    txtStatus.setTextColor(ContextCompat.getColor(this, if (certificado) R.color.atencao else R.color.erro))
+                }
+            }
         }
     }
 

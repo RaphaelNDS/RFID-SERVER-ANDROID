@@ -80,7 +80,7 @@ object RelogioServidor {
             val ultimo = ultimoRegistroErro
             if (ultimo != null && agora - ultimo < INTERVALO_REGISTRO_MS) return
             ultimoRegistroErro = agora
-            registrarErro(TipoErro.FALHA_GERAL, mensagem)
+            registrarErro(TipoErro.RELOGIO, mensagem)
         } catch (e: Throwable) {
             Log.e(TAG, "Falha ao conferir o relógio do coletor", e)
         }

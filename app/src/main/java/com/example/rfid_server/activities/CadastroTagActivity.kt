@@ -391,7 +391,11 @@ class CadastroTagActivity : AppCompatActivity() {
                     }
 
                     is RepositorioCadastros.ResultadoEnvio.NaoEnviado -> {
-                        Toast.makeText(this, R.string.cadastro_sem_conexao, Toast.LENGTH_LONG).show()
+                        // O motivo real (sem rede, erro do servidor, certificado...): antes dizia "Sem conexão" para tudo
+                        val motivo = resultado.motivo?.trim()?.trimEnd('.')?.takeIf { it.isNotEmpty() }
+                        Log.i(TAG, "Cadastro de $epcGuardado guardado e não enviado agora: ${motivo ?: "sem motivo"}")
+                        if (motivo == null) Toast.makeText(this, R.string.cadastro_sem_conexao, Toast.LENGTH_LONG).show()
+                        else Toast.makeText(this, getString(R.string.cadastro_nao_enviado, motivo), Toast.LENGTH_LONG).show()
                         finish()
                     }
 
