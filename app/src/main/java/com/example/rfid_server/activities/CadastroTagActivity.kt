@@ -91,6 +91,14 @@ class CadastroTagActivity : AppCompatActivity() {
     // O que está salvo para esta etiqueta (vazio num cadastro novo): voltar com algo diferente pergunta antes
     private var formularioSalvo = FormularioCadastro()
 
+    // Entre o Salvar e o resultado do envio: o catálogo que chega do servidor nesse meio-tempo não reabilita o botão
+    // (antes ele voltava a ficar ativo com "Enviando…" e um segundo toque gravava o cadastro de novo)
+    private var salvando = false
+    // Tela recriada pelo Android (ex.: processo encerrado em segundo plano): os campos já voltaram com o que o
+    // operador digitou e não são sobrescritos pelo cadastro guardado
+    private var restaurada = false
+    private var tipoRestaurado: Long? = null
+
     // Habilitado só com alterações não salvas: aí o voltar pergunta "Descartar o cadastro?"
     private val confirmarDescarte = object : OnBackPressedCallback(false) {
         override fun handleOnBackPressed() = perguntarDescarte()
@@ -118,7 +126,14 @@ class CadastroTagActivity : AppCompatActivity() {
         btnSalvar = findViewById(R.id.btnSalvar)
 
         configurarCascata()
-        btnSalvar.setOnClickListener { salvar() }
+        btnSalvar.setOnClickListener { if (CliqueUnico.permitir()) salvar() }
+
+        savedInstanceState?.let { estado ->
+            restaurada = true
+            tipoRestaurado = estado.idOuNull(ESTADO_TIPO)
+            marcaPendente = estado.idOuNull(ESTADO_MARCA)
+            modeloPendente = estado.idOuNull(ESTADO_MODELO)
+        }
 
         onBackPressedDispatcher.addCallback(this, confirmarDescarte)
         // Seta da barra = botão voltar: com alteração não salva, pergunta "Descartar o cadastro?"
@@ -167,7 +182,7 @@ class CadastroTagActivity : AppCompatActivity() {
             marcaPendente = marcaPendente ?: marcaAtual?.id
             modeloPendente = modeloPendente ?: (spnModelo.selectedItem as? Opcao)?.id
         }
-        val tipoSelecionado = if (manterSelecao) tipoAtual?.id else null
+        val tipoSelecionado = if (manterSelecao) tipoAtual?.id else tipoRestaurado.also { tipoRestaurado = null }
 
         catalogo = novo
 
@@ -180,7 +195,7 @@ class CadastroTagActivity : AppCompatActivity() {
             !novo.podeCadastrar -> aviso(getString(R.string.cadastro_coletor_sem_permissao))
             else -> if (txtAviso.tag != AVISO_RECUSA) aviso(null)
         }
-        btnSalvar.isEnabled = operadorPode && novo?.podeCadastrar == true
+        btnSalvar.isEnabled = !salvando && operadorPode && novo?.podeCadastrar == true
 
         val tipos = novo?.tipos.orEmpty()
         preencher(spnTipo, tipos.map { Opcao(it.id, it.nome) }, tipoSelecionado)
@@ -268,12 +283,12 @@ class CadastroTagActivity : AppCompatActivity() {
                     guardado.codigoInterno, guardado.patrimonio, guardado.numeroSerie,
                     guardado.tipoId, guardado.marcaId, guardado.modeloId
                 )
-                edtCodigoInterno.setText(guardado.codigoInterno)
-                edtPatrimonio.setText(guardado.patrimonio)
-                edtNumeroSerie.setText(guardado.numeroSerie)
-                marcaPendente = guardado.marcaId
-                modeloPendente = guardado.modeloId
-                preencher(spnTipo, catalogo?.tipos.orEmpty().map { Opcao(it.id, it.nome) }, guardado.tipoId)
+                if (restaurada) {
+                    // O que o operador tinha digitado já voltou nos campos: só recalcula se há alteração não salva
+                    atualizarAlteracoes()
+                } else {
+                    preencherCampos(guardado)
+                }
 
                 if (guardado.situacao == SituacaoCadastro.RECUSADO) {
                     aviso(getString(R.string.cadastro_recusado, guardado.erro))
@@ -281,6 +296,24 @@ class CadastroTagActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun preencherCampos(guardado: CadastroEntity) {
+        edtCodigoInterno.setText(guardado.codigoInterno)
+        edtPatrimonio.setText(guardado.patrimonio)
+        edtNumeroSerie.setText(guardado.numeroSerie)
+        marcaPendente = guardado.marcaId
+        modeloPendente = guardado.modeloId
+        preencher(spnTipo, catalogo?.tipos.orEmpty().map { Opcao(it.id, it.nome) }, guardado.tipoId)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        if (!::spnTipo.isInitialized) return // aberta sem EPC: fechou no onCreate
+        // Os campos de texto o Android guarda sozinho; a cascata Tipo → Marca → Modelo é remontada, então vai o id
+        (spnTipo.selectedItem as? Opcao)?.id?.let { outState.putLong(ESTADO_TIPO, it) }
+        (spnMarca.selectedItem as? Opcao)?.id?.let { outState.putLong(ESTADO_MARCA, it) }
+        (spnModelo.selectedItem as? Opcao)?.id?.let { outState.putLong(ESTADO_MODELO, it) }
     }
 
     private fun salvar() {
@@ -333,6 +366,7 @@ class CadastroTagActivity : AppCompatActivity() {
     }
 
     private fun confirmar(cadastro: CadastroEntity) {
+        salvando = true
         btnSalvar.isEnabled = false
         repositorio.salvar(cadastro) { guardado ->
             runOnUiThread {
@@ -346,6 +380,7 @@ class CadastroTagActivity : AppCompatActivity() {
                     btnSalvar.setText(R.string.cadastro_enviando)
                     aguardarEnvio(cadastro.epc.trim(), SystemClock.elapsedRealtime())
                 } else {
+                    salvando = false
                     btnSalvar.isEnabled = true
                     // false = sessão acabou com o formulário aberto OU falha ao gravar (ex.: memória cheia, já avisada)
                     val temSessao = SessaoAtual.get(this) != null
@@ -385,6 +420,7 @@ class CadastroTagActivity : AppCompatActivity() {
                     // Fica no formulário com o motivo, para corrigir e salvar de novo
                     is RepositorioCadastros.ResultadoEnvio.Recusado -> {
                         btnSalvar.setText(R.string.cadastro_salvar) // o mesmo do layout
+                        salvando = false
                         btnSalvar.isEnabled = true
                         aviso(getString(R.string.cadastro_recusado, resultado.motivo))
                         txtAviso.tag = AVISO_RECUSA
@@ -595,6 +631,11 @@ class CadastroTagActivity : AppCompatActivity() {
         const val EXTRA_EPC = "epc"
         private const val TAG = "CADASTRO"
         private const val AVISO_RECUSA = "recusa"
+        private const val ESTADO_TIPO = "tipo"
+        private const val ESTADO_MARCA = "marca"
+        private const val ESTADO_MODELO = "modelo"
+
+        private fun Bundle.idOuNull(chave: String): Long? = if (containsKey(chave)) getLong(chave) else null
         private const val ESPERA_ENVIO_MS = 5_000L
         private const val INTERVALO_CONSULTA_MS = 300L
     }

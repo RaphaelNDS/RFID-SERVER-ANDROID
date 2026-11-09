@@ -39,6 +39,11 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var tagService: TagService
     private lateinit var guardaPin: GuardaPin
 
+    // Número do último teste do servidor pedido: só a resposta dele aparece na tela
+    private var testeAtual = 0
+    // Um pedido de confiança no certificado por vez (Testar várias vezes empilhava os diálogos)
+    private var dialogoCertificado: AlertDialog? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
@@ -64,7 +69,7 @@ class SettingsActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.txtVersao).text = getString(R.string.comum_versao_app, getString(R.string.app_name), VersaoApp.descricao())
         findViewById<Button>(R.id.btnAtualizacao).setOnClickListener {
             Log.i(TAG, "Operador pediu para procurar atualização do app")
-            AtualizadorApp(this).verificar(manual = true)
+            if (CliqueUnico.permitir()) AtualizadorApp(this).verificar(manual = true)
         }
 
         findViewById<CheckBox>(R.id.chkAvisoLeitura).apply {
@@ -81,7 +86,7 @@ class SettingsActivity : AppCompatActivity() {
 
         btnTestar.setOnClickListener { testarDigitado() }
 
-        btnSalvar.setOnClickListener { salvar() }
+        btnSalvar.setOnClickListener { if (CliqueUnico.permitir()) salvar() }
     }
 
     private fun mostrarSituacaoChave() {
@@ -101,6 +106,12 @@ class SettingsActivity : AppCompatActivity() {
         if (!AppConfig.enderecoValido(ip)) {
             Log.w(TAG, "Configurações não salvas: endereço do servidor inválido '$ip'")
             Toast.makeText(this, R.string.config_endereco_invalido, Toast.LENGTH_LONG).show()
+            return
+        }
+
+        if (!AppConfig.chaveValida(chaveDigitada)) {
+            Log.w(TAG, "Configurações não salvas: chave do coletor com caractere inválido")
+            Toast.makeText(this, R.string.config_chave_invalida, Toast.LENGTH_LONG).show()
             return
         }
 
@@ -188,9 +199,12 @@ class SettingsActivity : AppCompatActivity() {
         txtStatus.setText(R.string.config_status_testando)
         txtStatus.setTextColor(ContextCompat.getColor(this, R.color.texto_secundario))
 
+        val teste = ++testeAtual
         TagService.paraEndereco(this, endereco).testarConexao { resultado ->
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
+                // Resposta de um teste anterior (ex.: o do IP antigo, que demorou até o tempo esgotar): já não vale
+                if (teste != testeAtual) return@runOnUiThread
                 // O certificado só é confirmado para o endereço salvo: confiar aqui trocaria o do servidor em uso
                 if (resultado.status == StatusConexao.CONECTADO) {
                     txtStatus.setText(R.string.config_status_digitado_conectado)
@@ -218,10 +232,13 @@ class SettingsActivity : AppCompatActivity() {
         txtStatus.setText(R.string.config_status_testando)
         txtStatus.setTextColor(ContextCompat.getColor(this, R.color.texto_secundario))
 
+        val teste = ++testeAtual
         tagService.testarConexao { resultado ->
             runOnUiThread {
                 // Saiu da tela enquanto o servidor respondia: o diálogo do certificado não pode abrir numa tela fechada
                 if (isFinishing || isDestroyed) return@runOnUiThread
+                // Resposta de um teste anterior (ex.: o do IP antigo, que demorou até o tempo esgotar): já não vale
+                if (teste != testeAtual) return@runOnUiThread
                 mostrarResultado(resultado)
             }
         }
@@ -250,6 +267,7 @@ class SettingsActivity : AppCompatActivity() {
      * tela Status do servidor (web) ou com o log. Só depois de confirmada o coletor passa a conversar com ele.
      */
     private fun perguntarConfianca(impressao: String, anterior: String?) {
+        if (dialogoCertificado?.isShowing == true) return
         val mensagem = buildString {
             if (anterior == null) {
                 append(getString(R.string.config_cert_apresentado)).append("\n\n")
@@ -277,6 +295,7 @@ class SettingsActivity : AppCompatActivity() {
             }
             .show()
 
+        dialogoCertificado = dialogo
         dialogo.findViewById<TextView>(android.R.id.message)?.typeface = Typeface.MONOSPACE
     }
 
