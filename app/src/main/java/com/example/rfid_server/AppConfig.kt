@@ -3,6 +3,7 @@ package com.example.rfid_server
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.edit
 import com.example.rfid_server.dados.EsperadoGuardado
@@ -43,6 +44,9 @@ object AppConfig {
     // Texto guardado → valor decifrado. A chave é lida a cada requisição e o token a cada leitura de etiqueta:
     // decifrar no Keystore toda vez seria lento. Poucas entradas (uma chave e um token por login)
     private val decifrados = ConcurrentHashMap<String, String>()
+    // Textos que o Keystore não conseguiu decifrar (chave perdida): sem isso cada leitura de etiqueta e cada requisição
+    // refazia a tentativa no Keystore e enchia o log com o mesmo erro. Some ao gravar um valor novo (outro texto)
+    private val indecifraveis: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     private fun guardarSegredo(valor: String, nome: String): String =
         SegredoGuardado.paraGuardar(valor, cifra, nome).also { if (valor.isNotEmpty()) decifrados[it] = valor }
@@ -51,9 +55,13 @@ object AppConfig {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val guardado = prefs.getString(chavePrefs, null) ?: return null
         decifrados[guardado]?.let { return it }
+        if (guardado in indecifraveis) return null
 
         val lido = SegredoGuardado.ler(guardado, cifra, nome)
-        val valor = lido.valor ?: return null
+        val valor = lido.valor ?: run {
+            indecifraveis += guardado
+            return null
+        }
         decifrados[guardado] = valor
 
         // Guardado sem cifra por uma versão anterior do app: regrava cifrado (uma vez só)
@@ -131,6 +139,9 @@ object AppConfig {
             putString(KEY_SESSAO_EMAIL, sessao.email)
             putBoolean(KEY_SESSAO_LER, sessao.podeLer)
             putBoolean(KEY_SESSAO_CADASTRAR, sessao.podeCadastrar)
+            // Início pelo relógio e pelo tempo desde a ligação: atrasar o relógio não estende a sessão (SessaoOperador.validaEm)
+            putLong(KEY_SESSAO_ENTROU_EM, sessao.entrouEm ?: System.currentTimeMillis())
+            putLong(KEY_SESSAO_ENTROU_DECORRIDO, sessao.entrouDecorrido ?: SystemClock.elapsedRealtime())
             putString(KEY_ULTIMO_EMAIL, sessao.email)
             // Entrou de novo: o motivo do fim da sessão anterior já não interessa
             removerMotivoFim()
@@ -147,7 +158,9 @@ object AppConfig {
             nome = prefs.getString(KEY_SESSAO_NOME, "").orEmpty(),
             email = prefs.getString(KEY_SESSAO_EMAIL, "").orEmpty(),
             podeLer = prefs.getBoolean(KEY_SESSAO_LER, false),
-            podeCadastrar = prefs.getBoolean(KEY_SESSAO_CADASTRAR, false)
+            podeCadastrar = prefs.getBoolean(KEY_SESSAO_CADASTRAR, false),
+            entrouEm = prefs.getLong(KEY_SESSAO_ENTROU_EM, -1L).takeIf { it >= 0 },
+            entrouDecorrido = prefs.getLong(KEY_SESSAO_ENTROU_DECORRIDO, -1L).takeIf { it >= 0 }
         )
     }
 
@@ -155,6 +168,7 @@ object AppConfig {
         gravarSegredos(context) {
             remove(KEY_SESSAO_TOKEN).remove(KEY_SESSAO_EXPIRA).remove(KEY_SESSAO_NOME)
                 .remove(KEY_SESSAO_EMAIL).remove(KEY_SESSAO_LER).remove(KEY_SESSAO_CADASTRAR)
+                .remove(KEY_SESSAO_ENTROU_EM).remove(KEY_SESSAO_ENTROU_DECORRIDO)
         }
     }
 
@@ -175,6 +189,7 @@ object AppConfig {
             gravarSegredos(context) {
                 remove(KEY_SESSAO_TOKEN).remove(KEY_SESSAO_EXPIRA).remove(KEY_SESSAO_NOME)
                     .remove(KEY_SESSAO_EMAIL).remove(KEY_SESSAO_LER).remove(KEY_SESSAO_CADASTRAR)
+                .remove(KEY_SESSAO_ENTROU_EM).remove(KEY_SESSAO_ENTROU_DECORRIDO)
                 putString(KEY_SESSAO_MOTIVO_FIM, motivoServidor)
                 putString(KEY_SESSAO_MOTIVO_FIM_EMAIL, email)
                 putLong(KEY_SESSAO_MOTIVO_FIM_EM, agora)
@@ -389,6 +404,8 @@ object AppConfig {
     private const val KEY_SESSAO_EMAIL = "sessao_email"
     private const val KEY_SESSAO_LER = "sessao_pode_ler"
     private const val KEY_SESSAO_CADASTRAR = "sessao_pode_cadastrar"
+    private const val KEY_SESSAO_ENTROU_EM = "sessao_entrou_em"
+    private const val KEY_SESSAO_ENTROU_DECORRIDO = "sessao_entrou_decorrido"
     private const val KEY_SESSAO_MOTIVO_FIM = "sessao_motivo_fim"
     private const val KEY_SESSAO_MOTIVO_FIM_EMAIL = "sessao_motivo_fim_email"
     private const val KEY_SESSAO_MOTIVO_FIM_EM = "sessao_motivo_fim_em"

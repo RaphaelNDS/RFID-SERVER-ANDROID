@@ -45,6 +45,19 @@ class AutoriaOperadorTest {
         assertFalse(s.validaEm(10_000))
     }
 
+    @Test
+    fun `atrasar o relogio nao estende a sessao`() {
+        // Login às 1.000 (relógio) com 5.000 de tempo desde a ligação; a sessão dura 9.000
+        val s = SessaoOperador("t", expiraEm = 10_000, nome = "Ana", email = "a@x", podeLer = true, podeCadastrar = false,
+            entrouEm = 1_000, entrouDecorrido = 5_000)
+
+        assertTrue("Dentro do prazo pelos dois", s.validaEm(agora = 9_000, agoraDecorrido = 13_000))
+        assertFalse("Relógio atrasado para 2.000, mas já passaram 9.000 desde o login", s.validaEm(agora = 2_000, agoraDecorrido = 14_000))
+        assertTrue("Aparelho reiniciado (tempo desde a ligação recomeçou): vale o relógio", s.validaEm(agora = 9_000, agoraDecorrido = 100))
+        assertTrue("Sessão de versão anterior (sem o início): vale o relógio",
+            s.copy(entrouEm = null, entrouDecorrido = null).validaEm(agora = 2_000, agoraDecorrido = 999_999))
+    }
+
     // ---------- Leituras ----------
 
     private fun leituras(dao: FakeLeituraDao) =
