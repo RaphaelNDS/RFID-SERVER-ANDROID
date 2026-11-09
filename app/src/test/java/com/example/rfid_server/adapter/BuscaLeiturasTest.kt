@@ -37,4 +37,22 @@ class BuscaLeiturasTest {
         assertEquals("Aguardando o servidor;;;;;;;E3FF", csv[3])
         assertEquals("Não cadastrada;;;;;;;E4", csv[4])
     }
+
+    @Test
+    fun `contagem por tipo junta grafias e ordena do mais comum`() {
+        val itens = listOf(
+            ItemLeitura.Cadastrada(TagView("A", "1", "Monitor", null, null, "P1", "")),
+            ItemLeitura.Cadastrada(TagView("B", "2", "Notebook", null, null, "P2", "")),
+            ItemLeitura.Cadastrada(TagView("C", "3", "notebook ", null, null, "P3", "")),
+            ItemLeitura.Cadastrada(TagView("D", "4", null, null, null, "P4", "")),
+            ItemLeitura.Cadastrada(TagView("E", "5", "Impressão", null, null, "P5", "")),
+            ItemLeitura.Cadastrada(TagView("F", "6", "impressao", null, null, "P6", "")),
+            ItemLeitura.Aguardando("G")
+        )
+
+        assertEquals(
+            listOf("Impressão" to 2, "Notebook" to 2, "Monitor" to 1, "Sem tipo" to 1),
+            BuscaLeituras.contagemPorTipo(itens, "Sem tipo")
+        )
+    }
 }

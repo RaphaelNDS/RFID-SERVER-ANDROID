@@ -82,6 +82,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         addSource(naoCadastradas, montar)
     }
 
+    /** Cadastradas da leitura atual por tipo, e quantas aguardam o servidor e quantas não são cadastradas (sem busca). */
+    fun resumoPorTipo(semTipo: String): Triple<List<Pair<String, Int>>, Int, Int> {
+        val todas = leiturasTodas.value.orEmpty()
+        return Triple(
+            BuscaLeituras.contagemPorTipo(todas, semTipo),
+            todas.count { it is com.example.rfid_server.adapter.ItemLeitura.Aguardando },
+            naoCadastradasTodas.value.orEmpty().size
+        )
+    }
+
     /** Planilha de TODA a leitura atual (sem o filtro da busca). */
     fun planilha(): String = BuscaLeituras.csv(leiturasTodas.value.orEmpty(), naoCadastradasTodas.value.orEmpty())
 

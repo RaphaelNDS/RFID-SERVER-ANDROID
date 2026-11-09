@@ -94,19 +94,23 @@ class InventarioNoColetorTest {
             onView(withId(R.id.btnFinalizar)).perform(click())
             onView(withText(R.string.inventario_finalizar_confirmar)).inRoot(isDialog()).perform(click())
 
-            // Resumo: as duas esperadas faltaram
-            val justificar = contexto.getString(R.string.inventario_justificar, 2)
-            aguardar("resumo com o botão de justificar") { onView(withText(justificar)).inRoot(isDialog()).check(matches(isDisplayed())); true }
+            // Resumo: as duas esperadas faltaram. "Ver faltantes" abre a lista (tocar procura; Justificar leva ao motivo)
+            val verFaltantes = contexto.getString(R.string.inventario_ver_faltantes, 2)
+            aguardar("resumo com o botão dos faltantes") { onView(withText(verFaltantes)).inRoot(isDialog()).check(matches(isDisplayed())); true }
             foto("08-inventario-resumo")
+            onView(withText(verFaltantes)).inRoot(isDialog()).perform(click())
+
+            val justificar = contexto.getString(R.string.inventario_justificar, 2)
+            aguardar("lista dos faltantes com o justificar") { onView(withText(justificar)).inRoot(isDialog()).check(matches(isDisplayed())); true }
             onView(withText(justificar)).inRoot(isDialog()).perform(click())
 
             onView(withText(R.string.justificativa_emprestado)).inRoot(isDialog()).perform(click())
             onView(withText(startsWith("Patrimônio PAT-9001"))).inRoot(isDialog()).perform(click())
             onView(withText(R.string.inventario_justificar_salvar)).inRoot(isDialog()).perform(click())
 
-            // Volta ao resumo com uma a menos para justificar
+            // Volta à lista dos faltantes com uma a menos para justificar
             val restante = contexto.getString(R.string.inventario_justificar, 1)
-            aguardar("resumo com 1 faltante sem justificativa") { onView(withText(restante)).inRoot(isDialog()).check(matches(isDisplayed())); true }
+            aguardar("lista com 1 faltante sem justificativa") { onView(withText(restante)).inRoot(isDialog()).check(matches(isDisplayed())); true }
 
             val pendente = SincronizadorJustificativas.fila(contexto).pendentes().single { it.epc == "E-FALTA-1" }
             assertEquals(FilaJustificativas.Motivo.EMPRESTADO, pendente.motivo)
@@ -117,7 +121,13 @@ class InventarioNoColetorTest {
                     .motivos(pendente.inventarioId)["E-FALTA-1"] == FilaJustificativas.Motivo.EMPRESTADO
             }
 
-            // Fecha o resumo e confere que o inventário aparece em "Inventários anteriores"
+            // A justificada aparece com o motivo na lista
+            onView(withText(org.hamcrest.Matchers.containsString("→ Emprestado"))).inRoot(isDialog()).check(matches(isDisplayed()))
+            foto("08b-inventario-faltantes")
+
+            // Volta ao resumo, fecha e confere que o inventário aparece em "Inventários anteriores"
+            onView(withText(R.string.tela_voltar)).inRoot(isDialog()).perform(click())
+            aguardar("resumo de novo") { onView(withText(R.string.comum_ok)).inRoot(isDialog()).check(matches(isDisplayed())); true }
             onView(withText(R.string.comum_ok)).inRoot(isDialog()).perform(click())
             aguardar("tela de início do inventário") { onView(withId(R.id.btnAnteriores)).check(matches(isDisplayed())); true }
             onView(withId(R.id.btnAnteriores)).perform(click())

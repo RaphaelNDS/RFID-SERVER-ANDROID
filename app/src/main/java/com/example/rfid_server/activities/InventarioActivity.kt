@@ -11,6 +11,7 @@ import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.view.View
+import androidx.core.graphics.drawable.toDrawable
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
@@ -855,22 +856,67 @@ class InventarioActivity : AppCompatActivity() {
 
         // Quais faltam justificar: lê os arquivos do histórico e da fila fora da tela (com milhares de etiquetas, ler
         // na tela travava a cada volta ao resumo)
-        carregar({ faltantesSemJustificativa(resumo) }) { faltantes ->
+        carregar({ faltantesSemJustificativa(resumo) }) { semJustificativa ->
+            val faltando = resumo.comparacao?.faltando.orEmpty()
             AlertDialog.Builder(this)
                 .setTitle(R.string.inventario_finalizado_titulo)
-                .setMessage(mensagem)
+                .setMessage(
+                    if (semJustificativa.isEmpty()) mensagem
+                    else mensagem + "\n" + getString(R.string.inventario_resumo_sem_justificativa, semJustificativa.size)
+                )
                 .setPositiveButton(R.string.inventario_compartilhar) { _, _ -> compartilhar(resumo) }
                 .apply {
-                    // Justificar os que faltaram (emprestado, em manutenção...): vai para o servidor junto com o inventário.
-                    // Com três botões eles empilham (positivo, negativo, neutro): Justificar fica no meio e o OK por último
-                    if (faltantes.isNotEmpty() && resumo.inventarioId.isNotEmpty()) {
-                        setNegativeButton(getString(R.string.inventario_justificar, faltantes.size)) { _, _ -> escolherMotivo(resumo) }
+                    // Os que faltaram: procurar cada um com o Localizar e justificar (emprestado, em manutenção...).
+                    // Com três botões eles empilham (positivo, negativo, neutro): Faltantes fica no meio e o OK por último
+                    if (faltando.isNotEmpty() && resumo.inventarioId.isNotEmpty()) {
+                        setNegativeButton(getString(R.string.inventario_ver_faltantes, faltando.size)) { _, _ -> verFaltantes(resumo) }
                         setNeutralButton(R.string.comum_ok, null)
                     } else {
                         setNegativeButton(R.string.comum_ok, null)
                     }
                 }
                 .show()
+        }
+    }
+
+    /**
+     * Lista dos que faltaram, com a justificativa de cada um. Tocar num deles abre o Localizar (procurar o bem pelo
+     * sinal, ainda na sala, antes de justificar); ao voltar, a lista continua aberta. "Justificar" leva ao motivo.
+     */
+    private fun verFaltantes(resumo: ResumoFinalizacao) {
+        if (isFinishing || isDestroyed) return
+        carregar({ textosJustificativas(resumo) to faltantesSemJustificativa(resumo).size }) { (textos, semJustificativa) ->
+            val faltando = resumo.comparacao?.faltando.orEmpty()
+            if (faltando.isEmpty()) return@carregar mostrarResumoFinal(resumo)
+            val linhas = faltando.map { item ->
+                ResumoFinalizacao.descreverFaltante(item) + (textos[item.epc]?.let { "\n→ $it" } ?: "")
+            }
+            // Itens de várias linhas (bem e justificativa): com espaço e uma linha entre eles, para não parecer um bloco só
+            val espaco = (12 * resources.displayMetrics.density).toInt()
+            val adaptador = object : android.widget.ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, linhas) {
+                override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View =
+                    super.getView(position, convertView, parent).apply { setPadding(paddingLeft, espaco, paddingRight, espaco) }
+            }
+            AlertDialog.Builder(this)
+                .setTitle(R.string.inventario_faltantes_titulo)
+                .setAdapter(adaptador) { _, i ->
+                    val item = faltando[i]
+                    Log.i(TAG, "Operador foi procurar a etiqueta ${item.epc}, que faltou no inventário de ${resumo.local}")
+                    abrirLocalizar(item.epc, item.patrimonio)
+                    // A lista fica atrás do Localizar e aparece de novo na volta
+                    verFaltantes(resumo)
+                }
+                .apply {
+                    if (semJustificativa > 0) {
+                        setPositiveButton(getString(R.string.inventario_justificar, semJustificativa)) { _, _ -> escolherMotivo(resumo) }
+                    }
+                }
+                .setNegativeButton(R.string.tela_voltar) { _, _ -> mostrarResumoFinal(resumo) }
+                .show()
+                .listView?.apply {
+                    divider = androidx.core.content.ContextCompat.getColor(context, R.color.borda).toDrawable()
+                    dividerHeight = maxOf(1, resources.displayMetrics.density.toInt())
+                }
         }
     }
 
@@ -958,7 +1004,7 @@ class InventarioActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle(R.string.inventario_justificar_motivo)
             .setItems(motivos.map { getString(textoMotivo(it)) }.toTypedArray()) { _, i -> escolherFaltantes(resumo, motivos[i]) }
-            .setNegativeButton(R.string.comum_cancelar) { _, _ -> mostrarResumoFinal(resumo) }
+            .setNegativeButton(R.string.comum_cancelar) { _, _ -> verFaltantes(resumo) }
             .show()
     }
 
@@ -968,7 +1014,7 @@ class InventarioActivity : AppCompatActivity() {
     }
 
     private fun mostrarFaltantes(resumo: ResumoFinalizacao, motivo: FilaJustificativas.Motivo, faltantes: List<ItemEsperado>) {
-        if (faltantes.isEmpty()) return mostrarResumoFinal(resumo)
+        if (faltantes.isEmpty()) return verFaltantes(resumo)
         val marcados = BooleanArray(faltantes.size)
         AlertDialog.Builder(this)
             .setTitle(getString(R.string.inventario_justificar_quais, getString(textoMotivo(motivo))))
@@ -978,13 +1024,13 @@ class InventarioActivity : AppCompatActivity() {
             .setPositiveButton(R.string.inventario_justificar_salvar) { _, _ ->
                 val escolhidos = faltantes.filterIndexed { i, _ -> marcados[i] }.map { it.epc }
                 when {
-                    escolhidos.isEmpty() -> mostrarResumoFinal(resumo)
+                    escolhidos.isEmpty() -> verFaltantes(resumo)
                     // "Outro" sem explicação não ajuda quem confere na web: pede uma observação curta (opcional)
                     motivo == FilaJustificativas.Motivo.OUTRO -> pedirObservacao(resumo, escolhidos)
                     else -> salvarJustificativas(resumo, escolhidos, motivo, null)
                 }
             }
-            .setNegativeButton(R.string.comum_cancelar) { _, _ -> mostrarResumoFinal(resumo) }
+            .setNegativeButton(R.string.comum_cancelar) { _, _ -> verFaltantes(resumo) }
             .show()
     }
 
@@ -1006,7 +1052,7 @@ class InventarioActivity : AppCompatActivity() {
             .setPositiveButton(R.string.inventario_justificar_salvar) { _, _ ->
                 salvarJustificativas(resumo, escolhidos, FilaJustificativas.Motivo.OUTRO, campo.text.toString())
             }
-            .setNegativeButton(R.string.comum_cancelar) { _, _ -> mostrarResumoFinal(resumo) }
+            .setNegativeButton(R.string.comum_cancelar) { _, _ -> verFaltantes(resumo) }
             .show()
     }
 
@@ -1027,8 +1073,8 @@ class InventarioActivity : AppCompatActivity() {
             }
             Sincronizador.get(app).solicitarEmBreve()
         }) {
-            // Ainda há faltantes sem motivo: volta ao resumo (com o botão de justificar mostrando quantos faltam)
-            mostrarResumoFinal(resumo)
+            // Volta à lista dos faltantes, já com o motivo escolhido (e o Justificar com quantos ainda faltam)
+            verFaltantes(resumo)
         }
     }
 

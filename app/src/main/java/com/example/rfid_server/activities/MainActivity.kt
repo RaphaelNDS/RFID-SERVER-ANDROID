@@ -351,6 +351,31 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Quantos bens de cada tipo na leitura atual: conferir uma sala sem lista do esperado ("deviam ser 12 notebooks")
+     * sem rolar a lista contando. Toda a leitura, mesmo com a busca aberta.
+     */
+    private fun mostrarResumoPorTipo() {
+        val (porTipo, aguardando, naoCadastradas) = viewModel.resumoPorTipo(getString(R.string.main_por_tipo_sem_tipo))
+        val total = porTipo.sumOf { it.second } + aguardando + naoCadastradas
+        if (total == 0) {
+            Toast.makeText(this, R.string.main_planilha_vazia, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val texto = buildString {
+            porTipo.forEach { (tipo, quantos) -> append(getString(R.string.main_por_tipo_linha, tipo, quantos)).append('\n') }
+            if (aguardando > 0) append(getString(R.string.main_por_tipo_aguardando, aguardando)).append('\n')
+            if (naoCadastradas > 0) append(getString(R.string.main_por_tipo_nao_cadastradas, naoCadastradas)).append('\n')
+            append('\n').append(getString(R.string.main_por_tipo_total, total))
+        }
+        Log.i(TAG, "Operador abriu o resumo por tipo da leitura (${porTipo.size} tipo(s), $total etiqueta(s))")
+        AlertDialog.Builder(this)
+            .setTitle(R.string.main_por_tipo)
+            .setMessage(texto)
+            .setPositiveButton(R.string.comum_ok, null)
+            .show()
+    }
+
     /** Planilha (CSV) de toda a leitura atual, para mandar por e-mail ou WhatsApp. */
     private fun compartilharPlanilha() {
         val csv = viewModel.planilha()
@@ -397,6 +422,11 @@ class MainActivity : AppCompatActivity() {
 
             R.id.menu_planilha -> {
                 compartilharPlanilha()
+                true
+            }
+
+            R.id.menu_por_tipo -> {
+                mostrarResumoPorTipo()
                 true
             }
 
