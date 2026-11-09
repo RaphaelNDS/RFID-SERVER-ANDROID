@@ -98,9 +98,18 @@ data class HistoricoBem(
     val ultimoLocal: String?,
     val ultimoInventarioEm: String?,
     val ultimaLeituraEm: String?,
-    val ultimaLeituraPor: String?
+    val ultimaLeituraPor: String?,
+    // Servidor 1.6.0 (gestão de patrimônio): situação do bem no cadastro (código e rótulo pronto para mostrar),
+    // unidade, local e responsável atuais. Servidor mais antigo não manda: ficam null
+    val situacao: String? = null,
+    val situacaoRotulo: String? = null,
+    val unidade: String? = null,
+    val local: String? = null,
+    val responsavel: String? = null
 ) {
-    val vazio: Boolean get() = ultimoLocal == null && ultimoInventarioEm == null && ultimaLeituraEm == null
+    val vazio: Boolean
+        get() = listOf(ultimoLocal, ultimoInventarioEm, ultimaLeituraEm, situacao, situacaoRotulo, unidade, local, responsavel)
+            .all { it == null }
 }
 
 /** Resultado de uma leitura enviada em lote (POST /api/android/leituras/lote). */
@@ -338,7 +347,12 @@ class TagService internal constructor(
                     ultimoLocal = json.optStringOrNull("ultimoLocal")?.ifBlank { null },
                     ultimoInventarioEm = json.optStringOrNull("ultimoInventarioEm")?.ifBlank { null },
                     ultimaLeituraEm = json.optStringOrNull("ultimaLeituraEm")?.ifBlank { null },
-                    ultimaLeituraPor = json.optStringOrNull("ultimaLeituraPor")?.ifBlank { null }
+                    ultimaLeituraPor = json.optStringOrNull("ultimaLeituraPor")?.ifBlank { null },
+                    situacao = json.optStringOrNull("situacao")?.ifBlank { null },
+                    situacaoRotulo = json.optStringOrNull("situacaoRotulo")?.ifBlank { null },
+                    unidade = json.optStringOrNull("unidade")?.ifBlank { null },
+                    local = json.optStringOrNull("local")?.ifBlank { null },
+                    responsavel = json.optStringOrNull("responsavel")?.ifBlank { null }
                 )
             }
         }

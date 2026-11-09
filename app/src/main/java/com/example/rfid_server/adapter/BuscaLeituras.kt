@@ -62,6 +62,7 @@ object BuscaLeituras {
         appendLine(celulas.joinToString(";") { com.example.rfid_server.CelulaCsv.formatar(it.orEmpty()) })
     }
 
-    private fun normalizar(texto: String): String =
+    /** Minúsculas, sem acentos e sem espaços nas pontas: para comparar textos digitados de jeitos diferentes. */
+    fun normalizar(texto: String): String =
         Normalizer.normalize(texto.trim().lowercase(), Normalizer.Form.NFD).replace(Regex("\\p{M}"), "")
 }

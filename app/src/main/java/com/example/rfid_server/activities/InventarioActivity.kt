@@ -849,7 +849,12 @@ class InventarioActivity : AppCompatActivity() {
                 append("\n").append(getString(R.string.inventario_resumo_sem_comparacao))
             } else {
                 append("\n").append(getString(R.string.inventario_resumo_encontradas_dialogo, c.encontradas, c.esperados))
-                append("\n").append(getString(R.string.inventario_resumo_faltando_dialogo, c.faltando.size))
+                // Com os tipos que faltaram ("Faltando: 3 (2 Notebook, 1 Monitor)"), sem abrir a lista dos faltantes
+                val tipos = resumo.faltantesPorTipo(getString(R.string.main_por_tipo_sem_tipo))
+                append("\n").append(
+                    if (tipos == null) getString(R.string.inventario_resumo_faltando_dialogo, c.faltando.size)
+                    else getString(R.string.inventario_resumo_faltando_tipos, c.faltando.size, tipos)
+                )
                 append("\n").append(getString(R.string.inventario_resumo_fora_dialogo, c.foraDaLista))
             }
         }

@@ -177,6 +177,12 @@
     <string name="ficha_etiqueta">Etiqueta: %1$s</string>
     <string name="ficha_ultimo_local">Último local: %1$s (inventário de %2$s)</string>
     <string name="ficha_ultima_leitura">Última leitura: %1$s, por %2$s</string>
+    <string name="ficha_situacao">Situação: %1$s</string>
+    <string name="ficha_local">Local no cadastro: %1$s</string>
+    <string name="ficha_unidade">Unidade: %1$s</string>
+    <string name="ficha_responsavel">Responsável: %1$s</string>
+    <string name="ficha_aviso_baixado">⚠ BEM BAIXADO no sistema: não deveria estar em uso. Avise o responsável pelo patrimônio.</string>
+    <string name="ficha_aviso_extraviado">⚠ Bem marcado como EXTRAVIADO: foi encontrado aqui. Ao finalizar um inventário com ele, volta para \"Em uso\".</string>
     <string name="ficha_localizar">Localizar</string>
     <string name="ficha_fechar">Fechar</string>
     <string name="cadastro_proxima_titulo">Cadastrar a próxima?</string>
@@ -222,6 +228,7 @@
     <string name="inventario_ver_faltantes">Ver faltantes (%1$d)</string>
     <string name="inventario_faltantes_titulo">Faltantes: toque para procurar</string>
     <string name="inventario_resumo_sem_justificativa">Sem justificativa: %1$d</string>
+    <string name="inventario_resumo_faltando_tipos">Faltando: %1$d (%2$s)</string>
     <string name="inventario_justificar_motivo">Motivo dos que faltaram</string>
     <string name="inventario_justificar_quais">Quais estão \"%1$s\"?</string>
     <string name="inventario_justificar_salvar">Salvar</string>
