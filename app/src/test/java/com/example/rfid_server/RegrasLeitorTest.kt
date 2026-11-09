@@ -25,6 +25,7 @@ class RegrasLeitorTest {
         assertEquals(CausaFalhaLeitor.TEMPERATURA, causa("Reader TEMPERATURE too high"))
         assertEquals(CausaFalhaLeitor.OCUPADO_OUTRO_APP, causa("Reader is in use by another application"))
         assertEquals(CausaFalhaLeitor.OCUPADO_OUTRO_APP, causa("Device busy"))
+        assertEquals("Visto no MC3300x com outro app segurando o leitor", CausaFalhaLeitor.OCUPADO_OUTRO_APP, causa("RFID_COMM_OPEN_ERROR"))
         assertEquals(CausaFalhaLeitor.OPERACAO_EM_ANDAMENTO, causa("RFID_OPERATION_IN_PROGRESS"))
         assertEquals(CausaFalhaLeitor.REGIAO_NAO_CONFIGURADA, causa("Region not configured"))
         assertEquals(CausaFalhaLeitor.TEMPO_ESGOTADO, causa("Command timed out"))

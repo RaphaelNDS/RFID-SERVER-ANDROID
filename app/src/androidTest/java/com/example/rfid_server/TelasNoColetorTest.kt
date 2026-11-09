@@ -3,6 +3,7 @@ package com.example.rfid_server
 import android.graphics.drawable.AdaptiveIconDrawable
 import androidx.core.content.ContextCompat
 import androidx.test.core.app.ActivityScenario
+import androidx.test.espresso.Espresso.closeSoftKeyboard
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
@@ -36,6 +37,8 @@ class TelasNoColetorTest {
     @Test
     fun loginAbreSemSessao() {
         ActivityScenario.launch(LoginActivity::class.java).use {
+            // Com o último email lembrado, o teclado abre na senha e cobre o botão: fecha antes de conferir
+            closeSoftKeyboard()
             onView(withId(R.id.btnEntrar)).check(matches(isDisplayed()))
         }
     }
