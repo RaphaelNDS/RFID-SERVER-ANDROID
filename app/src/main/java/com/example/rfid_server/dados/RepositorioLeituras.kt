@@ -7,6 +7,7 @@ import androidx.lifecycle.LiveData
 import com.example.rfid_server.CofreSessoes
 import com.example.rfid_server.SessaoAtual
 import com.example.rfid_server.sincronizacao.Sincronizador
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 
 /**
@@ -25,8 +26,8 @@ class RepositorioLeituras internal constructor(
     private val sessaoAtual: () -> String? = { null }
 ) {
 
-    // EPCs já lidos nesta sessão. Só é acessado na thread do executor, então não precisa de trava
-    private val epcsDaSessao = HashSet<String>()
+    // EPCs já lidos nesta sessão. Só muda na thread do executor; o gatilho consulta de outra thread (por isso concorrente)
+    private val epcsDaSessao: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     init {
         executor.execute { epcsDaSessao.addAll(dao.epcsDaSessao()) }
@@ -47,6 +48,9 @@ class RepositorioLeituras internal constructor(
      * [aoNova] roda (na thread do repositório) só quando a tag é nova na sessão: bip/vibração na tela.
      */
     fun registrar(epc: String, aoNova: (() -> Unit)? = null) {
+        // Repetição (a mesma etiqueta chega várias vezes por segundo com o gatilho apertado): descarta antes de
+        // consultar a sessão, que lê as preferências e calcula o SHA-256 da referência a cada chamada
+        if (epc in epcsDaSessao) return
         val lidoEm = relogio()
         val sessao = sessaoAtual() ?: run {
             // O login é obrigatório: sem operador a leitura não teria autoria e o servidor recusaria

@@ -41,6 +41,23 @@ class RepositorioLeiturasTest {
     }
 
     @Test
+    fun `repeticao e descartada sem consultar a sessao`() {
+        var consultas = 0
+        val repositorio = RepositorioLeituras(
+            dao = FakeLeituraDao(),
+            executor = Executor { it.run() },
+            solicitarSincronizacao = {},
+            relogio = { agora },
+            sessaoAtual = { consultas++; sessao }
+        )
+
+        repositorio.registrar("E1")
+        repeat(50) { repositorio.registrar("E1") }
+
+        assertEquals("Só a primeira leitura consulta a sessão (preferências + SHA-256)", 1, consultas)
+    }
+
+    @Test
     fun `mesma tag lida varias vezes na sessao e guardada uma vez so`() {
         val dao = FakeLeituraDao()
         val repositorio = repositorio(dao)

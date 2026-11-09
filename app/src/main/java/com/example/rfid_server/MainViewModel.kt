@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MediatorLiveData
+import androidx.lifecycle.distinctUntilChanged
 import androidx.lifecycle.map
 import com.example.rfid_server.dados.Situacao
 import com.example.rfid_server.adapter.ItemLeitura
@@ -24,8 +25,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repositorio = RepositorioLeituras.get(application)
 
-    /** Aba "Leitura": cadastradas e as que ainda esperam o servidor identificar (sem rede). */
-    val leituras: LiveData<List<ItemLeitura>> = repositorio.abaLeitura.map { lista ->
+    /**
+     * Aba "Leitura": cadastradas e as que ainda esperam o servidor identificar (sem rede). O banco refaz a consulta a
+     * cada gravação na tabela (inclusive de uma não cadastrada): lista igual à anterior não remonta a aba nem o título.
+     */
+    val leituras: LiveData<List<ItemLeitura>> = repositorio.abaLeitura.distinctUntilChanged().map { lista ->
         ItemLeitura.montar(
             lista.filter { it.situacao == Situacao.CADASTRADA },
             lista.filter { it.situacao == Situacao.PENDENTE }
@@ -36,7 +40,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Aba "Não cadastradas", com a situação do cadastro feito no coletor (se houver). */
     val naoCadastradas: LiveData<List<ItemNaoCadastrada>> = MediatorLiveData<List<ItemNaoCadastrada>>().apply {
-        val leituras = repositorio.naoCadastradas
+        val leituras = repositorio.naoCadastradas.distinctUntilChanged()
         val guardados = cadastros.todos
         val montar = { _: Any? -> value = ItemNaoCadastrada.montar(leituras.value.orEmpty(), guardados.value.orEmpty()) }
         addSource(leituras, montar)
@@ -56,7 +60,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val estadoSincronizacao: LiveData<EstadoSincronizacao> = Sincronizador.get(application).estado
 
-    val contagem: LiveData<ContagemSessao> = repositorio.contagemSessao
+    val contagem: LiveData<ContagemSessao> = repositorio.contagemSessao.distinctUntilChanged()
 
     /** Botão "Nova leitura": limpa a tela; o que não foi enviado continua na fila. */
     fun novaLeitura() {

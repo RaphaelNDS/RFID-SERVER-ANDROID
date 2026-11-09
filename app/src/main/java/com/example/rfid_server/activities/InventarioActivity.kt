@@ -41,7 +41,6 @@ import com.example.rfid_server.adapter.LidaInventarioAdapter
 import com.example.rfid_server.dados.ComparacaoInventario
 import com.example.rfid_server.dados.EsperadoLocal
 import com.example.rfid_server.dados.InventarioEntity
-import com.example.rfid_server.dados.InventarioItemEntity
 import com.example.rfid_server.dados.ItemEsperado
 import com.example.rfid_server.dados.LidaInventario
 import com.example.rfid_server.dados.RepositorioInventario
@@ -93,7 +92,7 @@ class InventarioActivity : AppCompatActivity() {
     private lateinit var txtChameResponsavel: TextView
 
     private var inventarioAtual: InventarioEntity? = null
-    private var itensObservados: LiveData<List<InventarioItemEntity>>? = null
+    private var itensObservados: LiveData<List<String>>? = null
     private var naoEnviadosObservados: LiveData<Int>? = null
     private var epcsLidos: List<String> = emptyList()
     private var naoEnviadas = 0
@@ -321,9 +320,9 @@ class InventarioActivity : AppCompatActivity() {
     private fun observarItens(inventarioId: String) {
         pararDeObservarItens()
 
-        itensObservados = repositorio.itens(inventarioId).also { liveData ->
-            liveData.observe(this) { itens ->
-                epcsLidos = itens.map { it.epc }
+        itensObservados = repositorio.epcsLidos(inventarioId).also { liveData ->
+            liveData.observe(this) { epcs ->
+                epcsLidos = epcs
                 pedirComparacao()
             }
         }
@@ -529,7 +528,10 @@ class InventarioActivity : AppCompatActivity() {
                 if (isDestroyed || inventarioAtual?.local != local) return@runOnUiThread
 
                 when (resposta) {
-                    is RespostaServidor.Sucesso -> {
+                    // Igual à guardada (o caso comum ao voltar para a tela): não regrava o arquivo nem recalcula a lista
+                    is RespostaServidor.Sucesso -> if (resposta.valor == guardado) {
+                        Log.i(TAG, "Lista do esperado de '$local' do servidor igual à guardada no coletor (${guardado.itens.size} etiqueta(s)): mantida")
+                    } else {
                         guardarEsperado(local, resposta.valor)
                         aplicarEsperado(resposta.valor, doServidor = true)
                     }

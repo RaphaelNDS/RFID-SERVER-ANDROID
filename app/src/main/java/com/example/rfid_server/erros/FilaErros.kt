@@ -221,8 +221,14 @@ class FilaErros(
     // Em bytes (UTF-8), como fica no arquivo
     private fun tamanho(item: JSONObject): Int = item.toString().toByteArray().size
 
+    // Fila em memória depois da primeira leitura: antes cada registro, consulta (quantidade, pendentes) e envio relia e
+    // reinterpretava o arquivo inteiro (até 512 KB). Só existe uma FilaErros por app (RegistroErros), num processo só
+    private var memoria: JSONArray? = null
+
+    private fun ler(): JSONArray = memoria ?: lerArquivo().also { memoria = it }
+
     // Arquivo ilegível (ex.: gravação interrompida) não pode travar o app: recomeça vazio
-    private fun ler(): JSONArray =
+    private fun lerArquivo(): JSONArray =
         try {
             if (arquivo.exists()) JSONArray(arquivo.readText()) else JSONArray()
         } catch (e: Exception) {
@@ -231,6 +237,7 @@ class FilaErros(
 
     private fun gravar(itens: JSONArray) {
         versao++
+        memoria = itens
         arquivo.parentFile?.mkdirs()
         val temporario = File(arquivo.parentFile, arquivo.name + ".tmp")
         temporario.writeText(itens.toString())

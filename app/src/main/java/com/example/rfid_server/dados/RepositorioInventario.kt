@@ -11,6 +11,7 @@ import com.example.rfid_server.CofreSessoes
 import com.example.rfid_server.SessaoAtual
 import com.example.rfid_server.sincronizacao.Sincronizador
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 
 /**
@@ -35,9 +36,9 @@ class RepositorioInventario internal constructor(
     private val semSincronizacao: (() -> Unit) -> Unit = { it() }
 ) {
 
-    // Inventário aberto e EPCs já lidos nele. Só acessados na thread do executor
+    // Inventário aberto e EPCs já lidos nele. Só mudam na thread do executor (os EPCs também são consultados pelo gatilho)
     private var abertoId: String? = null
-    private val epcsLidos = HashSet<String>()
+    private val epcsLidos: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     init {
         executor.execute {
@@ -54,7 +55,8 @@ class RepositorioInventario internal constructor(
     /** Etiquetas do inventário que ainda não chegaram ao servidor (todos os inventários). */
     val itensNaoEnviados: LiveData<Int> = dao.contarItensNaoEnviados()
 
-    fun itens(inventarioId: String): LiveData<List<InventarioItemEntity>> = dao.itens(inventarioId)
+    /** EPCs lidos no inventário, do mais recente para o mais antigo. */
+    fun epcsLidos(inventarioId: String): LiveData<List<String>> = dao.epcsLidos(inventarioId)
 
     fun itensNaoEnviados(inventarioId: String): LiveData<Int> = dao.contarItensNaoEnviados(inventarioId)
 
@@ -93,6 +95,8 @@ class RepositorioInventario internal constructor(
      * [aoNova] roda (na thread do repositório) só quando a tag é nova no inventário: bip/vibração na tela.
      */
     fun registrar(epc: String, aoNova: (() -> Unit)? = null) {
+        // Repetição no inventário aberto: descarta antes de consultar a sessão (preferências + SHA-256 a cada chamada)
+        if (epc in epcsLidos) return
         val lidoEm = relogio()
         val sessao = sessaoAtual() ?: run {
             Log.w(TAG, "Tag $epc lida no inventário sem operador logado: ignorada")
