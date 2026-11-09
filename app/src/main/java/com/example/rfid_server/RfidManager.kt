@@ -116,6 +116,10 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
 
     @Volatile
     private var detalheAtual = DetalheLeitor()
+    // Gatilho apertado agora: as telas de leitura mantêm a tela acesa enquanto lê e por 2 min depois (TelaAcesa)
+    private val _gatilhoApertado = MutableLiveData(false)
+    val gatilhoApertado: LiveData<Boolean> = _gatilhoApertado
+
     private val _detalhe = MutableLiveData(DetalheLeitor())
     val detalhe: LiveData<DetalheLeitor> = _detalhe
 
@@ -631,8 +635,8 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         // o perform()/stop() não segura o despacho de eventos, apertar e soltar ficam sempre nessa ordem e não competem
         // com uma desconexão acontecendo ao mesmo tempo
         val acao: () -> Unit = when (evento.ordinal) {
-            HANDHELD_TRIGGER_EVENT_TYPE.HANDHELD_TRIGGER_PRESSED.ordinal -> ::iniciarInventario
-            HANDHELD_TRIGGER_EVENT_TYPE.HANDHELD_TRIGGER_RELEASED.ordinal -> ::pararInventario
+            HANDHELD_TRIGGER_EVENT_TYPE.HANDHELD_TRIGGER_PRESSED.ordinal -> { _gatilhoApertado.postValue(true); ::iniciarInventario }
+            HANDHELD_TRIGGER_EVENT_TYPE.HANDHELD_TRIGGER_RELEASED.ordinal -> { _gatilhoApertado.postValue(false); ::pararInventario }
             else -> {
                 Log.w(TAG, "Evento de gatilho desconhecido: $evento (ordinal ${evento.ordinal})")
                 return

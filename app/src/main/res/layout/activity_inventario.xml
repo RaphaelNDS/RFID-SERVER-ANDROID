@@ -1,10 +1,8 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="vertical"
-    android:keepScreenOn="true"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
-
     <!-- Seta de voltar; com inventário aberto, o local vai no subtítulo e "Cancelar inventário" fica no menu
          (menu_inventario), longe do dedo: assim o cabeçalho sobra para a lista -->
     <com.google.android.material.appbar.MaterialToolbar
