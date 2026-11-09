@@ -90,6 +90,12 @@
     <string name="main_buscar_dica">Patrimônio, tipo, marca ou etiqueta</string>
     <string name="main_planilha">Compartilhar planilha</string>
     <string name="main_planilha_vazia">Nenhuma etiqueta nesta leitura para a planilha</string>
+    <string name="main_por_tipo">Resumo por tipo</string>
+    <string name="main_por_tipo_sem_tipo">Sem tipo informado</string>
+    <string name="main_por_tipo_linha">%1$s: %2$d</string>
+    <string name="main_por_tipo_aguardando">Aguardando o servidor: %1$d</string>
+    <string name="main_por_tipo_nao_cadastradas">Não cadastradas: %1$d</string>
+    <string name="main_por_tipo_total">Total: %1$d etiqueta(s)</string>
     <string name="main_sair_menu">Sair (trocar operador)</string>
     <string name="main_sair_titulo">Sair do coletor</string>
     <string name="main_sair_mensagem">Sair como %1$s? O próximo operador entra com o próprio usuário.</string>
@@ -213,6 +219,9 @@
     <string name="inventario_anterior_sem_motivo">faltaram %1$d (%2$d sem justificativa)</string>
     <string name="main_buscar_contagem">Mostrando %1$d de %2$d etiqueta(s)</string>
     <string name="inventario_justificar">Justificar faltantes (%1$d)</string>
+    <string name="inventario_ver_faltantes">Ver faltantes (%1$d)</string>
+    <string name="inventario_faltantes_titulo">Faltantes: toque para procurar</string>
+    <string name="inventario_resumo_sem_justificativa">Sem justificativa: %1$d</string>
     <string name="inventario_justificar_motivo">Motivo dos que faltaram</string>
     <string name="inventario_justificar_quais">Quais estão \"%1$s\"?</string>
     <string name="inventario_justificar_salvar">Salvar</string>

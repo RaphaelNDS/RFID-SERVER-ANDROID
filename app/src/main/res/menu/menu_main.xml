@@ -19,6 +19,12 @@
         android:title="@string/main_planilha"
         app:showAsAction="never" />
 
+    <!-- Quantos bens de cada tipo na leitura atual (conferir uma sala sem lista: 12 notebooks, 5 monitores) -->
+    <item
+        android:id="@+id/menu_por_tipo"
+        android:title="@string/main_por_tipo"
+        app:showAsAction="never" />
+
     <!-- Recusadas dos últimos 30 dias (inclusive de leituras anteriores): o selo da tela só aparece quando há
          recusadas na leitura atual -->
     <item

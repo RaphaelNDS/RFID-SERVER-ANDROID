@@ -30,6 +30,18 @@ object BuscaLeituras {
     }
 
     /**
+     * Quantos bens de cada tipo há na leitura atual ("Notebook" 12, "Monitor" 5...), do tipo mais comum para o menos
+     * comum (empate: ordem alfabética). Tipo em branco conta como [semTipo]; mesmo tipo escrito com maiúsculas ou
+     * acentos diferentes conta junto (vale a grafia do primeiro). Só as cadastradas: as outras não têm tipo.
+     */
+    fun contagemPorTipo(leituras: List<ItemLeitura>, semTipo: String): List<Pair<String, Int>> =
+        leituras.filterIsInstance<ItemLeitura.Cadastrada>()
+            .map { it.tag.tipo?.trim().orEmpty().ifEmpty { semTipo } }
+            .groupBy { normalizar(it) }
+            .map { (_, nomes) -> nomes.first() to nomes.size }
+            .sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenBy { normalizar(it.first) })
+
+    /**
      * Planilha (CSV com ";", para o Excel em português) da leitura atual: uma linha por etiqueta, com a situação
      * (Cadastrada, Aguardando o servidor, Não cadastrada), os dados do bem e o EPC.
      */
