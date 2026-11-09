@@ -25,6 +25,7 @@ import com.zebra.rfid.api3.RfidReadEvents
 import com.zebra.rfid.api3.RfidStatusEvents
 import com.zebra.rfid.api3.STATUS_EVENT_TYPE
 import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
@@ -626,10 +627,27 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
     private fun tratarGatilho(e: RfidStatusEvents) {
         val evento = e.StatusEventData.HandheldTriggerEventData.handheldEvent
 
-        when (evento.ordinal) {
-            HANDHELD_TRIGGER_EVENT_TYPE.HANDHELD_TRIGGER_PRESSED.ordinal -> iniciarInventario()
-            HANDHELD_TRIGGER_EVENT_TYPE.HANDHELD_TRIGGER_RELEASED.ordinal -> pararInventario()
-            else -> Log.w(TAG, "Evento de gatilho desconhecido: $evento (ordinal ${evento.ordinal})")
+        // Na thread do leitor (a mesma de conectar e desconectar), e não na de eventos do SDK: como no exemplo da Zebra,
+        // o perform()/stop() não segura o despacho de eventos, apertar e soltar ficam sempre nessa ordem e não competem
+        // com uma desconexão acontecendo ao mesmo tempo
+        val acao: () -> Unit = when (evento.ordinal) {
+            HANDHELD_TRIGGER_EVENT_TYPE.HANDHELD_TRIGGER_PRESSED.ordinal -> ::iniciarInventario
+            HANDHELD_TRIGGER_EVENT_TYPE.HANDHELD_TRIGGER_RELEASED.ordinal -> ::pararInventario
+            else -> {
+                Log.w(TAG, "Evento de gatilho desconhecido: $evento (ordinal ${evento.ordinal})")
+                return
+            }
+        }
+        try {
+            executor.execute {
+                try {
+                    acao()
+                } catch (ex: Exception) {
+                    Log.e(TAG, "Falha ao tratar o gatilho", ex)
+                }
+            }
+        } catch (ex: RejectedExecutionException) {
+            Log.w(TAG, "Gatilho ignorado: leitor sendo encerrado")
         }
     }
 

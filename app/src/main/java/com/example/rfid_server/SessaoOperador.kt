@@ -1,6 +1,7 @@
 package com.example.rfid_server
 
 import android.content.Context
+import android.os.SystemClock
 import android.util.Log
 import com.example.rfid_server.erros.MascaraSensivel
 import org.json.JSONObject
@@ -20,9 +21,24 @@ data class SessaoOperador(
     val podeLer: Boolean,
     /** Operador com permissão de cadastro E coletor liberado no servidor. */
     val podeCadastrar: Boolean,
-    val senhaFraca: Boolean = false
+    val senhaFraca: Boolean = false,
+    /** Relógio do aparelho na hora do login (null = sessão guardada por uma versão anterior). */
+    val entrouEm: Long? = null,
+    /** Tempo desde a ligação do aparelho (elapsedRealtime) na hora do login. */
+    val entrouDecorrido: Long? = null
 ) {
-    fun validaEm(agora: Long) = agora < expiraEm
+    /**
+     * A sessão vale em [agora] (relógio do aparelho)? Também confere o tempo desde a ligação ([agoraDecorrido]), que
+     * não muda quando alguém atrasa o relógio: sem rede, atrasar o relógio mantinha a sessão vencida valendo (o PIN já
+     * se protegia assim). Depois de reiniciar o aparelho o tempo desde a ligação recomeça e só o relógio vale.
+     */
+    fun validaEm(agora: Long, agoraDecorrido: Long? = null): Boolean {
+        if (agora >= expiraEm) return false
+        val inicio = entrouEm ?: return true
+        val inicioDecorrido = entrouDecorrido ?: return true
+        if (agoraDecorrido == null || agoraDecorrido < inicioDecorrido) return true
+        return agoraDecorrido - inicioDecorrido < expiraEm - inicio
+    }
 
     companion object {
         /** Resposta do servidor ao login. Lança org.json.JSONException ou DateTimeParseException se vier fora do formato. */
@@ -47,11 +63,19 @@ object SessaoAtual {
     private const val TAG = "SESSAO"
 
     /** A sessão, se existir e não tiver expirado. Expirada, é apagada (o app volta para a tela de login). */
-    fun get(context: Context, agora: Long = System.currentTimeMillis()): SessaoOperador? {
+    fun get(
+        context: Context,
+        agora: Long = System.currentTimeMillis(),
+        agoraDecorrido: Long = SystemClock.elapsedRealtime()
+    ): SessaoOperador? {
         val sessao = AppConfig.getSessao(context) ?: return null
-        if (sessao.validaEm(agora)) return sessao
+        if (sessao.validaEm(agora, agoraDecorrido)) return sessao
 
-        Log.i(TAG, "Sessão de ${MascaraSensivel.email(sessao.email)} expirou: é preciso entrar de novo")
+        if (agora < sessao.expiraEm) {
+            Log.w(TAG, "Sessão de ${MascaraSensivel.email(sessao.email)} expirou pelo tempo desde o login, embora o relógio do aparelho diga que não (relógio atrasado?): é preciso entrar de novo")
+        } else {
+            Log.i(TAG, "Sessão de ${MascaraSensivel.email(sessao.email)} expirou: é preciso entrar de novo")
+        }
         AppConfig.limparSessao(context)
         // Quem descobriu pode ser a leitura do gatilho (outra thread): a tela aberta vai para o login na hora
         avisarOuvintes()

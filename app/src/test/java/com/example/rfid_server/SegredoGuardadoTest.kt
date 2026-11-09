@@ -126,7 +126,9 @@ class SegredoGuardadoTest {
 
         val guardado = prefs.getString("sessao_token", null)!!
         assertTrue(guardado.startsWith(SegredoGuardado.PREFIXO))
-        assertEquals(sessao("token-abc"), AppConfig.getSessao(context))
+        val lida = AppConfig.getSessao(context)!!
+        assertEquals(sessao("token-abc"), lida.copy(entrouEm = null, entrouDecorrido = null))
+        assertTrue("Início do login guardado (relógio e tempo desde a ligação)", lida.entrouEm != null && lida.entrouDecorrido != null)
     }
 
     @Test
