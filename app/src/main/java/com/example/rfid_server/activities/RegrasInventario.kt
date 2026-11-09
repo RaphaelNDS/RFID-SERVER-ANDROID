@@ -137,12 +137,9 @@ data class ResumoFinalizacao(
     }
 
     private fun StringBuilder.linha(situacao: String, patrimonio: String?, descricao: String?, epc: String, motivo: String?) {
-        appendLine(listOf(situacao, patrimonio.orEmpty(), descricao.orEmpty(), epc, motivo.orEmpty()).joinToString(";") { celula(it) })
+        appendLine(listOf(situacao, patrimonio.orEmpty(), descricao.orEmpty(), epc, motivo.orEmpty())
+            .joinToString(";") { com.example.rfid_server.CelulaCsv.formatar(it) })
     }
-
-    // Aspas quando o texto tem ";", aspas ou quebra de linha (padrão do CSV)
-    private fun celula(texto: String): String =
-        if (texto.any { it == ';' || it == '"' || it == '\n' }) "\"" + texto.replace("\"", "\"\"") + "\"" else texto
 
     /** Texto para compartilhar (WhatsApp, e-mail...): local, data/hora, operador, contagens e o que faltou. */
     fun textoCompartilhar(fuso: ZoneId = ZoneId.systemDefault()): String = buildString {

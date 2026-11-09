@@ -111,6 +111,11 @@ class InventarioNoColetorTest {
             val pendente = SincronizadorJustificativas.fila(contexto).pendentes().single { it.epc == "E-FALTA-1" }
             assertEquals(FilaJustificativas.Motivo.EMPRESTADO, pendente.motivo)
             assertTrue("Justificativa com a sessão de quem justificou", pendente.sessao != null)
+            // E fica no histórico: a fila esquece quando o servidor confirma, o resumo reaberto não pode esquecer
+            aguardar("justificativa guardada no histórico") {
+                com.example.rfid_server.activities.HistoricoInventarios(File(contexto.filesDir, "historico_inventarios"))
+                    .motivos(pendente.inventarioId)["E-FALTA-1"] == FilaJustificativas.Motivo.EMPRESTADO
+            }
 
             // Fecha o resumo e confere que o inventário aparece em "Inventários anteriores"
             onView(withText(R.string.comum_ok)).inRoot(isDialog()).perform(click())

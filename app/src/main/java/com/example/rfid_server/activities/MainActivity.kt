@@ -155,6 +155,8 @@ class MainActivity : AppCompatActivity() {
 
         // Busca: filtra as duas abas enquanto o operador digita (a lista e o título da aba mostram só o que bate)
         findViewById<android.widget.EditText>(R.id.edtBusca).doAfterTextChanged { viewModel.termoBusca.value = it?.toString().orEmpty() }
+        // Voltar com a busca aberta fecha a busca (e mostra a leitura inteira de novo) em vez de sair da tela
+        onBackPressedDispatcher.addCallback(this, voltarFechaBusca)
 
         // Plaqueta de patrimônio lida na tela principal: abre o Localizar já buscando o bem
         CodigoDeBarras.ouvir(this) { codigo ->
@@ -323,6 +325,10 @@ class MainActivity : AppCompatActivity() {
 
     // ================= BUSCA E PLANILHA DA LEITURA =================
 
+    private val voltarFechaBusca = object : androidx.activity.OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() = alternarBusca()
+    }
+
     /** Mostra o campo de busca (com o teclado) ou, se já aberto, limpa e esconde. */
     private fun alternarBusca() {
         val campo = findViewById<View>(R.id.campoBusca)
@@ -330,9 +336,11 @@ class MainActivity : AppCompatActivity() {
         if (campo.isVisible) {
             edt.setText("")
             campo.isVisible = false
+            voltarFechaBusca.isEnabled = false
             (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).hideSoftInputFromWindow(edt.windowToken, 0)
         } else {
             campo.isVisible = true
+            voltarFechaBusca.isEnabled = true
             edt.requestFocus()
             (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showSoftInput(edt, 0)
         }

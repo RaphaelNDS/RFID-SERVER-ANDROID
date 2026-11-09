@@ -3,6 +3,7 @@ package com.example.rfid_server.activities
 import com.example.rfid_server.dados.ComparacaoInventario
 import com.example.rfid_server.dados.EsperadoLocal
 import com.example.rfid_server.dados.ItemEsperado
+import com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Rule
@@ -51,5 +52,41 @@ class HistoricoInventariosTest {
         val ids = historico.listar().map { it.inventarioId }
         assertEquals(HistoricoInventarios.MAXIMO, ids.size)
         assertEquals("inv-${HistoricoInventarios.MAXIMO + 2}", ids.first())
+    }
+
+    @Test
+    fun `justificativas ficam guardadas mesmo depois que a fila esquece`() {
+        val historico = HistoricoInventarios(pasta.root)
+        historico.salvar(resumo("inv-j", 5_000L))
+
+        historico.justificar("inv-j", listOf("E2"), Motivo.EMPRESTADO)
+        historico.justificar("inv-j", listOf("E2"), Motivo.MANUTENCAO)
+
+        assertEquals(mapOf("E2" to Motivo.MANUTENCAO), HistoricoInventarios(pasta.root).motivos("inv-j"))
+        // Guardar o resumo de novo não apaga as justificativas
+        historico.salvar(resumo("inv-j", 5_000L))
+        assertEquals(mapOf("E2" to Motivo.MANUTENCAO), historico.motivos("inv-j"))
+    }
+
+    @Test
+    fun `justificar inventario fora do historico nao cria arquivo`() {
+        val historico = HistoricoInventarios(pasta.root)
+        historico.justificar("inv-x", listOf("E1"), Motivo.BAIXADO)
+
+        assertEquals(emptyMap<String, Motivo>(), historico.motivos("inv-x"))
+        assertEquals(emptyList<ResumoFinalizacao>(), historico.listar())
+    }
+
+    @Test
+    fun `ordem e limpeza pela data de finalizacao e nao pela alteracao do arquivo`() {
+        val historico = HistoricoInventarios(pasta.root)
+        historico.salvar(resumo("antigo", 1_000L))
+        historico.salvar(resumo("novo", 9_000L))
+        // Justificar o antigo depois mexe no arquivo dele, mas ele continua sendo o mais antigo
+        pasta.root.resolve("novo.json").setLastModified(1_000_000L)
+        historico.justificar("antigo", listOf("E2"), Motivo.OUTRO)
+        pasta.root.resolve("antigo.json").setLastModified(2_000_000L)
+
+        assertEquals(listOf("novo", "antigo"), historico.listar().map { it.inventarioId })
     }
 }

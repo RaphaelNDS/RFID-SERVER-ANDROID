@@ -47,12 +47,8 @@ object BuscaLeituras {
     }
 
     private fun StringBuilder.linha(vararg celulas: String?) {
-        appendLine(celulas.joinToString(";") { celula(it.orEmpty()) })
+        appendLine(celulas.joinToString(";") { com.example.rfid_server.CelulaCsv.formatar(it.orEmpty()) })
     }
-
-    // Aspas quando o texto tem ";", aspas ou quebra de linha (padrão do CSV)
-    private fun celula(texto: String): String =
-        if (texto.any { it == ';' || it == '"' || it == '\n' }) "\"" + texto.replace("\"", "\"\"") + "\"" else texto
 
     private fun normalizar(texto: String): String =
         Normalizer.normalize(texto.trim().lowercase(), Normalizer.Form.NFD).replace(Regex("\\p{M}"), "")
