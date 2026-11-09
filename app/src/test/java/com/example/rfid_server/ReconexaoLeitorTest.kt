@@ -7,13 +7,23 @@ import org.junit.Test
 class ReconexaoLeitorTest {
 
     @Test
-    fun `espera cresce com as tentativas e para em 10 segundos`() {
+    fun `espera cresce com as tentativas e para em 1 minuto`() {
         assertEquals(3_000L, ReconexaoLeitor.esperaMs(1))
         assertEquals(3_000L, ReconexaoLeitor.esperaMs(2))
         assertEquals(5_000L, ReconexaoLeitor.esperaMs(3))
         assertEquals(5_000L, ReconexaoLeitor.esperaMs(5))
         assertEquals(10_000L, ReconexaoLeitor.esperaMs(6))
-        assertEquals(10_000L, ReconexaoLeitor.esperaMs(500))
+        assertEquals(10_000L, ReconexaoLeitor.esperaMs(17))
+        assertEquals(30_000L, ReconexaoLeitor.esperaMs(18))
+        assertEquals(30_000L, ReconexaoLeitor.esperaMs(35))
+        assertEquals(60_000L, ReconexaoLeitor.esperaMs(36))
+        assertEquals(60_000L, ReconexaoLeitor.esperaMs(500))
+    }
+
+    @Test
+    fun `nos primeiros 2 minutos sem leitor ainda tenta no maximo a cada 10 segundos`() {
+        val esperaAte17 = (1..17).sumOf { ReconexaoLeitor.esperaMs(it) }
+        assertTrue("Cerca de 2 min de tentativas rápidas: $esperaAte17 ms", esperaAte17 in 120_000L..160_000L)
     }
 
     @Test

@@ -53,12 +53,14 @@ object SessaoAtual {
 
         Log.i(TAG, "Sessão de ${MascaraSensivel.email(sessao.email)} expirou: é preciso entrar de novo")
         AppConfig.limparSessao(context)
+        // Quem descobriu pode ser a leitura do gatilho (outra thread): a tela aberta vai para o login na hora
+        avisarOuvintes()
         return null
     }
 
     fun token(context: Context): String? = get(context)?.token
 
-    // Telas abertas (AvisoSessao) que querem saber na hora que a sessão foi encerrada pelo servidor
+    // Telas abertas (AvisoSessao) que querem saber na hora que a sessão acabou (encerrada pelo servidor ou vencida)
     private val ouvintes = CopyOnWriteArraySet<() -> Unit>()
 
     fun ouvirEncerramento(ouvinte: () -> Unit) { ouvintes += ouvinte }
@@ -72,6 +74,11 @@ object SessaoAtual {
      */
     fun encerrarPeloServidor(context: Context, token: String, motivoServidor: String): Boolean {
         if (!AppConfig.encerrarSessaoRecusada(context, token, motivoServidor)) return false
+        avisarOuvintes()
+        return true
+    }
+
+    private fun avisarOuvintes() {
         ouvintes.forEach { ouvinte ->
             try {
                 ouvinte()
@@ -79,6 +86,5 @@ object SessaoAtual {
                 Log.e(TAG, "Falha ao avisar uma tela do fim da sessão", e)
             }
         }
-        return true
     }
 }

@@ -657,11 +657,15 @@ class InventarioActivity : AppCompatActivity() {
     private fun abrir(local: String) {
         repositorio.abrir(local) { ok ->
             runOnUiThread {
-                if (ok) {
-                    lembrarLocal(local)
-                    edtLocal.setText("")
-                } else {
-                    Toast.makeText(this, R.string.inventario_em_andamento, Toast.LENGTH_LONG).show()
+                when {
+                    ok -> {
+                        lembrarLocal(local)
+                        edtLocal.setText("")
+                    }
+                    isFinishing || isDestroyed -> Unit
+                    // Sessão venceu: vai para o login (antes dizia "Já existe um inventário em andamento")
+                    SessaoAtual.get(this) == null -> exigirSessao()
+                    else -> Toast.makeText(this, R.string.inventario_em_andamento, Toast.LENGTH_LONG).show()
                 }
             }
         }

@@ -39,7 +39,11 @@ class AvisoSessao(
 
     private var dialogo: AlertDialog? = null
 
-    private val laco = LacoConferencia(Handler(Looper.getMainLooper()), INTERVALO_MS) { verificar() }
+    // Confere a cada 30 s e também logo depois do fim exato da sessão: antes, por até 30 s depois de vencer, o gatilho
+    // era ignorado sem aviso (as leituras sem operador são descartadas) e o Iniciar do inventário dizia "em andamento"
+    private val laco = LacoConferencia(Handler(Looper.getMainLooper()), INTERVALO_MS, proximaEm = {
+        PoliticaAvisoSessao.esperaAteConferir(AppConfig.getSessao(activity)?.expiraEm, System.currentTimeMillis(), INTERVALO_MS)
+    }) { verificar() }
 
     // Sessão encerrada pelo servidor durante a sincronização (outra thread): confere na hora, sem esperar os 30 s.
     // Sem isso o operador seguia lendo até a próxima conferência, e as leituras eram ignoradas sem aviso
@@ -127,6 +131,8 @@ class AvisoSessao(
     internal class LacoConferencia(
         private val handler: Handler,
         private val intervaloMs: Long,
+        /** Espera até a próxima conferência (ex.: menos que [intervaloMs] quando a sessão vence antes). */
+        private val proximaEm: () -> Long = { intervaloMs },
         private val conferir: () -> Unit
     ) {
         @Volatile
@@ -138,7 +144,7 @@ class AvisoSessao(
                 // Pedido do conferirJa (outra thread) que chegou depois do parar(): a tela já não acompanha a sessão
                 if (!ativo) return
                 conferir()
-                if (ativo) handler.postDelayed(this, intervaloMs)
+                if (ativo) handler.postDelayed(this, proximaEm())
             }
         }
 

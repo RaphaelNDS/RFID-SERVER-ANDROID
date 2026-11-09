@@ -68,4 +68,16 @@ class AvisoSessaoTest {
         assertEquals(1, conferencias)
         assertFalse(laco.ativo)
     }
+
+    @Test
+    fun `proxima conferencia pode vir antes do intervalo quando a sessao vence antes`() {
+        var conferencias = 0
+        val laco = AvisoSessao.LacoConferencia(handler, 30_000, proximaEm = { 5_000 }) { conferencias++ }
+
+        laco.iniciar()
+        passar(1)
+        passar(5)
+        assertEquals(2, conferencias)
+        laco.parar()
+    }
 }
