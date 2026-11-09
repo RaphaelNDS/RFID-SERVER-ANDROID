@@ -1,5 +1,6 @@
 package com.example.rfid_server.activities
 
+import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -335,6 +336,33 @@ class CadastroTagActivity : AppCompatActivity() {
         if (epc != intent.getStringExtra(EXTRA_EPC)) outState.putString(ESTADO_EPC_GRAVADO, epc)
     }
 
+    // ================= CADASTRO EM SEQUÊNCIA =================
+
+    /**
+     * Cadastro guardado: se ainda há etiquetas não cadastradas na fila (vindas da aba, depois desta), pergunta se
+     * cadastra a próxima, sem voltar para a lista (implantação, quando quase tudo é novo). Senão, fecha como antes.
+     */
+    private fun concluir() {
+        val fila = intent.getStringArrayListExtra(EXTRA_FILA).orEmpty().filter { it != epc }
+        if (fila.isEmpty()) return finish()
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.cadastro_proxima_titulo)
+            .setMessage(getString(R.string.cadastro_proxima_mensagem, fila.size, fila.first()))
+            .setPositiveButton(R.string.cadastro_proxima) { _, _ ->
+                Log.i(TAG, "Cadastro em sequência: próxima etiqueta ${fila.first()} (${fila.size - 1} depois dela)")
+                startActivity(
+                    Intent(this, CadastroTagActivity::class.java)
+                        .putExtra(EXTRA_EPC, fila.first())
+                        .putStringArrayListExtra(EXTRA_FILA, ArrayList(fila.drop(1)))
+                )
+                finish()
+            }
+            .setNegativeButton(R.string.cadastro_parar) { _, _ -> finish() }
+            .setOnCancelListener { finish() }
+            .show()
+    }
+
     // ================= GRAVAR O CÓDIGO DA EMPRESA NA ETIQUETA =================
 
     private fun confirmarGravacao() {
@@ -478,7 +506,7 @@ class CadastroTagActivity : AppCompatActivity() {
                 when (val resultado = RepositorioCadastros.resultadoEnvio(atual)) {
                     RepositorioCadastros.ResultadoEnvio.Enviado -> {
                         Toast.makeText(this, R.string.cadastro_enviado, Toast.LENGTH_LONG).show()
-                        finish()
+                        concluir()
                     }
 
                     // Fica no formulário com o motivo, para corrigir e salvar de novo
@@ -496,14 +524,14 @@ class CadastroTagActivity : AppCompatActivity() {
                         Log.i(TAG, "Cadastro de $epcGuardado guardado e não enviado agora: ${motivo ?: "sem motivo"}")
                         if (motivo == null) Toast.makeText(this, R.string.cadastro_sem_conexao, Toast.LENGTH_LONG).show()
                         else Toast.makeText(this, getString(R.string.cadastro_nao_enviado, motivo), Toast.LENGTH_LONG).show()
-                        finish()
+                        concluir()
                     }
 
                     RepositorioCadastros.ResultadoEnvio.Aguardando ->
                         if (SystemClock.elapsedRealtime() - inicio >= ESPERA_ENVIO_MS) {
                             Log.i(TAG, "Envio do cadastro de $epcGuardado não terminou em ${ESPERA_ENVIO_MS / 1000} s: segue em segundo plano")
                             Toast.makeText(this, R.string.cadastro_guardado, Toast.LENGTH_LONG).show()
-                            finish()
+                            concluir()
                         } else {
                             espera.postDelayed({ aguardarEnvio(epcGuardado, inicio) }, INTERVALO_CONSULTA_MS)
                         }
@@ -693,6 +721,9 @@ class CadastroTagActivity : AppCompatActivity() {
 
     companion object {
         const val EXTRA_EPC = "epc"
+
+        /** Etiquetas não cadastradas que vêm depois desta (cadastro em sequência). */
+        const val EXTRA_FILA = "fila"
         private const val TAG = "CADASTRO"
         private const val AVISO_RECUSA = "recusa"
         private const val ESTADO_TIPO = "tipo"

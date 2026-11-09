@@ -14,7 +14,10 @@ import com.example.rfid_server.R
  * Aba "Leitura": etiquetas cadastradas (cartão com o patrimônio em destaque e os dados do equipamento embaixo) e,
  * em estilo discreto, as lidas que ainda esperam o servidor identificar (coletor sem rede).
  */
-class TagAdapter : ListAdapter<ItemLeitura, RecyclerView.ViewHolder>(Diferenca { it.chave }) {
+class TagAdapter(
+    /** Toque numa etiqueta cadastrada: abre a ficha do bem. */
+    private val aoTocar: (com.example.rfid_server.view.TagView) -> Unit = {}
+) : ListAdapter<ItemLeitura, RecyclerView.ViewHolder>(Diferenca { it.chave }) {
 
     class VH(view: View) : RecyclerView.ViewHolder(view) {
         val txtPatrimonio: TextView = view.findViewById(R.id.txtPatrimonio)
@@ -42,6 +45,7 @@ class TagAdapter : ListAdapter<ItemLeitura, RecyclerView.ViewHolder>(Diferenca {
 
             is ItemLeitura.Cadastrada -> {
                 val h = holder as VH
+                h.itemView.setOnClickListener { aoTocar(item.tag) }
                 val linhas = ItemLeitura.LinhasTag.de(item.tag)
 
                 // Linha 1: patrimônio em destaque (é o número que o operador confere na plaqueta)

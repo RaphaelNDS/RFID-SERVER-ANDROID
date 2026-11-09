@@ -9,6 +9,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.rfid_server.MainViewModel
 import com.example.rfid_server.R
+import com.example.rfid_server.activities.FichaBem
 import com.example.rfid_server.adapter.TagAdapter
 
 // Só exibe: quem recebe a leitura e consulta o servidor é a MainActivity.
@@ -21,7 +22,9 @@ class FragmentLeitura : Fragment(R.layout.frag_leitura) {
         recycler.layoutManager = LinearLayoutManager(requireContext())
         val vazio = v.findViewById<View>(R.id.txtVazioLeitura)
 
-        val adapter = TagAdapter()
+        val adapter = TagAdapter { tag ->
+            (activity as? androidx.appcompat.app.AppCompatActivity)?.let { FichaBem.mostrar(it, tag) }
+        }
         recycler.adapter = adapter
 
         val viewModel = ViewModelProvider(requireActivity()).get(MainViewModel::class.java)
