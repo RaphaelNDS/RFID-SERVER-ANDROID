@@ -97,6 +97,10 @@ class FakeLeituraDao(vararg iniciais: LeituraEntity) : LeituraDao {
     override fun marcarEnviada(id: Long) =
         alterar(id) { it.copy(envioConcluido = true, ultimoErro = null) }
 
+    override fun desistirDaClassificacao(id: Long, erro: String) = alterar(id) {
+        if (it.situacao == Situacao.PENDENTE) it.copy(situacao = Situacao.ERRO, ultimoErro = erro) else it
+    }
+
     override fun registrarErro(id: Long, erro: String) =
         alterar(id) { it.copy(ultimoErro = erro) }
 

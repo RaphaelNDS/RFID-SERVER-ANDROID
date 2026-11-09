@@ -50,6 +50,13 @@ interface LeituraDao {
     @Query("UPDATE leituras SET envioConcluido = 1, ultimoErro = NULL WHERE id = :id")
     fun marcarEnviada(id: Long)
 
+    /**
+     * Leitura que o servidor já registrou (envioConcluido) mas cuja consulta da etiqueta foi recusada de vez: sai da fila
+     * sem virar "recusada" (não aparece em Recusadas nem gera aviso de envio recusado, porque a leitura chegou).
+     */
+    @Query("UPDATE leituras SET situacao = 'ERRO', ultimoErro = :erro WHERE id = :id AND situacao = 'PENDENTE'")
+    fun desistirDaClassificacao(id: Long, erro: String)
+
     @Query("UPDATE leituras SET ultimoErro = :erro WHERE id = :id")
     fun registrarErro(id: Long, erro: String)
 

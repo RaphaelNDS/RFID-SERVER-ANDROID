@@ -1,6 +1,7 @@
 package com.example.rfid_server.sincronizacao
 
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
+import com.example.rfid_server.erros.TipoErro
 import com.example.rfid_server.api.HttpClient
 import com.example.rfid_server.dados.FakeLeituraDao
 import com.example.rfid_server.dados.LeituraEntity
@@ -551,6 +552,35 @@ class SincronizadorTest {
             assertFalse(it.envioConcluido)
             assertNotNull(it.ultimoErro)
         }
+    }
+
+    @Test(timeout = 10_000)
+    fun `erro do servidor num lote nao impede o lote do outro operador`() {
+        dao.inserir(LeituraEntity(epc = "E1", lidoEm = 0, sessaoOperador = "sessao-ana"))
+        dao.inserir(LeituraEntity(epc = "E2", lidoEm = 0, sessaoOperador = "sessao-bruno"))
+        servidor.enqueue(json(500))
+        servidor.enqueue(lote(noLote(0, "E2", "NAO_CADASTRADA")))
+
+        val estado = sincronizador().processarPendentes()
+
+        assertEquals(EstadoSincronizacao.ERRO_SERVIDOR, estado)
+        assertEquals(1, novasTentativasAgendadas)
+        assertFalse("Lote com erro fica na fila", dao.porEpc("E1").envioConcluido)
+        assertTrue("O outro lote foi enviado", dao.porEpc("E2").envioConcluido)
+    }
+
+    @Test(timeout = 10_000)
+    fun `leitura ja registrada pelo lote nao vira recusada se a consulta da etiqueta for recusada`() {
+        dao.inserir(LeituraEntity(epc = "E1", lidoEm = 0, sessaoOperador = "sessao-ana", envioConcluido = true))
+        servidor.enqueue(json(400, """{"status":400,"mensagem":"Pedido inválido"}"""))
+
+        sincronizador().processarPendentes()
+
+        with(dao.porEpc("E1")) {
+            assertEquals(Situacao.ERRO, situacao)
+            assertFalse("Não vai para Recusadas", recusada)
+        }
+        assertTrue("Sem aviso de envio recusado", errosRegistrados.none { it.first == TipoErro.ENVIO_RECUSADO })
     }
 
     @Test(timeout = 10_000)

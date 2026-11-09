@@ -58,26 +58,41 @@ object RegistroErros {
         }
     }
 
-    /** Um envio da [fila] (separado do Context para os testes). */
+    /**
+     * Envia a [fila] (separado do Context para os testes): lote a lote, enquanto o servidor aceitar e o lote vier cheio,
+     * até [MAXIMO_LOTES_POR_VEZ] lotes. Antes ia um lote só (50) por passada, e uma fila cheia levava 4 passadas com rede.
+     */
     internal fun enviarPendentes(fila: FilaErros, enviar: (JSONArray) -> RespostaServidor<Unit>) {
+        repeat(MAXIMO_LOTES_POR_VEZ) {
+            if (!enviarUmLote(fila, enviar)) return
+        }
+    }
+
+    internal const val MAXIMO_LOTES_POR_VEZ = 4
+
+    /** Um lote. Devolve true se vale mandar o próximo agora (deu certo e o lote estava cheio). */
+    private fun enviarUmLote(fila: FilaErros, enviar: (JSONArray) -> RespostaServidor<Unit>): Boolean {
         val lote = fila.pendentes()
-        if (lote.length() == 0) return
+        if (lote.length() == 0) return false
+        val cheio = lote.length() >= FilaErros.MAXIMO_POR_ENVIO
 
         // Mesma fila de um envio que acabou de falhar (ex.: início do SincronizacaoWorker e fim da passada): não repete
         if (fila.envioRecenteSemNovidade()) {
             Log.d(TAG, "Erros do app não reenviados agora: o último envio falhou há pouco e nada mudou desde então")
-            return
+            return false
         }
 
-        when (val resposta = enviar(lote)) {
+        return when (val resposta = enviar(lote)) {
             is RespostaServidor.Sucesso -> {
                 // Só o que foi enviado: um erro repetido durante o envio continua na fila com as ocorrências novas
                 val removidos = fila.confirmarEnvio(lote)
                 Log.i(TAG, "$removidos erro(s) do app enviado(s) ao servidor (${fila.quantidade()} ainda guardado(s))")
+                cheio
             }
             RespostaServidor.NaoEncontrado -> {
                 fila.marcarEnvioSemSucesso()
                 Log.d(TAG, "Servidor sem a rota de erros (versão antiga): ${lote.length()} erro(s) continuam guardados")
+                false
             }
             is RespostaServidor.Falha ->
                 if (resposta.motivo == MotivoFalha.REQUISICAO_RECUSADA) {
@@ -85,9 +100,12 @@ object RegistroErros {
                     // a mesma recusa e os mesmos erros travariam a fila para sempre. Descarta e segue com os próximos
                     fila.confirmarEnvio(lote)
                     Log.w(TAG, "Servidor recusou ${lote.length()} erro(s) do app (${resposta.mensagem}): descartados para não travar os outros")
+                    // Não segue com o próximo agora: se a recusa for do servidor (e não destes erros), descartaria a fila toda
+                    false
                 } else {
                     fila.marcarEnvioSemSucesso()
                     Log.d(TAG, "Erros do app não enviados agora (${resposta.mensagem}): ficam guardados para a próxima")
+                    false
                 }
         }
     }

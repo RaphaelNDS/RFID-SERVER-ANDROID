@@ -85,6 +85,7 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
     // No máximo um registro por minuto de cada tipo de falha (o operador pode apertar o gatilho várias vezes seguidas)
     private val agrupadorFalhaLeitura = AgrupadorFalhas()
     private val agrupadorFalhaConfiguracao = AgrupadorFalhas()
+    private val agrupadorFalhaEvento = AgrupadorFalhas()
     private val agrupadorVolta = AgrupadorFalhas()
 
     // Bip de erro do leitor: um só para o app inteiro (o gatilho chega mesmo sem a tela ter um AvisoLeitura próprio)
@@ -133,6 +134,12 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         executor.execute {
             Log.i(TAG, "Reconexão do leitor RFID pedida pelo operador")
             cancelarProximaTentativa()
+            // Conectado mas com o gatilho ou a potência sem configurar: "conectado" não reconfiguraria nada (a falha
+            // ficava na faixa e o gatilho não lia). Solta o leitor para a tentativa conectar e configurar do zero
+            if (conectado && detalheAtual.falhaConfiguracao != null) {
+                Log.i(TAG, "Leitor RFID conectado com falha na configuração: reconectando do zero")
+                liberarSdk()
+            }
             tentativasSemSucesso = 0
             tentarConectar()
         }
@@ -241,6 +248,9 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
             motivoFalhaConexao = motivoDe(e)
             erroFalhaConexao = e
             if (ReconexaoLeitor.deveRegistrar(tentativasSemSucesso + 1)) Log.e(TAG, "Erro ao conectar no leitor RFID", e)
+            // Falhou depois do connect() (ex.: ao ligar os eventos): sem soltar, a próxima tentativa veria "conectado",
+            // mostraria a faixa verde e o gatilho ficaria sem ouvinte
+            liberarSdk()
             false
         }
     }
@@ -309,6 +319,8 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
             val r = reader?.takeIf { it.isConnected } ?: return@execute
             try {
                 definirPotencia(r)
+                // A potência voltou a valer: o aviso de falha dela sai da faixa
+                atualizarDetalhe { d -> d.takeIf { it.falhaConfiguracao?.parte == ParteConfiguracao.POTENCIA }?.copy(falhaConfiguracao = null) ?: d }
             } catch (e: Exception) {
                 Log.e(TAG, "Erro ao mudar a potência do leitor", e)
             }
@@ -564,7 +576,18 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
 
     // ================= EVENTOS DO SDK =================
 
+    // Exceção num evento do SDK subiria para a thread dele: fecharia o app ou mataria o despacho de eventos (leituras
+    // paradas sem aviso). Fica no log e na tela de erros do servidor, e o leitor segue
     override fun eventStatusNotify(e: RfidStatusEvents) {
+        try {
+            tratarStatus(e)
+        } catch (ex: Exception) {
+            Log.e(TAG, "Falha ao tratar um evento do leitor RFID", ex)
+            registrarAgrupado(agrupadorFalhaEvento, "Falha ao tratar um evento do leitor RFID: ${ex.javaClass.simpleName}: ${ex.message}", ex)
+        }
+    }
+
+    private fun tratarStatus(e: RfidStatusEvents) {
 
         // As "constantes" do SDK Zebra são classes comuns (não enum do Java) e não sobrescrevem
         // equals(Object): compara pelo código numérico (ordinal), que não depende do texto do
@@ -657,6 +680,15 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
     }
 
     override fun eventReadNotify(e: RfidReadEvents) {
+        try {
+            tratarLeituras(e)
+        } catch (ex: Exception) {
+            Log.e(TAG, "Falha ao tratar as etiquetas lidas", ex)
+            registrarAgrupado(agrupadorFalhaEvento, "Falha ao tratar as etiquetas lidas: ${ex.javaClass.simpleName}: ${ex.message}", ex)
+        }
+    }
+
+    private fun tratarLeituras(e: RfidReadEvents) {
 
         // Inventário comum: as leituras ficam na fila do SDK (getReadTags). Localização (TagLocationing): a fila vem
         // vazia e a leitura, com a distância, vem anexada ao próprio evento (setAttachTagDataWithReadEvent)

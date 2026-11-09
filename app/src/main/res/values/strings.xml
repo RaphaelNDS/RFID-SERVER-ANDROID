@@ -209,6 +209,7 @@
     <string name="inventario_primeiro">Primeiro inventário: sem lista do esperado</string>
     <string name="inventario_informe_local">Informe o local do inventário</string>
     <string name="inventario_em_andamento">Já existe um inventário em andamento</string>
+    <string name="inventario_ja_finalizado">Este inventário já foi finalizado</string>
     <string name="inventario_finalizar_titulo">Finalizar inventário?</string>
     <string name="inventario_finalizar_mensagem">%1$d etiqueta(s) lida(s) em %2$s. Depois de finalizar, não é possível ler mais neste inventário.</string>
     <string name="inventario_finalizar_faltam">Atenção: faltam %1$d das %2$d etiqueta(s) encontradas no último inventário deste local.</string>
@@ -276,6 +277,7 @@
     <string name="config_chave_fornecida">Fornecida pelo administrador do servidor</string>
     <string name="config_informe_ip">Informe o IP do servidor</string>
     <string name="config_endereco_invalido">Endereço inválido. Use o IP (ex.: 192.168.0.10) ou IP:porta (ex.: 192.168.0.10:8443)</string>
+    <string name="config_chave_invalida">A chave do coletor tem caractere inválido (acento ou espaço especial). Digite a chave de novo, sem colar</string>
     <string name="config_nada_mudou">Nada mudou nas Configurações</string>
     <string name="config_acao_salvar">salvar o servidor e a chave</string>
     <string name="config_salvo_sem_chave">Salvo, mas sem a chave do coletor o servidor recusa as chamadas</string>
