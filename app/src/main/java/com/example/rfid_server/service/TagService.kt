@@ -90,6 +90,16 @@ data class Autoria(val sessao: String?, val momento: Long)
  */
 data class EsperadoBaixado(val esperado: EsperadoLocal?, val etag: String?)
 
+/** Histórico do bem na ficha (campos opcionais do servidor; datas em ISO-8601). */
+data class HistoricoBem(
+    val ultimoLocal: String?,
+    val ultimoInventarioEm: String?,
+    val ultimaLeituraEm: String?,
+    val ultimaLeituraPor: String?
+) {
+    val vazio: Boolean get() = ultimoLocal == null && ultimoInventarioEm == null && ultimaLeituraEm == null
+}
+
 /** Resultado de uma leitura enviada em lote (POST /api/android/leituras/lote). */
 enum class StatusLote {
     CADASTRADA,
@@ -311,6 +321,26 @@ class TagService internal constructor(
      * Dados de uma tag cadastrada (consulta da tag e lote). Campos obrigatórios que faltarem ou vierem null ficam
      * vazios: no Android, getString de um null devolve o texto "null", e um campo faltando derrubaria a resposta toda.
      */
+    /**
+     * Histórico do bem para a ficha (GET /api/android/tags/{epc}): campos opcionais que o servidor pode mandar
+     * (ultimoLocal, ultimoInventarioEm, ultimaLeituraEm, ultimaLeituraPor). Servidor que não manda = ficha só com o
+     * cadastro. NaoEncontrado = etiqueta não cadastrada.
+     */
+    fun buscarHistorico(epc: String, callback: (RespostaServidor<HistoricoBem>) -> Unit) {
+        val url = url("tags", epc) ?: return callback(falhaEndereco())
+        val descricao = "buscar a ficha da tag $epc"
+        enfileirar(Request.Builder().url(url).get().build(), descricao, callback) {
+            interpretarConsulta(it, descricao) { json ->
+                HistoricoBem(
+                    ultimoLocal = json.optStringOrNull("ultimoLocal")?.ifBlank { null },
+                    ultimoInventarioEm = json.optStringOrNull("ultimoInventarioEm")?.ifBlank { null },
+                    ultimaLeituraEm = json.optStringOrNull("ultimaLeituraEm")?.ifBlank { null },
+                    ultimaLeituraPor = json.optStringOrNull("ultimaLeituraPor")?.ifBlank { null }
+                )
+            }
+        }
+    }
+
     private fun tagDoJson(epc: String, json: JSONObject) = TagView(
         epc = epc,
         codigoInterno = json.optStringOrNull("codigoInterno").orEmpty(),

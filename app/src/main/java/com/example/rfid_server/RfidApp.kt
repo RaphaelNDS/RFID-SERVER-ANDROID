@@ -26,6 +26,8 @@ class RfidApp : Application() {
         }
 
         aquecerSegredos()
+        // Leitor de código de barras entregando ao app (ver CodigoDeBarras); sem DataWedge, não faz nada
+        CodigoDeBarras.configurarPerfil(this)
     }
 
     /**

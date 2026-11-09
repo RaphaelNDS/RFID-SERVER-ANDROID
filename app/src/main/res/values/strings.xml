@@ -158,6 +158,27 @@
     <string name="cadastro_completar">Completar</string>
     <string name="cadastro_enviando">Enviando ao servidor…</string>
     <string name="cadastro_enviado">Etiqueta cadastrada</string>
+    <string name="ficha_titulo">Patrimônio %1$s</string>
+    <string name="ficha_buscando">Buscando o histórico no servidor…</string>
+    <string name="ficha_sem_historico">Sem histórico do servidor (sem conexão ou servidor sem essa informação).</string>
+    <string name="ficha_codigo_interno">Código interno: %1$s</string>
+    <string name="ficha_serie">Nº de série: %1$s</string>
+    <string name="ficha_etiqueta">Etiqueta: %1$s</string>
+    <string name="ficha_ultimo_local">Último local: %1$s (inventário de %2$s)</string>
+    <string name="ficha_ultima_leitura">Última leitura: %1$s, por %2$s</string>
+    <string name="ficha_localizar">Localizar</string>
+    <string name="ficha_fechar">Fechar</string>
+    <string name="cadastro_proxima_titulo">Cadastrar a próxima?</string>
+    <string name="cadastro_proxima_mensagem">Ainda há %1$d etiqueta(s) não cadastrada(s) nesta leitura. A próxima é %2$s.</string>
+    <string name="cadastro_proxima">Próxima</string>
+    <string name="cadastro_parar">Parar</string>
+    <string name="cadastro_gravar_codigo">Gravar código da empresa na etiqueta</string>
+    <string name="cadastro_gravar_falta_patrimonio">Preencha o patrimônio antes: o código gravado na etiqueta sai dele</string>
+    <string name="cadastro_gravar_titulo">Gravar a etiqueta?</string>
+    <string name="cadastro_gravar_mensagem">A etiqueta %1$s vai passar a ter o código %2$s (empresa + patrimônio %3$s).\n\nDeixe só esta etiqueta perto do coletor durante a gravação.</string>
+    <string name="cadastro_gravar_confirmar">Gravar</string>
+    <string name="cadastro_gravando">Gravando a etiqueta…</string>
+    <string name="cadastro_gravada">Etiqueta gravada com o código da empresa. Agora salve o cadastro.</string>
     <string name="cadastro_sem_conexao">Sem conexão com o servidor: o cadastro ficou guardado no coletor e será enviado quando a conexão voltar</string>
     <string name="cadastro_nao_enviado">Não foi enviado agora (%1$s): o cadastro ficou guardado no coletor e será enviado depois, sozinho</string>
     <string name="cadastro_guardado">Cadastro guardado: será enviado ao servidor</string>
@@ -266,6 +287,12 @@
     <string name="config_aviso_leitura">Bip e vibração a cada etiqueta nova</string>
     <string name="config_potencia">Potência do leitor</string>
     <string name="config_potencia_explicacao">Menos potência lê só as etiquetas mais próximas (útil para não pegar as da sala ao lado) e gasta menos bateria.</string>
+    <string name="config_alcance">Alcance da leitura</string>
+    <string name="config_alcance_todas">Sem limite (lê tudo o que a potência alcança)</string>
+    <string name="config_alcance_medio">Médio: ignora etiquetas distantes</string>
+    <string name="config_alcance_curto">Curto: só etiquetas bem perto</string>
+    <string name="config_so_empresa">Ler só etiquetas da empresa (gravadas pelo coletor)</string>
+    <string name="config_filtros_explicacao">Use o alcance para não ler a sala vizinha através da parede. \"Só etiquetas da empresa\" ignora crachás e embalagens, mas também as etiquetas antigas, que não foram gravadas pelo coletor. O Localizar não usa estes filtros.</string>
     <string name="config_potencia_maxima" formatted="false">Máxima (100%)</string>
     <string name="config_potencia_alta" formatted="false">Alta (75%)</string>
     <string name="config_potencia_media" formatted="false">Média (50%)</string>
@@ -282,6 +309,7 @@
     <string name="config_acao_salvar">salvar o servidor e a chave</string>
     <string name="config_salvo_sem_chave">Salvo, mas sem a chave do coletor o servidor recusa as chamadas</string>
     <string name="config_salvas">Configurações salvas!</string>
+    <string name="config_qr_lido">Configuração lida do QR: confira o servidor e toque em Salvar</string>
     <string name="config_status_nao_configurado">Servidor: não configurado. Informe o IP do servidor e a chave do coletor e toque em Salvar</string>
     <string name="config_status_testando">Servidor: testando...</string>
     <string name="config_status_conectado">Servidor: conectado com segurança (HTTPS) ✅</string>

@@ -1,5 +1,7 @@
 package com.example.rfid_server.activities
 
+import com.example.rfid_server.CodigoDeBarras
+import com.example.rfid_server.ConfigQr
 import com.example.rfid_server.api.RelogioServidor
 import com.example.rfid_server.erros.MascaraSensivel
 import android.content.Intent
@@ -147,6 +149,14 @@ class MainActivity : AppCompatActivity() {
         inventarios.inventarioAberto.observe(this) { inventarioEmAndamento = it?.local }
 
         limitarBlocoDeAvisos()
+
+        // Plaqueta de patrimônio lida na tela principal: abre o Localizar já buscando o bem
+        CodigoDeBarras.ouvir(this) { codigo ->
+            if (ConfigQr.ler(codigo) != null) return@ouvir true // QR de configuração: só nas Configurações
+            Log.i(TAG, "Código de barras na tela principal: abrindo o Localizar do patrimônio $codigo")
+            startActivity(Intent(this, LocalizarActivity::class.java).putExtra(LocalizarActivity.EXTRA_PATRIMONIO, codigo))
+            true
+        }
     }
 
     /** Título da aba com a quantidade da lista ("Leitura (12)"); só o rótulo enquanto a lista não carregou. */

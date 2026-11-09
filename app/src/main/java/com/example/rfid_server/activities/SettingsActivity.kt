@@ -16,6 +16,9 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.example.rfid_server.AppConfig
+import com.example.rfid_server.CodigoDeBarras
+import com.example.rfid_server.ConfigQr
+import com.example.rfid_server.FiltroLeitura
 import com.example.rfid_server.R
 import com.example.rfid_server.RfidManager
 import com.example.rfid_server.VersaoApp
@@ -43,6 +46,8 @@ class SettingsActivity : AppCompatActivity() {
     private var testeAtual = 0
     // Um pedido de confiança no certificado por vez (Testar várias vezes empilhava os diálogos)
     private var dialogoCertificado: AlertDialog? = null
+    // Impressão digital do certificado vinda do QR de configuração, confirmada ao salvar
+    private var impressaoDoQr: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -81,12 +86,24 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         configurarPotencia()
+        configurarFiltros()
 
         testarServidor()
 
         btnTestar.setOnClickListener { testarDigitado() }
 
         btnSalvar.setOnClickListener { if (CliqueUnico.permitir()) salvar() }
+
+        // QR de configuração (tela Coletores do servidor): preenche servidor e chave; o responsável confere e salva com o PIN
+        CodigoDeBarras.ouvir(this) { codigo ->
+            val config = ConfigQr.ler(codigo) ?: return@ouvir false
+            edtIp.setText(config.servidor)
+            edtChave.setText(config.chave)
+            impressaoDoQr = config.impressaoDigital
+            Log.i(TAG, "QR de configuração lido: servidor ${config.servidor}" + if (config.impressaoDigital != null) ", com o certificado" else "")
+            Toast.makeText(this, R.string.config_qr_lido, Toast.LENGTH_LONG).show()
+            true
+        }
     }
 
     private fun mostrarSituacaoChave() {
@@ -119,7 +136,8 @@ class SettingsActivity : AppCompatActivity() {
         // Campo da chave em branco = manter a salva
         val chave = chaveDigitada.ifEmpty { AppConfig.getChaveDispositivo(this) }
 
-        if (ip == anterior && chave == AppConfig.getChaveDispositivo(this) && AppConfig.temPin(this)) {
+        val certificadoNovo = impressaoDoQr != null && impressaoDoQr != AppConfig.getImpressaoDigital(this)
+        if (ip == anterior && chave == AppConfig.getChaveDispositivo(this) && AppConfig.temPin(this) && !certificadoNovo) {
             Toast.makeText(this, R.string.config_nada_mudou, Toast.LENGTH_SHORT).show()
             edtChave.text = null
             Sincronizador.get(this).solicitar()
@@ -131,6 +149,13 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun gravar(ip: String, chave: String, anterior: String) {
+        // Certificado vindo do QR de configuração (lido do próprio servidor, pelo ADMIN): confirmado junto, com o mesmo PIN
+        impressaoDoQr?.let { impressao ->
+            AppConfig.saveImpressaoDigital(this, impressao)
+            Log.i(TAG, "Certificado do servidor confirmado pelo QR de configuração: $impressao")
+            impressaoDoQr = null
+            mostrarCertificadoConfirmado()
+        }
         AppConfig.saveServerIp(this, ip)
         AppConfig.saveChaveDispositivo(this, chave)
         edtChave.text = null
@@ -153,6 +178,34 @@ class SettingsActivity : AppCompatActivity() {
         Sincronizador.get(this).solicitar()
 
         testarServidor()
+    }
+
+    /** Alcance mínimo e "só etiquetas da empresa" (FiltroLeitura). Mudam na hora, sem Salvar e sem PIN, como a potência. */
+    private fun configurarFiltros() {
+        val textos = listOf(R.string.config_alcance_todas, R.string.config_alcance_medio, R.string.config_alcance_curto)
+        val spinner = findViewById<Spinner>(R.id.spnAlcance)
+        val atual = FiltroLeitura.ALCANCES.indexOf(AppConfig.getRssiMinimo(this)).coerceAtLeast(0)
+        spinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, textos.map { getString(it) })
+        spinner.setSelection(atual, false)
+        spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val minimo = FiltroLeitura.ALCANCES[position]
+                if (minimo == AppConfig.getRssiMinimo(this@SettingsActivity)) return
+                AppConfig.setRssiMinimo(this@SettingsActivity, minimo)
+                RfidManager.get(this@SettingsActivity).aplicarFiltros()
+                Log.i(TAG, "Alcance da leitura mudado pelo operador para ${getString(textos[position])}")
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+
+        findViewById<CheckBox>(R.id.chkSoEmpresa).apply {
+            isChecked = AppConfig.isSoEtiquetasEmpresa(this@SettingsActivity)
+            setOnCheckedChangeListener { _, ligado ->
+                AppConfig.setSoEtiquetasEmpresa(this@SettingsActivity, ligado)
+                RfidManager.get(this@SettingsActivity).aplicarFiltros()
+            }
+        }
     }
 
     /** Potência do leitor (% da máxima). Muda na hora, sem o botão Salvar e sem PIN, como o bip. */

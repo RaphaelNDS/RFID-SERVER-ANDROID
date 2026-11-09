@@ -15,6 +15,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.isVisible
 import com.example.rfid_server.AppConfig
+import com.example.rfid_server.CodigoDeBarras
 import com.example.rfid_server.R
 import com.example.rfid_server.SessaoAtual
 import com.example.rfid_server.VersaoApp
@@ -68,6 +69,8 @@ class LoginActivity : AppCompatActivity() {
         aviso?.let { mostrarErro(it) }
 
         btnEntrar.setOnClickListener { entrar() }
+        // Código de barras (ex.: crachá com o email): no campo com foco, como o teclado fazia. A senha nunca recebe
+        CodigoDeBarras.ouvir(this) { false }
         // Concluir do teclado na tela ou Enter do teclado físico do MC3300x (chega como IME_NULL com KEYCODE_ENTER):
         // entra. Mesma regra dos campos dos diálogos (o Enter solto depois é só consumido)
         edtSenha.setOnEditorActionListener { _, acao, evento ->

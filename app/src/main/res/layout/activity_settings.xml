@@ -146,6 +146,36 @@
                         android:layout_marginTop="8dp"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"/>
+
+                    <!-- Filtros do gatilho (FiltroLeitura): valem na hora, como a potência; o Localizar não usa -->
+                    <TextView
+                        android:text="@string/config_alcance"
+                        android:textAppearance="@style/Texto.RFID.Secundario"
+                        android:layout_marginTop="12dp"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"/>
+
+                    <Spinner
+                        android:id="@+id/spnAlcance"
+                        android:background="@drawable/campo_contorno"
+                        android:minHeight="52dp"
+                        android:layout_marginTop="4dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"/>
+
+                    <CheckBox
+                        android:id="@+id/chkSoEmpresa"
+                        android:text="@string/config_so_empresa"
+                        android:layout_marginTop="8dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"/>
+
+                    <TextView
+                        android:text="@string/config_filtros_explicacao"
+                        android:textAppearance="@style/Texto.RFID.Secundario"
+                        android:layout_marginTop="4dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"/>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

@@ -35,11 +35,42 @@ class AvisoLeitura(context: Context) {
     // Segundo bip do [erro]
     private val principal = Handler(Looper.getMainLooper())
 
-    fun tagNova() {
+    /**
+     * Tipo da etiqueta nova, para o som dizer a situação sem o operador olhar a tela (com luva, andando):
+     * [NORMAL] bip agudo curto; [FORA_DA_LISTA] (inventário com lista do esperado e a etiqueta não está nela) dois bips
+     * e vibração mais longa.
+     */
+    enum class Tipo { NORMAL, FORA_DA_LISTA }
+
+    fun tagNova(tipo: Tipo = Tipo.NORMAL) {
         if (!AppConfig.isAvisoLeitura(appContext)) return
         if (!limitador.liberar()) return
 
-        bip(DURACAO_BIP_MS, DURACAO_VIBRACAO_MS)
+        when (tipo) {
+            Tipo.NORMAL -> bip(DURACAO_BIP_MS, DURACAO_VIBRACAO_MS)
+            Tipo.FORA_DA_LISTA -> {
+                tom(ToneGenerator.TONE_PROP_BEEP2, DURACAO_FORA_DA_LISTA_MS)
+                vibrar(DURACAO_VIBRACAO_FORA_DA_LISTA_MS)
+            }
+        }
+    }
+
+    /** Todas as etiquetas esperadas do local foram encontradas: tom de confirmação (toca mesmo com o bip desligado). */
+    fun concluido() {
+        tom(ToneGenerator.TONE_PROP_ACK, DURACAO_CONCLUIDO_MS)
+        try {
+            vibrador?.vibrate(VibrationEffect.createWaveform(VIBRACAO_CONCLUIDO, -1))
+        } catch (e: RuntimeException) {
+            Log.d(TAG, "Vibração de conclusão não emitida: ${e.message}")
+        }
+    }
+
+    private fun tom(tipo: Int, duracaoMs: Int) {
+        try {
+            som?.startTone(tipo, duracaoMs)
+        } catch (e: RuntimeException) {
+            Log.d(TAG, "Som não emitido: ${e.message}")
+        }
     }
 
     /** Toca o bip por [duracaoTomMs] e vibra por [duracaoVibracaoMs], sem olhar o ajuste "aviso a cada etiqueta nova". */
@@ -111,5 +142,13 @@ class AvisoLeitura(context: Context) {
         private const val DURACAO_BIP_ERRO_MS = 120
         private const val INTERVALO_BIPS_ERRO_MS = 220L
         private val VIBRACAO_ERRO = longArrayOf(0, 120, 100, 120)
+
+        // Fora da lista do inventário: bip duplo (TONE_PROP_BEEP2) e vibração mais longa que a de etiqueta esperada
+        private const val DURACAO_FORA_DA_LISTA_MS = 160
+        private const val DURACAO_VIBRACAO_FORA_DA_LISTA_MS = 120L
+
+        // Todas encontradas: tom de confirmação (TONE_PROP_ACK) e três vibrações curtas
+        private const val DURACAO_CONCLUIDO_MS = 400
+        private val VIBRACAO_CONCLUIDO = longArrayOf(0, 80, 80, 80, 80, 80)
     }
 }
