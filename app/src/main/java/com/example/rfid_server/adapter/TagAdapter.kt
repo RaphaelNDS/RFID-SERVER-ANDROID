@@ -47,7 +47,7 @@ class TagAdapter : ListAdapter<ItemLeitura, RecyclerView.ViewHolder>(Diferenca {
                 // Linha 1: patrimônio em destaque (é o número que o operador confere na plaqueta)
                 if (linhas.patrimonio != null) {
                     h.txtPatrimonio.text = ctx.getString(R.string.tag_patrimonio, linhas.patrimonio)
-                    h.txtPatrimonio.setTextColor(ContextCompat.getColor(ctx, R.color.marinho))
+                    h.txtPatrimonio.setTextColor(ContextCompat.getColor(ctx, R.color.primaria))
                     h.txtPatrimonio.setTypeface(null, Typeface.BOLD)
                 } else {
                     h.txtPatrimonio.setText(R.string.tag_sem_patrimonio)

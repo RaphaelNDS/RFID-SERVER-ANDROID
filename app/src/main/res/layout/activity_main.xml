@@ -68,7 +68,7 @@
 
                         <TextView
                             android:id="@+id/txtNumLidas"
-                            android:textColor="@color/marinho"
+                            android:textColor="@color/primaria"
                             android:textSize="24sp"
                             android:textStyle="bold"
                             android:includeFontPadding="false"
@@ -219,7 +219,7 @@
                     android:id="@+id/btnEnviarAgora"
                     style="@style/Widget.RFID.Botao.Texto"
                     android:text="@string/main_enviar_agora"
-                    android:textColor="@color/marinho"
+                    android:textColor="@color/primaria"
                     android:textStyle="bold"
                     android:minHeight="48dp"
                     android:layout_marginStart="4dp"

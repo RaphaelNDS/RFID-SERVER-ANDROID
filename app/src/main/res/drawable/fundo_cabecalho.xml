@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cabeçalho do login: degradê da cor principal para a escura (o texto branco fica com ≥ 6,7:1 nas duas pontas) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <gradient
+        android:angle="315"
+        android:startColor="@color/primaria"
+        android:endColor="@color/primaria_escura"/>
+</shape>

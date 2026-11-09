@@ -19,7 +19,7 @@
         <!-- "Patrimônio 12345" (marinho, negrito) ou "Sem patrimônio" (itálico, cinza): o TagAdapter pinta -->
         <TextView
             android:id="@+id/txtPatrimonio"
-            android:textColor="@color/marinho"
+            android:textColor="@color/primaria"
             android:textSize="18sp"
             android:textStyle="bold"
             android:maxLines="1"

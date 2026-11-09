@@ -1,25 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Paleta corporativa: azul-marinho como cor principal, cinzas neutros e cores de situação suaves -->
-    <color name="marinho">#FF1F3A5F</color>
-    <color name="marinho_escuro">#FF152A45</color>
-    <color name="azul">#FF2E6DA4</color>
-    <color name="azul_claro">#FFE3ECF6</color>
+    <!--
+        Paleta da 1.9.0: azul vivo como cor principal (antes azul-marinho), neutros cinza-azulados e cores de situação
+        com contraste AA (≥ 4,5:1) sobre o fundo claro delas. Tema sempre claro: o coletor trabalha com luz forte.
+    -->
+    <color name="primaria">#FF1D4ED8</color>          <!-- branco sobre ela: 6,7:1 -->
+    <color name="primaria_escura">#FF1E3A8A</color>   <!-- barra de status e navegação -->
+    <color name="secundaria">#FF0E7490</color>        <!-- links e botões de texto: 5,4:1 sobre branco -->
+    <color name="primaria_clara">#FFDBEAFE</color>    <!-- fundos de destaque (containers) -->
 
-    <color name="fundo">#FFF3F5F8</color>
+    <color name="fundo">#FFF1F5F9</color>
     <color name="superficie">#FFFFFFFF</color>
-    <color name="borda">#FFDCE2EA</color>
-    <color name="texto">#FF1C2530</color>
-    <color name="texto_secundario">#FF5B6573</color>
-    <color name="texto_terciario">#FF8A93A0</color>
+    <color name="borda">#FFE2E8F0</color>
+    <color name="texto">#FF0F172A</color>
+    <color name="texto_secundario">#FF475569</color>  <!-- 7,6:1 sobre branco -->
+    <color name="texto_terciario">#FF5B6B7F</color>   <!-- 4,9:1 sobre o fundo, 5,5:1 sobre branco -->
 
     <!-- Situação (leitor, servidor, avisos): texto forte sobre fundo claro -->
-    <color name="sucesso">#FF2E7D32</color>
-    <color name="sucesso_fundo">#FFE8F3EA</color>
-    <color name="atencao">#FF8A5200</color>   <!-- 5,9:1 sobre atencao_fundo (WCAG AA) -->
-    <color name="atencao_fundo">#FFFFF4E0</color>
-    <color name="erro">#FFC62828</color>
-    <color name="erro_fundo">#FFFDECEC</color>
+    <color name="sucesso">#FF15803D</color>           <!-- 4,6:1 sobre sucesso_fundo -->
+    <color name="sucesso_fundo">#FFDCFCE7</color>
+    <color name="atencao">#FF92400E</color>           <!-- 6,4:1 sobre atencao_fundo -->
+    <color name="atencao_fundo">#FFFEF3C7</color>
+    <color name="erro">#FFB91C1C</color>              <!-- 5,3:1 sobre erro_fundo -->
+    <color name="erro_fundo">#FFFEE2E2</color>
 
     <color name="white">#FFFFFFFF</color>
 </resources>
