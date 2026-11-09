@@ -81,7 +81,7 @@
     <string name="main_operador">Até %2$s · %1$s</string>
     <string name="main_aba_leitura">Leitura</string>
     <string name="main_aba_nao_cadastradas">Não cadastradas</string>
-    <string name="main_enviando">Enviando</string>
+    <string name="main_aviso_enviando">Enviando %1$d leitura(s) guardada(s) no coletor</string>
     <string name="main_aviso_sincronizacao">%1$s — %2$d leitura(s) guardada(s) no coletor, aguardando envio</string>
     <string name="main_nova_leitura">Nova leitura</string>
     <string name="main_menu_recusadas">Leituras recusadas</string>
@@ -214,7 +214,7 @@
     <string name="inventario_compartilhar">Compartilhar</string>
     <string name="inventario_anteriores">Inventários anteriores</string>
     <string name="inventario_anteriores_vazio">Nenhum inventário finalizado neste coletor ainda</string>
-    <string name="inventario_anterior_linha">%1$s · %2$s · %3$d lida(s)</string>
+    <string name="inventario_anterior_linha">%1$s · %2$s\n%3$d lida(s)</string>
     <string name="inventario_anterior_faltam">faltaram %1$d</string>
     <string name="inventario_anterior_sem_motivo">faltaram %1$d (%2$d sem justificativa)</string>
     <string name="main_buscar_contagem">Mostrando %1$d de %2$d etiqueta(s)</string>
