@@ -108,6 +108,17 @@ class CadastroTagActivity : AppCompatActivity() {
     private var tipoRestaurado: Long? = null
 
     // Habilitado só com alterações não salvas: aí o voltar pergunta "Descartar o cadastro?"
+    // Ligado só durante a gravação da etiqueta (registrado depois do confirmarDescarte, então tem prioridade)
+    private val bloqueioVoltar = object : OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() {
+            Toast.makeText(this@CadastroTagActivity, R.string.cadastro_aguarde_gravacao, Toast.LENGTH_SHORT).show()
+        }
+    }
+    // Gravação que não pôde ser confirmada: o Salvar fica bloqueado até reler a etiqueta
+    private var etiquetaIncerta = false
+    // EPCs com cadastro guardado no coletor (para a fila do cadastro em sequência pular os já feitos)
+    private var epcsComCadastro: Set<String> = emptySet()
+
     private val confirmarDescarte = object : OnBackPressedCallback(false) {
         override fun handleOnBackPressed() = perguntarDescarte()
     }
@@ -123,10 +134,11 @@ class CadastroTagActivity : AppCompatActivity() {
             return
         }
         repositorio = RepositorioCadastros.get(this)
+        repositorio.todos.observe(this) { lista -> epcsComCadastro = lista.mapTo(HashSet()) { it.epc } }
 
         findViewById<TextView>(R.id.txtEpc).text = epc // o título da seção já diz "Etiqueta"
         btnGravarCodigo = findViewById(R.id.btnGravarCodigo)
-        btnGravarCodigo.isVisible = !CodigoEtiqueta.daEmpresa(epc)
+        atualizarBotaoGravar()
         btnGravarCodigo.setOnClickListener { if (CliqueUnico.permitir()) confirmarGravacao() }
         txtAviso = findViewById(R.id.txtAviso)
         edtCodigoInterno = findViewById(R.id.edtCodigoInterno)
@@ -141,6 +153,7 @@ class CadastroTagActivity : AppCompatActivity() {
         // Código de barras: vai para o campo com foco; sem campo com foco, é a plaqueta de patrimônio
         CodigoDeBarras.ouvir(this) { codigo ->
             if (ConfigQr.ler(codigo) != null) return@ouvir true
+            if (gravando) return@ouvir true // no meio da gravação, nenhum campo muda
             if (CodigoDeBarras.noCampoComFoco(this, codigo)) return@ouvir true
             edtPatrimonio.setText(codigo)
             true
@@ -155,6 +168,7 @@ class CadastroTagActivity : AppCompatActivity() {
         }
 
         onBackPressedDispatcher.addCallback(this, confirmarDescarte)
+        onBackPressedDispatcher.addCallback(this, bloqueioVoltar)
         // Seta da barra = botão voltar: com alteração não salva, pergunta "Descartar o cadastro?"
         findViewById<MaterialToolbar>(R.id.barraCadastro).setNavigationOnClickListener {
             onBackPressedDispatcher.onBackPressed()
@@ -162,6 +176,8 @@ class CadastroTagActivity : AppCompatActivity() {
         listOf(edtCodigoInterno, edtPatrimonio, edtNumeroSerie).forEach { campo ->
             campo.doAfterTextChanged { atualizarAlteracoes() }
         }
+        edtPatrimonio.doAfterTextChanged { atualizarBotaoGravar() }
+        atualizarBotaoGravar()
 
         aplicarCatalogo(lerCatalogoGuardado())
         preencherComCadastroGuardado()
@@ -214,7 +230,7 @@ class CadastroTagActivity : AppCompatActivity() {
             !novo.podeCadastrar -> aviso(getString(R.string.cadastro_coletor_sem_permissao))
             else -> if (txtAviso.tag != AVISO_RECUSA) aviso(null)
         }
-        btnSalvar.isEnabled = !salvando && operadorPode && novo?.podeCadastrar == true
+        btnSalvar.isEnabled = !salvando && !gravando && !etiquetaIncerta && operadorPode && novo?.podeCadastrar == true
 
         val tipos = novo?.tipos.orEmpty()
         preencher(spnTipo, tipos.map { Opcao(it.id, it.nome) }, tipoSelecionado)
@@ -343,7 +359,8 @@ class CadastroTagActivity : AppCompatActivity() {
      * cadastra a próxima, sem voltar para a lista (implantação, quando quase tudo é novo). Senão, fecha como antes.
      */
     private fun concluir() {
-        val fila = intent.getStringArrayListExtra(EXTRA_FILA).orEmpty().filter { it != epc }
+        // Fila do momento do toque, sem as que ganharam cadastro no coletor no meio do caminho
+        val fila = intent.getStringArrayListExtra(EXTRA_FILA).orEmpty().filter { it != epc && it !in epcsComCadastro }
         if (fila.isEmpty()) return finish()
 
         AlertDialog.Builder(this)
@@ -366,6 +383,7 @@ class CadastroTagActivity : AppCompatActivity() {
     // ================= GRAVAR O CÓDIGO DA EMPRESA NA ETIQUETA =================
 
     private fun confirmarGravacao() {
+        if (salvando || etiquetaIncerta) return
         if (gravando) return
         val patrimonio = FormularioCadastro.normalizarCodigo(edtPatrimonio.text.toString())
         val novo = CodigoEtiqueta.gerar(patrimonio) ?: run {
@@ -383,7 +401,11 @@ class CadastroTagActivity : AppCompatActivity() {
 
     private fun gravar(novo: String) {
         val anterior = epc
+        // Durante a gravação nada de Salvar nem voltar: salvar no meio cadastraria o código que a etiqueta está deixando
         gravando = true
+        val salvarAntes = btnSalvar.isEnabled
+        btnSalvar.isEnabled = false
+        bloqueioVoltar.isEnabled = true
         btnGravarCodigo.isEnabled = false
         btnGravarCodigo.setText(R.string.cadastro_gravando)
         Log.i(TAG, "Operador pediu para gravar a etiqueta $anterior com o código da empresa $novo")
@@ -392,6 +414,7 @@ class CadastroTagActivity : AppCompatActivity() {
             runOnUiThread {
                 gravando = false
                 if (isFinishing || isDestroyed) return@runOnUiThread
+                bloqueioVoltar.isEnabled = false
                 btnGravarCodigo.isEnabled = true
                 btnGravarCodigo.setText(R.string.cadastro_gravar_codigo)
                 when (resultado) {
@@ -399,16 +422,50 @@ class CadastroTagActivity : AppCompatActivity() {
                         // O cadastro passa a ser do código novo; a leitura antiga (não cadastrada) fica como estava
                         epc = resultado.epc
                         findViewById<TextView>(R.id.txtEpc).text = epc
-                        btnGravarCodigo.isVisible = false
+                        btnSalvar.isEnabled = salvarAntes
+                        atualizarBotaoGravar()
                         Toast.makeText(this, R.string.cadastro_gravada, Toast.LENGTH_LONG).show()
                     }
-                    is RfidManager.ResultadoGravacao.Falhou -> aviso(resultado.mensagem)
+                    is RfidManager.ResultadoGravacao.Falhou -> {
+                        btnSalvar.isEnabled = salvarAntes
+                        aviso(resultado.mensagem)
+                    }
+                    // A etiqueta pode ter mudado: salvar agora poderia cadastrar um código que ela não tem mais
+                    is RfidManager.ResultadoGravacao.Incerta -> {
+                        etiquetaIncerta = true
+                        btnGravarCodigo.isEnabled = false
+                        aviso(resultado.mensagem)
+                    }
                 }
             }
         }
     }
 
+    /**
+     * "Gravar código da empresa" aparece para etiqueta de fábrica e também para etiqueta da empresa cujo código não é o
+     * do patrimônio digitado (ex.: patrimônio corrigido depois da gravação): aí é preciso gravar de novo.
+     */
+    private fun atualizarBotaoGravar() {
+        if (!::btnGravarCodigo.isInitialized || !::edtPatrimonio.isInitialized) return
+        btnGravarCodigo.isVisible = !CodigoEtiqueta.daEmpresa(epc) || codigoDivergente()
+    }
+
+    /** Etiqueta da empresa com o código de outro patrimônio (o que está no campo). */
+    private fun codigoDivergente(): Boolean {
+        if (!CodigoEtiqueta.daEmpresa(epc)) return false
+        val esperado = CodigoEtiqueta.gerar(FormularioCadastro.normalizarCodigo(edtPatrimonio.text.toString())) ?: return false
+        return esperado != epc.uppercase()
+    }
+
     private fun salvar() {
+        if (gravando || etiquetaIncerta) return
+        // Etiqueta gravada com o código de outro patrimônio (o campo foi corrigido depois da gravação): o cadastro e a
+        // etiqueta ficariam com patrimônios diferentes
+        if (codigoDivergente()) {
+            edtPatrimonio.error = getString(R.string.cadastro_codigo_divergente)
+            edtPatrimonio.requestFocus()
+            return
+        }
         // Patrimônio, código interno e série em MAIÚSCULAS (ver FormularioCadastro.normalizarCodigo): o servidor compara
         // o patrimônio com igualdade exata, e o DataWedge/teclado físico gravam como vier
         val codigoInterno = FormularioCadastro.normalizarCodigo(edtCodigoInterno.text.toString())

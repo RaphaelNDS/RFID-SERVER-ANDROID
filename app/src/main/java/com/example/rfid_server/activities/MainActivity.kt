@@ -153,6 +153,8 @@ class MainActivity : AppCompatActivity() {
         // Plaqueta de patrimônio lida na tela principal: abre o Localizar já buscando o bem
         CodigoDeBarras.ouvir(this) { codigo ->
             if (ConfigQr.ler(codigo) != null) return@ouvir true // QR de configuração: só nas Configurações
+            // Gatilho RFID apertado (se o leitor de código de barras disparar junto) ou leitura repetida: não abre de novo
+            if (rfidManager.gatilhoApertado.value == true || !CliqueUnico.permitir()) return@ouvir true
             Log.i(TAG, "Código de barras na tela principal: abrindo o Localizar do patrimônio $codigo")
             startActivity(Intent(this, LocalizarActivity::class.java).putExtra(LocalizarActivity.EXTRA_PATRIMONIO, codigo))
             true

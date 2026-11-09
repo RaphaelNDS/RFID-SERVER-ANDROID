@@ -173,6 +173,8 @@
     <string name="cadastro_proxima">Próxima</string>
     <string name="cadastro_parar">Parar</string>
     <string name="cadastro_gravar_codigo">Gravar código da empresa na etiqueta</string>
+    <string name="cadastro_aguarde_gravacao">Aguarde: a etiqueta está sendo gravada</string>
+    <string name="cadastro_codigo_divergente">A etiqueta foi gravada com o código de outro patrimônio: toque em \"Gravar código da empresa\" de novo</string>
     <string name="cadastro_gravar_falta_patrimonio">Preencha o patrimônio antes: o código gravado na etiqueta sai dele</string>
     <string name="cadastro_gravar_titulo">Gravar a etiqueta?</string>
     <string name="cadastro_gravar_mensagem">A etiqueta %1$s vai passar a ter o código %2$s (empresa + patrimônio %3$s).\n\nDeixe só esta etiqueta perto do coletor durante a gravação.</string>
@@ -291,8 +293,8 @@
     <string name="config_alcance_todas">Sem limite (lê tudo o que a potência alcança)</string>
     <string name="config_alcance_medio">Médio: ignora etiquetas distantes</string>
     <string name="config_alcance_curto">Curto: só etiquetas bem perto</string>
-    <string name="config_so_empresa">Ler só etiquetas da empresa (gravadas pelo coletor)</string>
-    <string name="config_filtros_explicacao">Use o alcance para não ler a sala vizinha através da parede. \"Só etiquetas da empresa\" ignora crachás e embalagens, mas também as etiquetas antigas, que não foram gravadas pelo coletor. O Localizar não usa estes filtros.</string>
+    <string name="config_so_empresa">No inventário, ler só etiquetas da empresa (gravadas pelo coletor)</string>
+    <string name="config_filtros_explicacao">Use o alcance para não ler a sala vizinha através da parede. \"Só etiquetas da empresa\" vale só no Inventário: ignora crachás e embalagens, mas também os bens com etiqueta antiga (não gravada pelo coletor), que passam a aparecer como faltando. A tela de Leitura e o Localizar leem todas.</string>
     <string name="config_potencia_maxima" formatted="false">Máxima (100%)</string>
     <string name="config_potencia_alta" formatted="false">Alta (75%)</string>
     <string name="config_potencia_media" formatted="false">Média (50%)</string>
@@ -310,6 +312,10 @@
     <string name="config_salvo_sem_chave">Salvo, mas sem a chave do coletor o servidor recusa as chamadas</string>
     <string name="config_salvas">Configurações salvas!</string>
     <string name="config_qr_lido">Configuração lida do QR: confira o servidor e toque em Salvar</string>
+    <string name="config_qr_titulo">Configuração por QR Code</string>
+    <string name="config_qr_servidor">Servidor: %1$s</string>
+    <string name="config_qr_certificado">Certificado do servidor:</string>
+    <string name="config_qr_usar">Usar</string>
     <string name="config_status_nao_configurado">Servidor: não configurado. Informe o IP do servidor e a chave do coletor e toque em Salvar</string>
     <string name="config_status_testando">Servidor: testando...</string>
     <string name="config_status_conectado">Servidor: conectado com segurança (HTTPS) ✅</string>

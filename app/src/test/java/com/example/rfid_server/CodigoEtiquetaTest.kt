@@ -46,4 +46,12 @@ class CodigoEtiquetaTest {
         assertNull(CodigoEtiqueta.gerar("   "))
         assertEquals("3000", CodigoEtiqueta.PC_96_BITS)
     }
+
+    @Test
+    fun `PC novo muda so o tamanho e preserva os outros bits`() {
+        assertEquals("3000", CodigoEtiqueta.pcPara96Bits(null))
+        assertEquals("3000", CodigoEtiqueta.pcPara96Bits(0x4000))  // 128 bits → 96
+        assertEquals("3400", CodigoEtiqueta.pcPara96Bits(0x4400))  // memória de usuário (UMI) preservada
+        assertEquals("3121", CodigoEtiqueta.pcPara96Bits(0x2121))  // ISO/AFI preservados
+    }
 }

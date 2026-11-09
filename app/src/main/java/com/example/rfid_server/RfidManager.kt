@@ -62,6 +62,12 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
 
         /** Modo localização: distância relativa da etiqueta procurada, de 0 (longe) a 100 (encostada). */
         fun aoLocalizar(epc: String, distancia: Int) {}
+
+        /**
+         * Esta tela aceita o filtro "só etiquetas da empresa"? Só o Inventário: na Leitura as etiquetas de fábrica
+         * precisam aparecer (é por lá que se cadastra e grava o código da empresa nelas).
+         */
+        val usaFiltroEmpresa: Boolean get() = false
     }
 
     private val executor = Executors.newSingleThreadScheduledExecutor()
@@ -384,7 +390,10 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
     /** Resultado de [gravarEpc]: [mensagem] para o operador quando não deu certo. */
     sealed class ResultadoGravacao {
         data class Gravada(val epc: String) : ResultadoGravacao()
+        /** Não gravou e a etiqueta não mudou (ex.: leitor desconectado). */
         data class Falhou(val mensagem: String) : ResultadoGravacao()
+        /** Erro no meio da escrita ou conferência que não confirmou: a etiqueta pode ter mudado; cadastrar só depois de reler. */
+        data class Incerta(val mensagem: String) : ResultadoGravacao()
     }
 
     /**
@@ -406,9 +415,10 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
             } catch (e: Exception) {
                 val motivo = motivoDe(e)
                 Log.e(TAG, "Falha ao gravar a etiqueta $atual com $novo: ${descricaoLog(motivo)}", e)
-                ResultadoGravacao.Falhou(
+                // A escrita pode ter gravado parte do código: a etiqueta talvez já não responda pelo código antigo
+                ResultadoGravacao.Incerta(
                     "Não foi possível gravar a etiqueta (${motivo.detalhe.ifBlank { motivo.causa.name }}). " +
-                        "Aproxime só esta etiqueta do coletor e tente de novo"
+                        "Volte, leia a etiqueta de novo (deixe só ela perto do coletor) e cadastre pelo código que aparecer"
                 )
             }
             aoTerminar(resultado)
@@ -418,29 +428,59 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
     // Roda na thread do executor
     private fun gravarNoLeitor(r: RFIDReader, atual: String, novo: String): ResultadoGravacao {
         val acesso = r.Actions.TagAccess
+
+        // PC atual: muda só o tamanho (bits 15–11) e preserva os outros (memória de usuário, XI, AFI/ISO)
+        val pc = try {
+            lerPalavras(acesso, atual, offset = 1, palavras = 1)?.toIntOrNull(16)
+        } catch (e: Exception) {
+            Log.w(TAG, "PC da etiqueta $atual não lido (${e.message}): usando o padrão de 96 bits")
+            null
+        }
+        val pcNovo = CodigoEtiqueta.pcPara96Bits(pc)
+
         val escrita = acesso.WriteAccessParams().apply {
             memoryBank = MEMORY_BANK.MEMORY_BANK_EPC
             offset = 1                      // palavra 1 = PC; o EPC começa na palavra 2
-            setWriteData(CodigoEtiqueta.PC_96_BITS + novo)
+            setWriteData(pcNovo + novo)
             writeDataLength = 7             // em palavras de 16 bits: PC + 6 do EPC
             accessPassword = 0
         }
-        acesso.writeWait(atual, escrita, null, null)
+        try {
+            acesso.writeWait(atual, escrita, null, null)
+        } catch (e: Exception) {
+            // No Gen2 é comum a escrita acontecer e a resposta se perder: se a etiqueta já responde pelo código
+            // novo, deu certo. Senão, devolve o erro (o chamador trata como incerto: a etiqueta pode ter mudado)
+            if (conferir(acesso, novo)) {
+                Log.w(TAG, "Escrita da etiqueta $atual devolveu erro (${e.message}), mas ela já responde com $novo: gravada")
+                return ResultadoGravacao.Gravada(novo)
+            }
+            throw e
+        }
 
         // Confere: a etiqueta tem que responder pelo código novo e devolver exatamente os 96 bits gravados
+        if (!conferir(acesso, novo)) {
+            Log.e(TAG, "Etiqueta $atual gravada com $novo, mas a conferência não confirmou")
+            return ResultadoGravacao.Incerta("A gravação não pôde ser conferida. Volte, leia a etiqueta de novo e cadastre pelo código que aparecer")
+        }
+        Log.i(TAG, "Etiqueta $atual gravada com o código $novo (PC $pcNovo) e conferida")
+        return ResultadoGravacao.Gravada(novo)
+    }
+
+    private fun conferir(acesso: com.zebra.rfid.api3.TagAccess, epc: String): Boolean =
+        try {
+            lerPalavras(acesso, epc, offset = 2, palavras = 6) == epc
+        } catch (e: Exception) {
+            false
+        }
+
+    private fun lerPalavras(acesso: com.zebra.rfid.api3.TagAccess, epc: String, offset: Int, palavras: Int): String? {
         val leitura = acesso.ReadAccessParams().apply {
             memoryBank = MEMORY_BANK.MEMORY_BANK_EPC
-            offset = 2
-            count = 6
+            this.offset = offset
+            count = palavras
             accessPassword = 0
         }
-        val lido = acesso.readWait(novo, leitura, null)?.memoryBankData?.uppercase()
-        if (lido != novo) {
-            Log.e(TAG, "Etiqueta $atual gravada com $novo, mas a conferência leu '$lido'")
-            return ResultadoGravacao.Falhou("A gravação não pôde ser conferida. Leia a etiqueta de novo antes de cadastrar")
-        }
-        Log.i(TAG, "Etiqueta $atual gravada com o código $novo e conferida")
-        return ResultadoGravacao.Gravada(novo)
+        return acesso.readWait(epc, leitura, null)?.memoryBankData?.uppercase()
     }
 
     // ================= FALHAS E BATERIA =================
@@ -812,7 +852,7 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
 
             val rssi = tag.peakRSSI.toInt()
             // Alcance e "só da empresa" (Configurações) valem para o gatilho; o Localizar precisa dos sinais fracos
-            if (filtro == null && !FiltroLeitura.aceita(epc, rssi, rssiMinimo, soEtiquetasEmpresa)) continue
+            if (filtro == null && !FiltroLeitura.aceita(epc, rssi, rssiMinimo, soEtiquetasEmpresa && destino.usaFiltroEmpresa)) continue
 
             destino.aoLer(epc, rssi)
         }

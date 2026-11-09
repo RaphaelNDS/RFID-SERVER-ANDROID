@@ -22,6 +22,13 @@ object CodigoEtiqueta {
     /** Palavra PC para EPC de 96 bits (6 palavras de 16 bits: 6 shl 11 = 0x3000), sem memória de usuário nem AFI. */
     const val PC_96_BITS = "3000"
 
+    /**
+     * PC para 96 bits a partir do PC atual da etiqueta: troca só o tamanho (bits 15 a 11 = 6 palavras) e preserva
+     * os outros bits (memória de usuário, XI, AFI). Sem o PC atual, o padrão [PC_96_BITS].
+     */
+    fun pcPara96Bits(pcAtual: Int?): String =
+        if (pcAtual == null) PC_96_BITS else "%04X".format((pcAtual and 0x07FF) or 0x3000)
+
     /** EPC em hexadecimal maiúsculo (24 caracteres); null se o patrimônio estiver vazio. */
     fun gerar(patrimonio: String): String? {
         val valor = patrimonio.trim().uppercase()

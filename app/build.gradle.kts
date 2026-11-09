@@ -12,7 +12,7 @@ plugins {
 // versionName: mude à mão a cada versão entregue (1.4.0 → 1.4.1 correção, 1.5.0 funcionalidade nova).
 // versionCode: número de commits do git, então sobe sozinho a cada commit e o Android sempre aceita
 // instalar por cima da versão anterior. Para forçar um valor: ./gradlew assembleRelease -Prfid.codigoVersao=N
-val versaoApp = "2.0.0"
+val versaoApp = "2.0.1"
 
 // Abaixo disto o Android recusa instalar por cima (a 1.3.0 instalada nos coletores tem versionCode 6)
 val codigoVersaoMinimo = 7
@@ -125,6 +125,12 @@ android {
     }
 
     buildTypes {
+        // Versão de teste com outro identificador: instala ao lado do app de produção no mesmo coletor, sem substituí-lo
+        // (assinaturas diferentes) e sem mexer na fila, na sessão e nas configurações dele. Usada nos testes no aparelho
+        debug {
+            applicationIdSuffix = ".teste"
+            versionNameSuffix = "-teste"
+        }
         release {
             if (assinaturaConfigurada) signingConfig = signingConfigs.getByName("producao")
 
