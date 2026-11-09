@@ -48,6 +48,8 @@ class SettingsActivity : AppCompatActivity() {
     private var dialogoCertificado: AlertDialog? = null
     // Impressão digital do certificado vinda do QR de configuração, confirmada ao salvar
     private var impressaoDoQr: String? = null
+    // Servidor que veio no QR: se o campo for mudado depois, o certificado do QR não vale para o endereço novo
+    private var ipDoQr: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -97,13 +99,42 @@ class SettingsActivity : AppCompatActivity() {
         // QR de configuração (tela Coletores do servidor): preenche servidor e chave; o responsável confere e salva com o PIN
         CodigoDeBarras.ouvir(this) { codigo ->
             val config = ConfigQr.ler(codigo) ?: return@ouvir false
-            edtIp.setText(config.servidor)
-            edtChave.setText(config.chave)
-            impressaoDoQr = config.impressaoDigital
-            Log.i(TAG, "QR de configuração lido: servidor ${config.servidor}" + if (config.impressaoDigital != null) ", com o certificado" else "")
-            Toast.makeText(this, R.string.config_qr_lido, Toast.LENGTH_LONG).show()
+            confirmarQr(config)
             true
         }
+    }
+
+    /**
+     * QR de configuração lido: mostra o servidor e a impressão do certificado para o responsável conferir com a tela do
+     * servidor antes de usar (o receptor do leitor de código de barras aceita mensagens de outros apps; um QR falso
+     * não passa por esta conferência sem ser visto). Confirmado, preenche os campos; o PIN é pedido ao salvar.
+     */
+    private fun confirmarQr(config: ConfigQr) {
+        if (isFinishing || isDestroyed) return
+        Log.i(TAG, "QR de configuração lido: servidor ${config.servidor}" + if (config.impressaoDigital != null) ", com o certificado" else "")
+        val mensagem = buildString {
+            append(getString(R.string.config_qr_servidor, config.servidor))
+            config.impressaoDigital?.let { impressao ->
+                append("\n\n").append(getString(R.string.config_qr_certificado)).append("\n").append(formatar(impressao))
+                AppConfig.getImpressaoDigital(this@SettingsActivity)?.takeIf { it != impressao }?.let { anterior ->
+                    append("\n\n").append(getString(R.string.config_cert_anterior)).append("\n").append(formatar(anterior))
+                }
+                append("\n\n").append(getString(R.string.config_cert_compare))
+            }
+        }
+        val dialogo = AlertDialog.Builder(this)
+            .setTitle(R.string.config_qr_titulo)
+            .setMessage(mensagem)
+            .setPositiveButton(R.string.config_qr_usar) { _, _ ->
+                edtIp.setText(config.servidor)
+                edtChave.setText(config.chave)
+                impressaoDoQr = config.impressaoDigital
+                ipDoQr = config.servidor
+                Toast.makeText(this, R.string.config_qr_lido, Toast.LENGTH_LONG).show()
+            }
+            .setNegativeButton(R.string.comum_cancelar) { _, _ -> Log.i(TAG, "QR de configuração descartado pelo responsável") }
+            .show()
+        dialogo.findViewById<TextView>(android.R.id.message)?.typeface = Typeface.MONOSPACE
     }
 
     private fun mostrarSituacaoChave() {
@@ -136,6 +167,10 @@ class SettingsActivity : AppCompatActivity() {
         // Campo da chave em branco = manter a salva
         val chave = chaveDigitada.ifEmpty { AppConfig.getChaveDispositivo(this) }
 
+        if (impressaoDoQr != null && ip != ipDoQr) {
+            Log.w(TAG, "Servidor mudado depois de ler o QR: o certificado do QR não é confirmado para o endereço $ip")
+            impressaoDoQr = null
+        }
         val certificadoNovo = impressaoDoQr != null && impressaoDoQr != AppConfig.getImpressaoDigital(this)
         if (ip == anterior && chave == AppConfig.getChaveDispositivo(this) && AppConfig.temPin(this) && !certificadoNovo) {
             Toast.makeText(this, R.string.config_nada_mudou, Toast.LENGTH_SHORT).show()

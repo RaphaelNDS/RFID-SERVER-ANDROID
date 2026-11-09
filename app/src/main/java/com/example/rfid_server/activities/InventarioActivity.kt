@@ -140,11 +140,16 @@ class InventarioActivity : AppCompatActivity() {
 
     // Etiqueta nova no inventário: bip/vibração
     // Som pela situação: com a lista do esperado, etiqueta fora dela dá bip duplo (o operador percebe sem olhar a tela)
-    private val ouvinte = RfidManager.OuvinteLeitura { epc, _ ->
-        repositorio.registrar(epc) {
-            val fora = temListaEsperada && epc !in patrimoniosEsperados
-            aviso.tagNova(if (fora) AvisoLeitura.Tipo.FORA_DA_LISTA else AvisoLeitura.Tipo.NORMAL)
+    private val ouvinte = object : RfidManager.OuvinteLeitura {
+        override fun aoLer(epc: String, rssi: Int) {
+            repositorio.registrar(epc) {
+                val fora = temListaEsperada && epc !in patrimoniosEsperados
+                aviso.tagNova(if (fora) AvisoLeitura.Tipo.FORA_DA_LISTA else AvisoLeitura.Tipo.NORMAL)
+            }
         }
+
+        // "Só etiquetas da empresa" (Configurações) vale aqui: no inventário crachás e embalagens só atrapalham
+        override val usaFiltroEmpresa: Boolean get() = true
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

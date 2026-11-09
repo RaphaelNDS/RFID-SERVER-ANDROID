@@ -44,7 +44,9 @@ class AvisoLeitura(context: Context) {
 
     fun tagNova(tipo: Tipo = Tipo.NORMAL) {
         if (!AppConfig.isAvisoLeitura(appContext)) return
-        if (!limitador.liberar()) return
+        // O limite de ritmo vale para o bip comum; o de fora da lista sempre toca (é o aviso que o operador precisa ouvir,
+        // e numa rajada de esperadas ele seria engolido)
+        if (tipo == Tipo.NORMAL && !limitador.liberar()) return
 
         when (tipo) {
             Tipo.NORMAL -> bip(DURACAO_BIP_MS, DURACAO_VIBRACAO_MS)
