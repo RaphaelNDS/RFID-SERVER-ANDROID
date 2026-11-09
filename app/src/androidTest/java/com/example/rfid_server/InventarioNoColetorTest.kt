@@ -111,6 +111,15 @@ class InventarioNoColetorTest {
             val pendente = SincronizadorJustificativas.fila(contexto).pendentes().single { it.epc == "E-FALTA-1" }
             assertEquals(FilaJustificativas.Motivo.EMPRESTADO, pendente.motivo)
             assertTrue("Justificativa com a sessão de quem justificou", pendente.sessao != null)
+
+            // Fecha o resumo e confere que o inventário aparece em "Inventários anteriores"
+            onView(withText(R.string.comum_ok)).inRoot(isDialog()).perform(click())
+            aguardar("tela de início do inventário") { onView(withId(R.id.btnAnteriores)).check(matches(isDisplayed())); true }
+            onView(withId(R.id.btnAnteriores)).perform(click())
+            aguardar("lista dos anteriores com o local") {
+                onView(withText(org.hamcrest.Matchers.containsString(local))).inRoot(isDialog()).check(matches(isDisplayed())); true
+            }
+            foto("09-inventarios-anteriores")
         }
     }
 

@@ -66,6 +66,16 @@
                 android:layout_marginTop="16dp"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"/>
+
+            <!-- Resumos dos inventários já finalizados neste coletor (HistoricoInventarios) -->
+            <Button
+                android:id="@+id/btnAnteriores"
+                style="@style/Widget.RFID.Botao.Texto"
+                android:text="@string/inventario_anteriores"
+                android:minHeight="48dp"
+                android:layout_marginTop="4dp"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"/>
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 

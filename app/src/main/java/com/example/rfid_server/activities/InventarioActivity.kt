@@ -209,6 +209,7 @@ class InventarioActivity : AppCompatActivity() {
         configurarBarra()
 
         findViewById<Button>(R.id.btnIniciar).setOnClickListener { iniciar() }
+        findViewById<Button>(R.id.btnAnteriores).setOnClickListener { if (CliqueUnico.permitir()) mostrarAnteriores() }
         findViewById<Button>(R.id.btnFinalizar).setOnClickListener { confirmarFinalizacao() }
         btnEnviarAgora = findViewById(R.id.btnEnviarAgora)
         btnEnviarAgora.setOnClickListener { enviarAgora() }
@@ -796,12 +797,21 @@ class InventarioActivity : AppCompatActivity() {
                     } ?: Log.i(TAG, "Operador finalizou o inventário de ${inventario.local} com $total etiqueta(s)")
                     runOnUiThread {
                         when {
-                            total != null -> mostrarResumoFinal(
-                                ResumoFinalizacao(
+                            total != null -> {
+                                val resumo = ResumoFinalizacao(
                                     inventario.local, finalizadoEm, operador, total, final, inventario.id,
                                     etiquetasGravadas, esperadoAgora?.itens.orEmpty()
                                 )
-                            )
+                                // Guarda o resumo para "Inventários anteriores" (o inventário sai do coletor quando chega ao servidor)
+                                emSegundoPlano {
+                                    try {
+                                        historico().salvar(resumo)
+                                    } catch (e: Exception) {
+                                        Log.w(TAG, "Resumo do inventário de ${resumo.local} não guardado no histórico", e)
+                                    }
+                                }
+                                mostrarResumoFinal(resumo)
+                            }
                             isFinishing || isDestroyed -> Unit
                             // Não finalizou porque a sessão terminou: manda para o login ("entre de novo para continuar")
                             SessaoAtual.get(this) == null -> exigirSessao()
@@ -855,6 +865,35 @@ class InventarioActivity : AppCompatActivity() {
                 }
             }
             .show()
+    }
+
+    // ================= INVENTÁRIOS ANTERIORES =================
+
+    private fun historico() = HistoricoInventarios(java.io.File(filesDir, "historico_inventarios"))
+
+    /** Lista dos inventários finalizados neste coletor (os mais novos primeiro); tocar reabre o resumo. */
+    private fun mostrarAnteriores() {
+        emSegundoPlano {
+            val anteriores = historico().listar()
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (anteriores.isEmpty()) {
+                    Toast.makeText(this, R.string.inventario_anteriores_vazio, Toast.LENGTH_SHORT).show()
+                    return@runOnUiThread
+                }
+                val formato = java.text.SimpleDateFormat("dd/MM HH:mm", java.util.Locale.forLanguageTag("pt-BR"))
+                val linhas = anteriores.map { r ->
+                    val faltam = r.comparacao?.faltando?.size
+                    getString(R.string.inventario_anterior_linha, formato.format(java.util.Date(r.finalizadoEm)), r.local, r.lidas) +
+                        (faltam?.takeIf { it > 0 }?.let { " · " + getString(R.string.inventario_anterior_faltam, it) } ?: "")
+                }
+                AlertDialog.Builder(this)
+                    .setTitle(R.string.inventario_anteriores)
+                    .setItems(linhas.toTypedArray()) { _, i -> mostrarResumoFinal(anteriores[i]) }
+                    .setNegativeButton(R.string.comum_ok, null)
+                    .show()
+            }
+        }
     }
 
     // ================= JUSTIFICATIVAS DOS NÃO ENCONTRADOS =================

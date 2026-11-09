@@ -206,6 +206,10 @@
     <string name="inventario_resumo_fora_dialogo">Fora da lista: %1$d</string>
     <string name="inventario_resumo_sem_comparacao">Sem lista do esperado para comparar.</string>
     <string name="inventario_compartilhar">Compartilhar</string>
+    <string name="inventario_anteriores">Inventários anteriores</string>
+    <string name="inventario_anteriores_vazio">Nenhum inventário finalizado neste coletor ainda</string>
+    <string name="inventario_anterior_linha">%1$s · %2$s · %3$d lida(s)</string>
+    <string name="inventario_anterior_faltam">faltaram %1$d</string>
     <string name="inventario_justificar">Justificar faltantes (%1$d)</string>
     <string name="inventario_justificar_motivo">Motivo dos que faltaram</string>
     <string name="inventario_justificar_quais">Quais estão \"%1$s\"?</string>
