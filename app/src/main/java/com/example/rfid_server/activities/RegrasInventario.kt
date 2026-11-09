@@ -119,6 +119,34 @@ data class ResumoFinalizacao(
     /** Itens esperados (para a planilha dizer o patrimônio das encontradas). */
     val esperados: List<ItemEsperado> = emptyList()
 ) {
+    /** Esperadas de um tipo de bem: quantas eram e quantas foram lidas. */
+    data class ContagemTipo(val tipo: String, val encontradas: Int, val esperadas: Int) {
+        val faltam: Int get() = esperadas - encontradas
+    }
+
+    /**
+     * Esperadas por tipo de bem ("Notebook: 10 de 12"), primeiro os tipos com mais faltantes (empate: ordem
+     * alfabética). Tipo em branco conta como [semTipo]; grafias diferentes do mesmo tipo contam juntas. Vazio sem
+     * lista do esperado (as fora da lista não têm tipo no coletor).
+     */
+    fun porTipo(semTipo: String = SEM_TIPO): List<ContagemTipo> {
+        val c = comparacao ?: return emptyList()
+        val faltando = c.faltando.mapTo(HashSet()) { it.epc }
+        return esperados
+            .groupBy { com.example.rfid_server.adapter.BuscaLeituras.normalizar(it.tipo.orEmpty().ifBlank { semTipo }) }
+            .map { (_, itens) ->
+                ContagemTipo(itens.first().tipo?.trim().orEmpty().ifEmpty { semTipo }, itens.count { it.epc !in faltando }, itens.size)
+            }
+            .sortedWith(compareByDescending<ContagemTipo> { it.faltam }.thenBy { com.example.rfid_server.adapter.BuscaLeituras.normalizar(it.tipo) })
+    }
+
+    /** "2 Notebook, 1 Monitor": os tipos que tiveram faltantes, no máximo [maximo] (o resto vira "…"); null se nada faltou. */
+    fun faltantesPorTipo(semTipo: String = SEM_TIPO, maximo: Int = 3): String? {
+        val comFalta = porTipo(semTipo).filter { it.faltam > 0 }
+        if (comFalta.isEmpty()) return null
+        return comFalta.take(maximo).joinToString(", ") { "${it.faltam} ${it.tipo}" } + if (comFalta.size > maximo) ", …" else ""
+    }
+
     /**
      * Planilha (CSV com ";", que o Excel em português abre direto) com uma linha por etiqueta: situação (Encontrada,
      * Faltando, Fora da lista), patrimônio, descrição, EPC e a justificativa dos que faltaram ([motivos]: EPC → texto).
@@ -163,6 +191,13 @@ data class ResumoFinalizacao(
         appendLine("Faltando: ${c.faltando.size}")
         append("Fora da lista: ${c.foraDaLista}")
 
+        // Por tipo de bem: quem recebe o texto vê de cara se faltou notebook ou cadeira
+        val tipos = porTipo()
+        if (tipos.size > 1 || tipos.any { it.faltam > 0 }) {
+            appendLine().appendLine().append("Por tipo (encontradas de esperadas):")
+            tipos.forEach { appendLine().append("- ${it.tipo}: ${it.encontradas} de ${it.esperadas}") }
+        }
+
         if (c.faltando.isNotEmpty()) {
             appendLine().appendLine().append("O que faltou:")
             c.faltando.forEach { item ->
@@ -174,6 +209,9 @@ data class ResumoFinalizacao(
 
     companion object {
         private val FORMATO_DATA = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
+
+        /** Nome usado para bens sem tipo cadastrado (o mesmo da tela de Leituras). */
+        const val SEM_TIPO = "Sem tipo informado"
 
         /** "Patrimônio 123 - Notebook · Dell" ou, sem patrimônio, "EPC E200... - Notebook". */
         fun descreverFaltante(item: ItemEsperado): String {

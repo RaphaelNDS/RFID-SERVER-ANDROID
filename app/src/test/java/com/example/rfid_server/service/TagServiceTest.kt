@@ -267,6 +267,30 @@ class TagServiceTest {
         assertEquals(0, servidor.requestCount)
     }
 
+    // ================= buscarHistorico (ficha) =================
+
+    @Test
+    fun `ficha le situacao unidade local e responsavel do servidor 1_6_0`() {
+        servidor.enqueue(json(200, """{"epc":"E1","situacao":"BAIXADO","situacaoRotulo":"Baixado","unidade":"Matriz",
+            "local":"Sala 101","responsavel":"Ana","ultimoLocal":null}"""))
+
+        val resposta = aguardar<RespostaServidor<HistoricoBem>> { service.buscarHistorico("E1", it) }
+
+        val h = (resposta as RespostaServidor.Sucesso).valor
+        assertEquals(listOf("BAIXADO", "Baixado", "Matriz", "Sala 101", "Ana"), listOf(h.situacao, h.situacaoRotulo, h.unidade, h.local, h.responsavel))
+        assertEquals(null, h.ultimoLocal)
+        assertEquals(false, h.vazio)
+    }
+
+    @Test
+    fun `ficha de servidor antigo sem os campos novos continua vazia`() {
+        servidor.enqueue(json(200, """{"epc":"E1","tipo":"Notebook"}"""))
+
+        val resposta = aguardar<RespostaServidor<HistoricoBem>> { service.buscarHistorico("E1", it) }
+
+        assertEquals(true, (resposta as RespostaServidor.Sucesso).valor.vazio)
+    }
+
     // ================= buscarTagPorPatrimonio =================
 
     @Test

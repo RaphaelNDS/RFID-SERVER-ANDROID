@@ -150,6 +150,39 @@ class RegrasInventarioTest {
     }
 
     @Test
+    fun `contagem por tipo junta grafias e poe primeiro o tipo com mais faltantes`() {
+        val itens = listOf(
+            item("E1", tipo = "Monitor"), item("E2", tipo = "monitor "), item("E3", tipo = "Notebook"),
+            item("E4", tipo = "Cadeira"), item("E5", tipo = null)
+        )
+        val c = ComparacaoInventario.comparar(esperado.copy(itens = itens), listOf("E3", "E4"))
+        val r = ResumoFinalizacao("Sala 101", finalizadoEm, "Ana", 2, c, "inv", listOf("E3", "E4"), itens)
+
+        assertEquals(
+            listOf(
+                ResumoFinalizacao.ContagemTipo("Monitor", 0, 2),
+                ResumoFinalizacao.ContagemTipo("Sem tipo", 0, 1),
+                ResumoFinalizacao.ContagemTipo("Cadeira", 1, 1),
+                ResumoFinalizacao.ContagemTipo("Notebook", 1, 1)
+            ),
+            r.porTipo("Sem tipo")
+        )
+        assertEquals("2 Monitor, 1 Sem tipo", r.faltantesPorTipo("Sem tipo", maximo = 3))
+        assertEquals("2 Monitor, …", r.faltantesPorTipo("Sem tipo", maximo = 1))
+        assertTrue(r.textoCompartilhar(fuso).contains("Por tipo (encontradas de esperadas):\n- Monitor: 0 de 2\n- Sem tipo informado: 0 de 1"))
+    }
+
+    @Test
+    fun `sem lista ou sem faltantes nao ha faltantes por tipo`() {
+        assertNull(ResumoFinalizacao("Sala", finalizadoEm, null, 3, null).faltantesPorTipo())
+        val c = ComparacaoInventario.comparar(esperado, listOf("E1", "E2", "E3"))
+        val r = ResumoFinalizacao("Sala 101", finalizadoEm, "Ana", 3, c, "inv", listOf("E1", "E2", "E3"), esperado.itens)
+        assertNull(r.faltantesPorTipo())
+        // Um tipo só e nada faltando: a seção não acrescenta nada ao texto
+        assertFalse(r.textoCompartilhar(fuso).contains("Por tipo"))
+    }
+
+    @Test
     fun `texto sem comparacao e sem operador`() {
         val texto = ResumoFinalizacao("Almoxarifado", finalizadoEm, null, 5, null).textoCompartilhar(fuso)
 

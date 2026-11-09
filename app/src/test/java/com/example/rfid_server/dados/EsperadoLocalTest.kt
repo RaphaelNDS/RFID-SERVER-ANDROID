@@ -75,10 +75,11 @@ class EsperadoLocalTest {
     @Test
     fun `descricao da referencia tem data e operador quando houver`() {
         assertEquals("inventário de 10/10/2026 (Ana)", esperado.descricaoReferencia())
-        assertEquals("inventário", esperado.copy(finalizadoEm = null, operador = null).descricaoReferencia())
+        assertEquals("bens cadastrados no local", esperado.copy(finalizadoEm = null, operador = null).descricaoReferencia())
         assertEquals("Só o primeiro nome", "inventário de 10/10/2026 (Ana)", esperado.copy(operador = " Ana Maria Souza").descricaoReferencia())
         assertEquals("10/10/2026 (Ana)", esperado.descricaoCurta())
-        assertEquals("inventário anterior", esperado.copy(finalizadoEm = null, operador = null).descricaoCurta())
+        assertEquals("bens cadastrados no local", esperado.copy(finalizadoEm = null, operador = null).descricaoCurta())
+        assertEquals("Só a data", "inventário de 10/10/2026", esperado.copy(operador = null).descricaoReferencia())
         assertEquals("Notebook · Dell", item("E1").descricao())
     }
 

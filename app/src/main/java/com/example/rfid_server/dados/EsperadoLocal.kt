@@ -20,7 +20,8 @@ data class ItemEsperado(
 
 /**
  * O que é esperado num local (GET /api/android/inventarios/esperado): o que foi encontrado no último
- * inventário finalizado dele. [temReferencia] = false: primeiro inventário do local, sem lista.
+ * inventário finalizado dele e (servidor 1.6.0) os bens cadastrados nele. [temReferencia] = false: local sem
+ * inventário anterior e sem bens cadastrados, sem lista.
  * Guardado no coletor como JSON (AppConfig), para funcionar sem rede depois de baixado uma vez.
  */
 data class EsperadoLocal(
@@ -31,16 +32,24 @@ data class EsperadoLocal(
     val operador: String? = null,
     val itens: List<ItemEsperado> = emptyList()
 ) {
-    /** "inventário de 10/10/2026 (Ana)", para a tela dizer com o que está comparando. */
     /** "01/11/2026 (Ana)": a referência sem a palavra "inventário", para as linhas curtas da tela. */
-    fun descricaoCurta(): String = descricaoReferencia().removePrefix("inventário").removePrefix(" de ").trim().ifEmpty { "inventário anterior" }
+    fun descricaoCurta(): String =
+        if (semInventarioAnterior()) SO_CADASTRO
+        else descricaoReferencia().removePrefix("inventário").removePrefix(" de ").trim().ifEmpty { "inventário anterior" }
 
-    fun descricaoReferencia(): String = buildString {
+    /**
+     * "inventário de 10/10/2026 (Ana)", para a tela dizer com o que está comparando. Sem data e sem operador, o
+     * servidor 1.6.0 montou a lista só com os bens cadastrados no local, que ainda não teve inventário: diz isso, e não
+     * "inventário" (parecia que havia um inventário anterior).
+     */
+    fun descricaoReferencia(): String = if (semInventarioAnterior()) SO_CADASTRO else buildString {
         append("inventário")
         dataReferencia()?.let { append(" de $it") }
         // Só o primeiro nome: com o nome completo a linha da referência cortava na tela de 320dp
         operador?.trim()?.substringBefore(" ")?.takeIf { it.isNotEmpty() }?.let { append(" ($it)") }
     }
+
+    private fun semInventarioAnterior() = finalizadoEm.isNullOrBlank() && operador.isNullOrBlank()
 
     private fun dataReferencia(): String? =
         try {
@@ -66,6 +75,9 @@ data class EsperadoLocal(
         .toString()
 
     companion object {
+        /** Referência de um local sem inventário anterior, com a lista montada pelo cadastro dos bens. */
+        const val SO_CADASTRO = "bens cadastrados no local"
+
         /** Lê a resposta do servidor (ou o JSON guardado no coletor). Lança JSONException se não for o esperado. */
         fun deJson(texto: String): EsperadoLocal {
             val o = JSONObject(texto)

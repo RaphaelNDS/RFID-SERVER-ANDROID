@@ -61,6 +61,15 @@ object FichaBem {
     private fun textoHistorico(activity: AppCompatActivity, h: HistoricoBem): String {
         if (h.vazio) return activity.getString(R.string.ficha_sem_historico)
         return buildList {
+            // Situação no cadastro (servidor 1.6.0): baixado ou extraviado vem com aviso, para o operador não passar batido
+            when (h.situacao) {
+                "BAIXADO" -> add(activity.getString(R.string.ficha_aviso_baixado))
+                "EXTRAVIADO" -> add(activity.getString(R.string.ficha_aviso_extraviado))
+            }
+            (h.situacaoRotulo ?: h.situacao)?.let { add(activity.getString(R.string.ficha_situacao, it)) }
+            h.local?.let { add(activity.getString(R.string.ficha_local, it)) }
+            h.unidade?.let { add(activity.getString(R.string.ficha_unidade, it)) }
+            h.responsavel?.let { add(activity.getString(R.string.ficha_responsavel, it)) }
             h.ultimoLocal?.let { local ->
                 add(activity.getString(R.string.ficha_ultimo_local, local, h.ultimoInventarioEm?.let(::data) ?: "—"))
             }
