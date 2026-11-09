@@ -146,9 +146,23 @@ data class LidaInventario(
     /** Patrimônio, quando a etiqueta está na lista do esperado. */
     val patrimonio: String?,
     /** Lida mas não esperada no local (só quando há lista do esperado para comparar). */
-    val foraDaLista: Boolean
+    val foraDaLista: Boolean,
+    /** Cadastro da fora da lista consultado no servidor (patrimônio, tipo, situação); null enquanto não consultou. */
+    val ficha: com.example.rfid_server.view.TagView? = null,
+    /** O servidor respondeu que a etiqueta fora da lista não está cadastrada. */
+    val semCadastro: Boolean = false
 ) {
+    /** Patrimônio para mostrar: o da lista do esperado ou, na fora da lista, o do cadastro consultado. */
+    val patrimonioConhecido: String? get() = patrimonio ?: ficha?.patrimonio?.ifBlank { null }
+
     companion object {
+        /** Junta às lidas o que já se sabe das fora da lista ([fichas] por EPC e as [semCadastro]). */
+        fun comFichas(
+            lidas: List<LidaInventario>, fichas: Map<String, com.example.rfid_server.view.TagView>, semCadastro: Set<String>
+        ): List<LidaInventario> =
+            if (fichas.isEmpty() && semCadastro.isEmpty()) lidas
+            else lidas.map { if (it.foraDaLista) it.copy(ficha = fichas[it.epc], semCadastro = it.epc in semCadastro) else it }
+
         /**
          * Monta a aba Lidas: com lista do esperado ([patrimoniosEsperados] = EPC → patrimônio), as fora da lista
          * vêm primeiro (são as que pedem atenção), cada grupo na ordem de leitura. Sem lista (null), nenhuma

@@ -32,8 +32,19 @@ class LidaInventarioAdapter(private val aoTocarForaDaLista: (LidaInventario) -> 
         val item = getItem(position)
         val ctx = holder.itemView.context
 
-        holder.texto.text = item.patrimonio?.let { ctx.getString(R.string.inventario_lida_com_patrimonio, it, item.epc) } ?: item.epc
+        // Fora da lista com a ficha consultada no servidor: patrimônio e "Tipo · Marca · Modelo" do cadastro
+        val descricao = item.ficha?.let { listOfNotNull(it.tipo, it.marca, it.modelo).joinToString(" · ") }.orEmpty()
+        holder.texto.text = (item.patrimonioConhecido?.let { ctx.getString(R.string.inventario_lida_com_patrimonio, it, item.epc) } ?: item.epc) +
+            if (descricao.isNotEmpty()) "\n$descricao" else ""
         holder.foraDaLista.isVisible = item.foraDaLista
+        // Baixado ou extraviado no cadastro: em vermelho (não deveria estar circulando); sem cadastro: dito com clareza
+        val alerta = item.ficha?.alertaSituacao()
+        holder.foraDaLista.text = when {
+            alerta != null -> ctx.getString(R.string.inventario_lida_alerta, alerta)
+            item.semCadastro -> ctx.getString(R.string.inventario_lida_sem_cadastro)
+            else -> ctx.getString(R.string.inventario_lida_fora_da_lista)
+        }
+        holder.foraDaLista.setTextColor(ContextCompat.getColor(ctx, if (alerta != null) R.color.erro else R.color.atencao))
         holder.cartao.setCardBackgroundColor(ContextCompat.getColor(ctx, if (item.foraDaLista) R.color.atencao_fundo else R.color.superficie))
 
         if (item.foraDaLista) {
