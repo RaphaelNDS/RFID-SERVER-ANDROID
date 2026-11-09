@@ -231,4 +231,19 @@ class FilaErrosTest {
 
         assertEquals(3, fila.quantidade())
     }
+
+    @Test
+    fun `fila cheia vai em varios lotes na mesma passada enquanto o servidor aceita`() {
+        val fila = fila()
+        repeat(120) { fila.registrar(TipoErro.ENVIO_RECUSADO, "recusa $it") }
+        val enviados = mutableListOf<Int>()
+
+        RegistroErros.enviarPendentes(fila) { lote ->
+            enviados += lote.length()
+            com.example.rfid_server.service.RespostaServidor.Sucesso(Unit)
+        }
+
+        assertEquals(listOf(50, 50, 20), enviados)
+        assertEquals(0, fila.quantidade())
+    }
 }

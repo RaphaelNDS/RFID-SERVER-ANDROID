@@ -25,10 +25,25 @@ class CofreSessoesTest {
     private val guardado = mutableMapOf<String, String>()
     private val cifra = CifraFalsa()
     private var agora = 1_000_000_000_000L
+    private var falharGravacao = false
+
+    @Test
+    fun `gravacao que falhou e tentada de novo na proxima referencia`() {
+        val cofre = cofre()
+        falharGravacao = true
+        val ref = cofre.referencia("token-ana")
+        assertTrue("Nada gravado", guardado.isEmpty())
+
+        falharGravacao = false
+        assertEquals(ref, cofre.referencia("token-ana"))
+
+        // App reaberto (cofre novo, sem a memória): o token resolve pelo que ficou gravado
+        assertEquals("token-ana", cofre().token(ref))
+    }
 
     private fun cofre(emUso: () -> Set<String> = { emptySet() }) = CofreSessoes(
         ler = { guardado[it] },
-        gravar = { guardado.putAll(it) },
+        gravar = { if (falharGravacao) false else { guardado.putAll(it); true } },
         todas = { guardado.toMap() },
         apagar = { chaves -> chaves.forEach { guardado.remove(it) } },
         cifra = { cifra },

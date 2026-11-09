@@ -208,6 +208,17 @@ class Sincronizador internal constructor(
             falhas.firstOrNull { it.motivo == MotivoFalha.ERRO_SERVIDOR }?.let {
                 registrarErro(TipoErro.ERRO_SERVIDOR, "Sincronização interrompida: ${it.mensagem}")
             }
+        } catch (e: Throwable) {
+            // Passada interrompida por exceção (ex.: banco local cheio): antes a tela ficava com o estado anterior (até
+            // "Tudo enviado" com leituras paradas na fila) e a próxima tentativa só vinha na periódica de 15 min
+            Log.e(TAG, "Sincronização interrompida por falha no coletor: ${e.javaClass.simpleName}: ${e.message}")
+            try {
+                atualizarEstado(estadoPara(MotivoFalha.ERRO_SERVIDOR))
+                if (agendarSeFalhar) agendarNovaTentativa()
+            } catch (outra: Throwable) {
+                Log.e(TAG, "Falha ao registrar a interrupção da sincronização", outra)
+            }
+            throw e
         } finally {
             // Uma vez por passada, mesmo se a passada terminar com exceção (ex.: banco local cheio): os erros guardados
             // vão ao servidor sempre que ele pode estar respondendo. Falha do ambiente (sem rede, chave, endereço,
@@ -290,6 +301,7 @@ class Sincronizador internal constructor(
         var errosNoServidor = 0
         var lotesEnviados = 0
         var loteDisponivel = true
+        val contadorLotes = RegraFalhas.Contador()
 
         for ((sessao, lote) in lotes) {
             if (!loteDisponivel) {
@@ -306,6 +318,7 @@ class Sincronizador internal constructor(
                     // estava. Esquecer antes de aplicar o resultado recomeçava o prazo a cada passada, para sempre
                     if (leiturasRetidas == retidasAntes) recusasDeSessao.esquecer(sessao)
                     lotesEnviados++
+                    contadorLotes.deuCerto()
                     if (disjuntor.disparou) return dispararDisjuntor()
                 }
 
@@ -326,8 +339,15 @@ class Sincronizador internal constructor(
                     }
 
                     lote.forEach { dao.registrarErro(it.id, resposta.mensagem) }
-                    Log.w(TAG, "Sincronização interrompida: ${resposta.mensagem}. ${pendentes.size} leitura(s) continuam guardadas no aparelho")
-                    return resposta
+                    // Erro do servidor neste lote (ex.: resposta inválida, 500 causado por um dado dele) não segura os
+                    // outros lotes nem as leituras uma por vez, como nos itens: só falha do ambiente ou erros seguidos
+                    // demais param (RegraFalhas). Antes um lote com problema travava todas as leituras avulsas
+                    if (contadorLotes.falhou(resposta)) {
+                        Log.w(TAG, "Sincronização interrompida: ${resposta.mensagem}. ${pendentes.size} leitura(s) continuam guardadas no aparelho")
+                        return resposta
+                    }
+                    Log.w(TAG, "Lote de ${lote.size} leitura(s) ficou na fila (${resposta.mensagem}): seguindo com os outros")
+                    errosNoServidor += lote.size
                 }
             }
         }
@@ -513,6 +533,13 @@ class Sincronizador internal constructor(
         // Recusa definitiva desta tag (ex.: 400): tentar de novo não adianta e travaria a fila inteira
         // Sessão inválida PARA ESTA leitura, recusada há mais que o prazo (ex.: usuário excluído), também é definitiva
         if (falha.motivo == MotivoFalha.REQUISICAO_RECUSADA || falha.motivo == MotivoFalha.SESSAO_INVALIDA) {
+            // A leitura já chegou ao servidor (pelo lote) e só a consulta da etiqueta foi recusada: não é uma recusa da
+            // leitura. Sai da fila sem ir para "Recusadas", sem aviso de envio recusado e sem contar no disjuntor
+            if (leitura.envioConcluido) {
+                Log.w(TAG, "Tag ${leitura.epc}: leitura já registrada no servidor, mas a consulta da etiqueta foi recusada (${falha.mensagem}): fica sem classificação")
+                dao.desistirDaClassificacao(leitura.id, falha.mensagem)
+                return null
+            }
             // Sessão inválida não conta no disjuntor: as leituras de um usuário desativado nunca vão passar,
             // e devolvê-las à fila travaria as dos outros operadores
             val disparou = recusar(leitura, falha.mensagem, contaNoDisjuntor = falha.motivo == MotivoFalha.REQUISICAO_RECUSADA)

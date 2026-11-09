@@ -185,10 +185,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun abrirInventario() {
+        if (!CliqueUnico.permitir()) return
         startActivity(Intent(this, InventarioActivity::class.java))
     }
 
     private fun abrirLocalizar() {
+        if (!CliqueUnico.permitir()) return
         startActivity(Intent(this, LocalizarActivity::class.java))
     }
 
@@ -392,6 +394,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun abrirConfiguracoes() {
+        if (!CliqueUnico.permitir()) return
         startActivity(Intent(this, SettingsActivity::class.java))
     }
 

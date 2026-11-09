@@ -1,6 +1,7 @@
 package com.example.rfid_server.dados
 
 import java.io.File
+import java.io.FileOutputStream
 import java.security.MessageDigest
 
 /**
@@ -19,7 +20,7 @@ class EsperadoGuardado(private val pasta: File) {
         val destino = arquivo(chave(local))
         // Grava num temporário e troca: o app fechar no meio não deixa uma lista pela metade
         val temporario = File(pasta, destino.name + ".tmp")
-        temporario.writeText(json)
+        gravarNoDisco(temporario, json)
         if (!temporario.renameTo(destino)) {
             destino.delete()
             if (!temporario.renameTo(destino)) {
@@ -43,10 +44,18 @@ class EsperadoGuardado(private val pasta: File) {
         for ((chave, json) in antigas) {
             val destino = arquivo(chave)
             if (destino.isFile) continue
-            destino.writeText(json)
+            gravarNoDisco(destino, json)
             trazidas++
         }
         return trazidas
+    }
+
+    // Com sync antes de trocar o nome: tirar a bateria logo depois (rotina no MC3300x) podia deixar o arquivo novo vazio
+    private fun gravarNoDisco(arquivo: File, texto: String) {
+        FileOutputStream(arquivo).use { saida ->
+            saida.write(texto.toByteArray(Charsets.UTF_8))
+            saida.fd.sync()
+        }
     }
 
     private fun arquivo(chave: String) = File(pasta, sha256(chave) + ".json")

@@ -94,11 +94,16 @@ object HttpClient {
 
                 if (chave.isBlank()) {
                     Log.w(TAG, "Chave do coletor não configurada: ${original.method} ${original.url.encodedPath} vai sem autenticação")
+                } else if (!AppConfig.chaveValida(chave)) {
+                    // Acento ou espaço especial (colado de outro lugar): o OkHttp recusa o header com exceção, que fechava o
+                    // app nas chamadas das telas e derrubava toda passada da sincronização. Vai sem a chave e o servidor
+                    // responde "chave inválida", que a tela mostra
+                    Log.e(TAG, "Chave do coletor salva com caractere inválido (acento ou espaço especial): ${original.url.encodedPath} vai sem autenticação")
                 }
 
                 val sessaoDoRegistro = original.header(HEADER_SESSAO)
                 val request = original.newBuilder()
-                    .apply { if (chave.isNotBlank()) header(HEADER_CHAVE, chave) }
+                    .apply { if (chave.isNotBlank() && AppConfig.chaveValida(chave)) header(HEADER_CHAVE, chave) }
                     // Versão instalada: o servidor mostra na tela Coletores quem está com o app desatualizado
                     .header(HEADER_VERSAO_APP, BuildConfig.VERSION_NAME)
                     .header(HEADER_VERSAO_CODIGO, BuildConfig.VERSION_CODE.toString())

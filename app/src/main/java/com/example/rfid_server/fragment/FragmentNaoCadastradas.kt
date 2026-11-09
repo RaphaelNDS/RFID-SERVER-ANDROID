@@ -1,6 +1,7 @@
 package com.example.rfid_server.fragment
 
 import android.content.Intent
+import com.example.rfid_server.activities.CliqueUnico
 import android.os.Bundle
 import android.view.View
 import androidx.core.view.isVisible
@@ -22,6 +23,8 @@ class FragmentNaoCadastradas : Fragment(R.layout.frag_nao_cadastradas) {
         recycler.layoutManager = LinearLayoutManager(requireContext())
 
         val adapter = NaoCadastradaAdapter { epc ->
+            // Toque duplo com luva abria dois Cadastros empilhados
+            if (!CliqueUnico.permitir()) return@NaoCadastradaAdapter
             startActivity(
                 Intent(requireContext(), CadastroTagActivity::class.java)
                     .putExtra(CadastroTagActivity.EXTRA_EPC, epc)

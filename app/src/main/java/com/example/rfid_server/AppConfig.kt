@@ -271,6 +271,12 @@ object AppConfig {
 
     fun chaveConfigurada(context: Context): Boolean = getChaveDispositivo(context).isNotBlank()
 
+    /**
+     * A chave pode ir num header HTTP? Só caracteres ASCII visíveis e espaço: com acento ou espaço especial (colado de
+     * outro lugar) o OkHttp lança exceção ao montar a requisição.
+     */
+    fun chaveValida(chave: String): Boolean = chave.all { it in ' '..'~' }
+
     /** O que foi digitado no campo do servidor vira um endereço utilizável? (IP, nome, IP:porta ou http://...) */
     fun enderecoValido(entrada: String): Boolean {
         if (entrada.isBlank() || entrada.trim().any { it.isWhitespace() }) return false

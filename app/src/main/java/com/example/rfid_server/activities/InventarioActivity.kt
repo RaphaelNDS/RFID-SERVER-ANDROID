@@ -100,6 +100,12 @@ class InventarioActivity : AppCompatActivity() {
 
     private var esperado: EsperadoLocal? = null
 
+    // Toque duplo (ou Enter do teclado junto com o toque): o painel só troca quando o banco avisa do inventário
+    // aberto, e um segundo Iniciar nesse meio-tempo mostrava "Já existe um inventário em andamento"
+    private var abrindo = false
+    // Uma pergunta de Finalizar por vez: a segunda ficava aberta por baixo do resumo
+    private var dialogoFinalizar: AlertDialog? = null
+
     // EPC → patrimônio do esperado: montado uma vez quando a lista chega, e não a cada etiqueta lida
     private var patrimoniosEsperados: Map<String, String?> = emptyMap()
 
@@ -609,6 +615,7 @@ class InventarioActivity : AppCompatActivity() {
     }
 
     private fun abrirLocalizar(epc: String, patrimonio: String?) {
+        if (!CliqueUnico.permitir()) return
         startActivity(
             Intent(this, LocalizarActivity::class.java)
                 .putExtra(LocalizarActivity.EXTRA_EPC, epc)
@@ -619,6 +626,7 @@ class InventarioActivity : AppCompatActivity() {
     // ================= AÇÕES =================
 
     private fun iniciar() {
+        if (abrindo || !CliqueUnico.permitir()) return
         // Mesma regra do servidor: sem espaços nas pontas nem repetidos, e no máximo 120 caracteres
         val local = LocalInventario.normalizar(edtLocal.text.toString())
 
@@ -657,8 +665,11 @@ class InventarioActivity : AppCompatActivity() {
     }
 
     private fun abrir(local: String) {
+        if (abrindo) return
+        abrindo = true
         repositorio.abrir(local) { ok ->
             runOnUiThread {
+                abrindo = false
                 when {
                     ok -> {
                         lembrarLocal(local)
@@ -674,6 +685,7 @@ class InventarioActivity : AppCompatActivity() {
     }
 
     private fun confirmarFinalizacao() {
+        if (dialogoFinalizar?.isShowing == true || !CliqueUnico.permitir()) return
         val inventario = inventarioAtual ?: return
         val totalLidas = epcsLidos.size
         // Calculada na hora (uma vez só): a da tela pode estar até RitmoComparacao.INTERVALO_MS atrasada
@@ -706,22 +718,27 @@ class InventarioActivity : AppCompatActivity() {
                         final = esperadoAgora?.takeIf { it.temReferencia }?.let { ComparacaoInventario.comparar(it, gravadas.toSet()) }
                     }
                 ) { total ->
-                    final?.let { f ->
+                    if (total != null) final?.let { f ->
                         Log.i(TAG, "Operador finalizou o inventário de ${inventario.local} com $total etiqueta(s) " +
                             "(${f.encontradas} de ${f.esperados} esperada(s), faltando ${f.faltando.size}, ${f.foraDaLista} fora da lista)")
                     } ?: Log.i(TAG, "Operador finalizou o inventário de ${inventario.local} com $total etiqueta(s)")
                     runOnUiThread {
-                        if (total != null) {
-                            mostrarResumoFinal(ResumoFinalizacao(inventario.local, finalizadoEm, operador, total, final))
-                        } else {
+                        when {
+                            total != null -> mostrarResumoFinal(ResumoFinalizacao(inventario.local, finalizadoEm, operador, total, final))
+                            isFinishing || isDestroyed -> Unit
                             // Não finalizou porque a sessão terminou: manda para o login ("entre de novo para continuar")
-                            exigirSessao()
+                            SessaoAtual.get(this) == null -> exigirSessao()
+                            else -> {
+                                Log.i(TAG, "Finalizar do inventário de ${inventario.local} sem inventário aberto: já tinha sido finalizado")
+                                Toast.makeText(this, R.string.inventario_ja_finalizado, Toast.LENGTH_SHORT).show()
+                            }
                         }
                     }
                 }
             }
             .setNegativeButton(R.string.inventario_continuar_lendo, null)
             .show()
+            .also { dialogoFinalizar = it }
     }
 
     private fun compararAgora(): ComparacaoInventario? =

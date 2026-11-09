@@ -148,6 +148,12 @@ class LoginActivity : AppCompatActivity() {
 
         TagService(this).entrar(email, senha) { resposta ->
             runOnUiThread {
+                // O operador desistiu (voltar) enquanto o servidor respondia: não abre a tela principal sozinha por
+                // cima do que ele estiver usando, nem guarda a sessão (ela vence sozinha no servidor)
+                if (isFinishing || isDestroyed) {
+                    Log.i(TAG, "Resposta do login de ${MascaraSensivel.email(email)} chegou com a tela fechada: ignorada")
+                    return@runOnUiThread
+                }
                 btnEntrar.isEnabled = true
                 btnEntrar.setText(R.string.login_entrar)
 

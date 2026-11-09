@@ -1,6 +1,8 @@
 package com.example.rfid_server
 
+import android.annotation.SuppressLint
 import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
 import com.example.rfid_server.dados.BancoLocal
 import androidx.core.content.edit
@@ -18,7 +20,8 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class CofreSessoes internal constructor(
     private val ler: (String) -> String?,
-    private val gravar: (Map<String, String>) -> Unit,
+    /** Grava os valores; devolve false se não ficou gravado (ex.: armazenamento cheio). */
+    private val gravar: (Map<String, String>) -> Boolean,
     private val todas: () -> Map<String, String>,
     private val apagar: (Collection<String>) -> Unit,
     private val cifra: () -> Cifra,
@@ -37,7 +40,18 @@ class CofreSessoes internal constructor(
     fun referencia(token: String): String {
         val ref = PREFIXO + hash(token)
         if (tokens.putIfAbsent(ref, token) == null) {
-            gravar(mapOf(ref to SegredoGuardado.paraGuardar(token, cifra(), "o token da sessão"), ref + SUFIXO_DATA to relogio().toString()))
+            val gravou = try {
+                gravar(mapOf(ref to SegredoGuardado.paraGuardar(token, cifra(), "o token da sessão"), ref + SUFIXO_DATA to relogio().toString()))
+            } catch (e: Exception) {
+                Log.e(TAG, "Falha ao guardar o token da sessão no aparelho", e)
+                false
+            }
+            // Sem isso, o token ficava só na memória e nunca era gravado de novo: ao reabrir o app as leituras desta
+            // sessão iam sem o token e eram recusadas. Tira da memória para a próxima leitura tentar gravar outra vez
+            if (!gravou) {
+                Log.e(TAG, "Token da sessão não ficou guardado no aparelho (armazenamento cheio?): nova tentativa na próxima leitura")
+                tokens.remove(ref)
+            }
         }
         return ref
     }
@@ -105,6 +119,11 @@ class CofreSessoes internal constructor(
         @Volatile
         private var instancia: CofreSessoes? = null
 
+        // Precisa do resultado do commit(), que a extensão edit { } do KTX não devolve
+        @SuppressLint("UseKtx")
+        private fun gravarConferindo(prefs: SharedPreferences, valores: Map<String, String>): Boolean =
+            prefs.edit().apply { valores.forEach { (k, v) -> putString(k, v) } }.commit()
+
         fun get(context: Context): CofreSessoes =
             instancia ?: synchronized(this) {
                 instancia ?: context.applicationContext.let { app ->
@@ -112,7 +131,7 @@ class CofreSessoes internal constructor(
                     CofreSessoes(
                         ler = { prefs.getString(it, null) },
                         // commit(): a linha do banco vai apontar para esta referência logo em seguida
-                        gravar = { valores -> prefs.edit(commit = true) { valores.forEach { (k, v) -> putString(k, v) } } },
+                        gravar = { valores -> gravarConferindo(prefs, valores) },
                         todas = { prefs.all.mapNotNull { (k, v) -> (v as? String)?.let { k to it } }.toMap() },
                         apagar = { chaves -> prefs.edit { chaves.forEach { remove(it) } } },
                         cifra = { AppConfig.cifra },
