@@ -318,6 +318,20 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         Log.i(TAG, "Potência do leitor: $percentual% (nível ${indice + 1} de ${niveis.size}, valor ${niveis.getOrNull(indice)})")
     }
 
+    // Filtros das leituras (Configurações), em memória: são consultados a cada etiqueta lida, na thread do SDK
+    @Volatile
+    private var rssiMinimo: Int? = AppConfig.getRssiMinimo(appContext)
+    @Volatile
+    private var soEtiquetasEmpresa: Boolean = AppConfig.isSoEtiquetasEmpresa(appContext)
+
+    /** As Configurações mudaram os filtros da leitura: valem já, na próxima etiqueta lida. */
+    fun aplicarFiltros() {
+        rssiMinimo = AppConfig.getRssiMinimo(appContext)
+        soEtiquetasEmpresa = AppConfig.isSoEtiquetasEmpresa(appContext)
+        Log.i(TAG, "Filtros da leitura: alcance ${rssiMinimo?.let { "mínimo $it dBm" } ?: "sem limite"}, " +
+            if (soEtiquetasEmpresa) "só etiquetas da empresa (${FiltroLeitura.PREFIXO_EMPRESA}…)" else "todas as etiquetas")
+    }
+
     /** As Configurações mudaram a potência: aplica já, se o leitor estiver conectado (senão, vale na próxima conexão). */
     fun aplicarPotencia() {
         executor.execute {
@@ -731,7 +745,11 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
             val epc = tag.tagID ?: continue
             if (filtro != null && epc != filtro) continue
 
-            destino.aoLer(epc, tag.peakRSSI.toInt())
+            val rssi = tag.peakRSSI.toInt()
+            // Alcance e "só da empresa" (Configurações) valem para o gatilho; o Localizar precisa dos sinais fracos
+            if (filtro == null && !FiltroLeitura.aceita(epc, rssi, rssiMinimo, soEtiquetasEmpresa)) continue
+
+            destino.aoLer(epc, rssi)
         }
     }
 

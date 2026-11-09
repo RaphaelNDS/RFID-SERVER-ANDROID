@@ -434,5 +434,27 @@ object AppConfig {
 
     private const val KEY_POTENCIA_LEITOR = "potencia_leitor"
     const val POTENCIA_MINIMA = 10
+
+    // ================= FILTROS DA LEITURA (FiltroLeitura) =================
+
+    /** RSSI mínimo em dBm das leituras do gatilho; null = sem limite (o padrão). */
+    fun getRssiMinimo(context: Context): Int? =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_RSSI_MINIMO, SEM_LIMITE).takeIf { it != SEM_LIMITE }
+
+    fun setRssiMinimo(context: Context, dbm: Int?) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putInt(KEY_RSSI_MINIMO, dbm ?: SEM_LIMITE) }
+    }
+
+    /** Só etiquetas gravadas com o prefixo da empresa (FiltroLeitura.PREFIXO_EMPRESA). Desligado por padrão. */
+    fun isSoEtiquetasEmpresa(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_SO_EMPRESA, false)
+
+    fun setSoEtiquetasEmpresa(context: Context, ligado: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean(KEY_SO_EMPRESA, ligado) }
+    }
+
+    private const val KEY_RSSI_MINIMO = "rssi_minimo"
+    private const val KEY_SO_EMPRESA = "so_etiquetas_empresa"
+    private const val SEM_LIMITE = Int.MIN_VALUE
 }
 

@@ -107,7 +107,10 @@ class InventarioActivity : AppCompatActivity() {
     private var dialogoFinalizar: AlertDialog? = null
 
     // EPC → patrimônio do esperado: montado uma vez quando a lista chega, e não a cada etiqueta lida
+    @Volatile // lido também na thread do leitor (som de etiqueta fora da lista)
     private var patrimoniosEsperados: Map<String, String?> = emptyMap()
+    @Volatile
+    private var temListaEsperada = false
 
     // Último cálculo aplicado na tela (comparação e listas já filtradas)
     private var situacao: SituacaoTelaInventario? = null
@@ -134,7 +137,13 @@ class InventarioActivity : AppCompatActivity() {
     private var geracao = 0
 
     // Etiqueta nova no inventário: bip/vibração
-    private val ouvinte = RfidManager.OuvinteLeitura { epc, _ -> repositorio.registrar(epc) { aviso.tagNova() } }
+    // Som pela situação: com a lista do esperado, etiqueta fora dela dá bip duplo (o operador percebe sem olhar a tela)
+    private val ouvinte = RfidManager.OuvinteLeitura { epc, _ ->
+        repositorio.registrar(epc) {
+            val fora = temListaEsperada && epc !in patrimoniosEsperados
+            aviso.tagNova(if (fora) AvisoLeitura.Tipo.FORA_DA_LISTA else AvisoLeitura.Tipo.NORMAL)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -358,6 +367,7 @@ class InventarioActivity : AppCompatActivity() {
         naoEnviadas = 0
         esperado = null
         patrimoniosEsperados = emptyMap()
+        temListaEsperada = false
         situacao = null
         avisouCompleto = false
 
@@ -467,6 +477,7 @@ class InventarioActivity : AppCompatActivity() {
         val local = inventarioAtual?.local
         Log.i(TAG, "Todas as ${nova.esperados} etiqueta(s) esperada(s) em $local foram encontradas (${nova.foraDaLista} fora da lista)")
         Toast.makeText(this, getString(R.string.inventario_todas_encontradas, nova.esperados), Toast.LENGTH_LONG).show()
+        aviso.concluido()
     }
 
     private fun atualizarResumo() {
@@ -623,6 +634,7 @@ class InventarioActivity : AppCompatActivity() {
     private fun aplicarEsperado(novo: EsperadoLocal, doServidor: Boolean) {
         esperado = novo
         patrimoniosEsperados = novo.itens.associate { it.epc to it.patrimonio }
+        temListaEsperada = novo.temReferencia && novo.itens.isNotEmpty()
         val origem = if (doServidor) "do servidor" else "guardada no coletor"
 
         if (novo.temReferencia) {

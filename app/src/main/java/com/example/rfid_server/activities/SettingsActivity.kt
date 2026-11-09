@@ -16,6 +16,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.example.rfid_server.AppConfig
+import com.example.rfid_server.FiltroLeitura
 import com.example.rfid_server.R
 import com.example.rfid_server.RfidManager
 import com.example.rfid_server.VersaoApp
@@ -81,6 +82,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         configurarPotencia()
+        configurarFiltros()
 
         testarServidor()
 
@@ -153,6 +155,34 @@ class SettingsActivity : AppCompatActivity() {
         Sincronizador.get(this).solicitar()
 
         testarServidor()
+    }
+
+    /** Alcance mínimo e "só etiquetas da empresa" (FiltroLeitura). Mudam na hora, sem Salvar e sem PIN, como a potência. */
+    private fun configurarFiltros() {
+        val textos = listOf(R.string.config_alcance_todas, R.string.config_alcance_medio, R.string.config_alcance_curto)
+        val spinner = findViewById<Spinner>(R.id.spnAlcance)
+        val atual = FiltroLeitura.ALCANCES.indexOf(AppConfig.getRssiMinimo(this)).coerceAtLeast(0)
+        spinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, textos.map { getString(it) })
+        spinner.setSelection(atual, false)
+        spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val minimo = FiltroLeitura.ALCANCES[position]
+                if (minimo == AppConfig.getRssiMinimo(this@SettingsActivity)) return
+                AppConfig.setRssiMinimo(this@SettingsActivity, minimo)
+                RfidManager.get(this@SettingsActivity).aplicarFiltros()
+                Log.i(TAG, "Alcance da leitura mudado pelo operador para ${getString(textos[position])}")
+            }
+
+            override fun onNothingSelected(parent: AdapterView<*>?) = Unit
+        }
+
+        findViewById<CheckBox>(R.id.chkSoEmpresa).apply {
+            isChecked = AppConfig.isSoEtiquetasEmpresa(this@SettingsActivity)
+            setOnCheckedChangeListener { _, ligado ->
+                AppConfig.setSoEtiquetasEmpresa(this@SettingsActivity, ligado)
+                RfidManager.get(this@SettingsActivity).aplicarFiltros()
+            }
+        }
     }
 
     /** Potência do leitor (% da máxima). Muda na hora, sem o botão Salvar e sem PIN, como o bip. */

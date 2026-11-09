@@ -266,6 +266,12 @@
     <string name="config_aviso_leitura">Bip e vibração a cada etiqueta nova</string>
     <string name="config_potencia">Potência do leitor</string>
     <string name="config_potencia_explicacao">Menos potência lê só as etiquetas mais próximas (útil para não pegar as da sala ao lado) e gasta menos bateria.</string>
+    <string name="config_alcance">Alcance da leitura</string>
+    <string name="config_alcance_todas">Sem limite (lê tudo o que a potência alcança)</string>
+    <string name="config_alcance_medio">Médio: ignora etiquetas distantes</string>
+    <string name="config_alcance_curto">Curto: só etiquetas bem perto</string>
+    <string name="config_so_empresa">Ler só etiquetas da empresa (gravadas pelo coletor)</string>
+    <string name="config_filtros_explicacao">Use o alcance para não ler a sala vizinha através da parede. \"Só etiquetas da empresa\" ignora crachás e embalagens, mas também as etiquetas antigas, que não foram gravadas pelo coletor. O Localizar não usa estes filtros.</string>
     <string name="config_potencia_maxima" formatted="false">Máxima (100%)</string>
     <string name="config_potencia_alta" formatted="false">Alta (75%)</string>
     <string name="config_potencia_media" formatted="false">Média (50%)</string>
