@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Texto em no máximo 2 linhas e botão Reconectar mais estreito: com 3 linhas a faixa de erro empurrava a de sincronização
+     para fora do bloco de avisos da tela principal (visto nas fotos do coletor, 09/11) -->
 <!-- Situação do leitor RFID (IndicadorLeitor): conectado (discreto, fundo claro), atenção (conectando, bateria baixa)
      e erro/desconectado em fundo SÓLIDO com texto branco e o botão "Reconectar". O fundo e as cores vêm do
      IndicadorLeitor (EstiloFaixaLeitor). Usado também no Inventário e no Localizar -->
@@ -30,7 +32,9 @@
         android:id="@+id/txtEstadoLeitor"
         android:accessibilityLiveRegion="polite"
         android:textStyle="bold"
-        android:textSize="15sp"
+        android:textSize="14sp"
+        android:maxLines="2"
+        android:ellipsize="end"
         android:textColor="@color/sucesso"
         android:paddingTop="6dp"
         android:paddingBottom="6dp"
@@ -49,6 +53,10 @@
         app:strokeWidth="2dp"
         app:shapeAppearance="@style/Forma.RFID.Pequena"
         android:minHeight="48dp"
+        android:minWidth="0dp"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:textSize="14sp"
         android:layout_marginStart="8dp"
         android:visibility="gone"
         android:layout_width="wrap_content"
