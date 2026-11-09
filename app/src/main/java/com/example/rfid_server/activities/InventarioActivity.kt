@@ -608,7 +608,7 @@ class InventarioActivity : AppCompatActivity() {
                     is RespostaServidor.Falha -> {
                         Log.w(TAG, "Lista do esperado de '$local' indisponível (${resposta.mensagem})" +
                             if (guardado != null) ": usando a guardada no coletor" else ": inventário sem comparação")
-                        txtReferencia.text = if (guardado != null) getString(R.string.inventario_comparando_guardada, guardado.descricaoReferencia())
+                        txtReferencia.text = if (guardado != null) getString(R.string.inventario_comparando_guardada, guardado.descricaoCurta())
                         else getString(R.string.inventario_sem_conexao_esperado)
                     }
                 }
@@ -658,7 +658,8 @@ class InventarioActivity : AppCompatActivity() {
         val origem = if (doServidor) "do servidor" else "guardada no coletor"
 
         if (novo.temReferencia) {
-            txtReferencia.text = getString(R.string.inventario_comparando, novo.descricaoReferencia(), novo.itens.size)
+            // Só a referência: o total esperado já está na linha de cima ("0 de 2 esperada(s)"), e a frase longa cortava
+            txtReferencia.text = getString(R.string.inventario_comparando, novo.descricaoReferencia())
             Log.i(TAG, "Lista do esperado ($origem) de '${novo.local}': ${novo.itens.size} etiqueta(s), do ${novo.descricaoReferencia()}")
         } else {
             txtReferencia.setText(R.string.inventario_primeiro)

@@ -237,9 +237,9 @@
     <string name="inventario_recusado_motivo">O servidor recusou este inventário (%1$s): ele não será mais enviado. Fale com o administrador.</string>
     <string name="inventario_buscando_esperado">Buscando no servidor o que é esperado neste local...</string>
     <string name="inventario_servidor_desatualizado">Servidor desatualizado: sem a lista do que é esperado</string>
-    <string name="inventario_comparando_guardada">Comparando com o %1$s (lista guardada no coletor)</string>
+    <string name="inventario_comparando_guardada">Referência sem rede: %1$s</string>
     <string name="inventario_sem_conexao_esperado">Sem conexão: não deu para buscar o que é esperado neste local</string>
-    <string name="inventario_comparando">Comparando com o %1$s: %2$d etiqueta(s) esperada(s)</string>
+    <string name="inventario_comparando">Referência: %1$s</string>
     <!-- Linha única (txtReferencia): o texto longo era cortado em 320dp -->
     <string name="inventario_primeiro">Primeiro inventário: sem lista do esperado</string>
     <string name="inventario_informe_local">Informe o local do inventário</string>

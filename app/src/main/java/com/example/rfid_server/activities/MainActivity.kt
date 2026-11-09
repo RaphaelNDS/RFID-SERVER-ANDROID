@@ -240,7 +240,9 @@ class MainActivity : AppCompatActivity() {
 
     /** Operador e até quando vale a sessão, no subtítulo da barra do topo (a linha própria tirava altura da lista). */
     private fun mostrarOperador(sessao: com.example.rfid_server.SessaoOperador) {
-        supportActionBar?.subtitle = getString(R.string.main_operador, sessao.nome, AvisoSessao.horario(sessao.expiraEm))
+        // Primeiro nome: com o nome completo o subtítulo cortava ("Até 13:16 · Oper…" nas fotos do coletor)
+        val nome = sessao.nome.trim().substringBefore(" ").ifEmpty { sessao.nome }
+        supportActionBar?.subtitle = getString(R.string.main_operador, nome, AvisoSessao.horario(sessao.expiraEm))
     }
 
     /**
