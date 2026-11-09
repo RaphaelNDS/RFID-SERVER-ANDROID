@@ -78,6 +78,8 @@ class Sincronizador internal constructor(
     private val inventarios: SincronizadorInventarios? = null,
     /** Etapa 1, antes das leituras: cadastros de etiqueta feitos no coletor. */
     private val cadastros: SincronizadorCadastros? = null,
+    /** Etapa 4, depois dos inventários: justificativas dos não encontrados. */
+    private val justificativas: SincronizadorJustificativas? = null,
     /** Guarda um erro para o servidor (tipo, mensagem): recusas definitivas e erros do servidor. */
     private val registrarErro: (String, String) -> Unit = { _, _ -> },
     /**
@@ -191,7 +193,7 @@ class Sincronizador internal constructor(
         val falhas = mutableListOf<RespostaServidor.Falha>()
         var falha: RespostaServidor.Falha? = null
         try {
-            for (etapa in listOf({ cadastros?.processar() }, { processarLeituras() }, { inventarios?.processar() }, { falhaDaRetencao() })) {
+            for (etapa in listOf({ cadastros?.processar() }, { processarLeituras() }, { inventarios?.processar() }, { justificativas?.processar() }, { falhaDaRetencao() })) {
                 val f = etapa() ?: continue
                 falhas += f
                 // O disjuntor das leituras (servidor recusando tudo) também para: os inventários seriam recusados igual
@@ -702,6 +704,11 @@ class Sincronizador internal constructor(
                             aoRecusarSessao = aoRecusarSessao,
                             ehSessaoAtual = fimDaSessao::ehAtual,
                             emTransacao = emTransacao
+                        ),
+                        justificativas = SincronizadorJustificativas(
+                            fila = SincronizadorJustificativas.fila(app),
+                            enviar = tagService::enviarJustificativasAgora,
+                            registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) }
                         ),
                         registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) },
                         enviarErros = { RegistroErros.enviarPendentes(app) },

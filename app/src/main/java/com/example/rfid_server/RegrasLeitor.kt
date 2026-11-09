@@ -18,6 +18,8 @@ enum class CausaFalhaLeitor {
     TEMPO_ESGOTADO,
     REGIAO_NAO_CONFIGURADA,
     BATERIA,
+    /** Coletor no carregador (berço): o MC3300x não deixa ler enquanto carrega ("Charging in Progress"). */
+    CARREGANDO,
     TEMPERATURA,
     QUEDA,
     /** Nenhuma das conhecidas: a tela mostra o texto do próprio SDK ([MotivoFalhaLeitor.detalhe]). */
@@ -52,6 +54,9 @@ object MotivoLeitor {
      */
     fun classificar(causaSdk: CausaFalhaLeitor?, textos: List<String?>): MotivoFalhaLeitor {
         val detalhe = detalhe(textos)
+        // "Charging in Progress-Command Not allowed": o SDK manda com o código de operação em andamento, mas o que o
+        // operador precisa saber é que o coletor está no carregador (visto no MC3300x em 09/11)
+        if (textos.any { it?.contains("charging", ignoreCase = true) == true }) return MotivoFalhaLeitor(CausaFalhaLeitor.CARREGANDO, detalhe)
         if (causaSdk != null && causaSdk != CausaFalhaLeitor.DESCONHECIDA) return MotivoFalhaLeitor(causaSdk, detalhe)
 
         val tudo = textos.filterNotNull().joinToString(" ").lowercase(Locale.ROOT)
@@ -87,6 +92,7 @@ object MotivoLeitor {
         CausaFalhaLeitor.TEMPO_ESGOTADO -> R.string.leitor_motivo_tempo_esgotado
         CausaFalhaLeitor.REGIAO_NAO_CONFIGURADA -> R.string.leitor_motivo_regiao
         CausaFalhaLeitor.BATERIA -> R.string.leitor_motivo_bateria
+        CausaFalhaLeitor.CARREGANDO -> R.string.leitor_motivo_carregando
         CausaFalhaLeitor.TEMPERATURA -> R.string.leitor_motivo_temperatura
         CausaFalhaLeitor.QUEDA -> R.string.leitor_motivo_queda
         CausaFalhaLeitor.DESCONHECIDA -> null

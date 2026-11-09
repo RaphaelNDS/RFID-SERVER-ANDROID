@@ -90,6 +90,9 @@ data class Autoria(val sessao: String?, val momento: Long)
  */
 data class EsperadoBaixado(val esperado: EsperadoLocal?, val etag: String?)
 
+/** Resposta do envio das justificativas: [invalidas] = tags recusadas de vez (tag ou motivo inválido). */
+data class ResultadoJustificativas(val gravadas: Int, val invalidas: List<String>)
+
 /** Histórico do bem na ficha (campos opcionais do servidor; datas em ISO-8601). */
 data class HistoricoBem(
     val ultimoLocal: String?,
@@ -337,6 +340,41 @@ class TagService internal constructor(
                     ultimaLeituraEm = json.optStringOrNull("ultimaLeituraEm")?.ifBlank { null },
                     ultimaLeituraPor = json.optStringOrNull("ultimaLeituraPor")?.ifBlank { null }
                 )
+            }
+        }
+    }
+
+    /**
+     * Justificativas dos não encontrados de um inventário (servidor 1.5.0): POST /api/android/inventarios/{id}/justificativas
+     * com [itens] = [{"tag","motivo","observacao"?}], até 2000. Idempotente (o reenvio da mesma tag só atualiza).
+     * [sessao] = quem justificou (referência do cofre ou token). NaoEncontrado = rota ou inventário que o servidor não
+     * conhece (versão antiga, ou a abertura ainda não chegou): vale tentar de novo depois.
+     */
+    fun enviarJustificativasAgora(inventarioId: String, itens: JSONArray, sessao: String?): RespostaServidor<ResultadoJustificativas> {
+        val url = url("inventarios", inventarioId, "justificativas") ?: return falhaEndereco()
+        val descricao = "enviar ${itens.length()} justificativa(s) do inventário $inventarioId"
+        val request = Request.Builder().url(url).header(HttpClient.HEADER_SESSAO, sessao.orEmpty())
+            .post(itens.toString().toRequestBody(json)).build()
+        return executar(request, descricao) { response ->
+            when {
+                response.code == 404 -> RespostaServidor.NaoEncontrado
+                !response.isSuccessful -> falhaHttp(response, descricao)
+                else -> {
+                    val corpo = response.body?.string().orEmpty()
+                    try {
+                        val o = JSONObject(corpo)
+                        val invalidas = o.optJSONArray("invalidas")
+                        RespostaServidor.Sucesso(
+                            ResultadoJustificativas(
+                                gravadas = o.optInt("gravadas", 0),
+                                invalidas = (0 until (invalidas?.length() ?: 0)).map { invalidas!!.getString(it) }
+                            )
+                        )
+                    } catch (e: JSONException) {
+                        Log.e(TAG, "Resposta inválida ao $descricao: ${corpo.take(120)}", e)
+                        RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Resposta inválida do servidor")
+                    }
+                }
             }
         }
     }

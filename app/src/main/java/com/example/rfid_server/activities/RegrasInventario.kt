@@ -112,8 +112,38 @@ data class ResumoFinalizacao(
     val operador: String?,
     val lidas: Int,
     /** Null: sem lista do esperado para comparar. */
-    val comparacao: ComparacaoInventario?
+    val comparacao: ComparacaoInventario?,
+    val inventarioId: String = "",
+    /** EPCs gravados no inventário na finalização (para a planilha). */
+    val etiquetas: List<String> = emptyList(),
+    /** Itens esperados (para a planilha dizer o patrimônio das encontradas). */
+    val esperados: List<ItemEsperado> = emptyList()
 ) {
+    /**
+     * Planilha (CSV com ";", que o Excel em português abre direto) com uma linha por etiqueta: situação (Encontrada,
+     * Faltando, Fora da lista), patrimônio, descrição, EPC e a justificativa dos que faltaram ([motivos]: EPC → texto).
+     */
+    fun csv(motivos: Map<String, String> = emptyMap()): String = buildString {
+        appendLine("Situação;Patrimônio;Descrição;Etiqueta (EPC);Justificativa")
+        val porEpc = esperados.associateBy { it.epc }
+        val lidas = etiquetas.toSet()
+        etiquetas.forEach { epc ->
+            val item = porEpc[epc]
+            linha(if (item != null || comparacao == null) "Encontrada" else "Fora da lista", item?.patrimonio, item?.descricao(), epc, null)
+        }
+        comparacao?.faltando?.filter { it.epc !in lidas }?.forEach {
+            linha("Faltando", it.patrimonio, it.descricao(), it.epc, motivos[it.epc])
+        }
+    }
+
+    private fun StringBuilder.linha(situacao: String, patrimonio: String?, descricao: String?, epc: String, motivo: String?) {
+        appendLine(listOf(situacao, patrimonio.orEmpty(), descricao.orEmpty(), epc, motivo.orEmpty()).joinToString(";") { celula(it) })
+    }
+
+    // Aspas quando o texto tem ";", aspas ou quebra de linha (padrão do CSV)
+    private fun celula(texto: String): String =
+        if (texto.any { it == ';' || it == '"' || it == '\n' }) "\"" + texto.replace("\"", "\"\"") + "\"" else texto
+
     /** Texto para compartilhar (WhatsApp, e-mail...): local, data/hora, operador, contagens e o que faltou. */
     fun textoCompartilhar(fuso: ZoneId = ZoneId.systemDefault()): String = buildString {
         val data = FORMATO_DATA.format(Instant.ofEpochMilli(finalizadoEm).atZone(fuso))

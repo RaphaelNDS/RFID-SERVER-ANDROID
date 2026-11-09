@@ -201,6 +201,15 @@
     <string name="inventario_resumo_fora_dialogo">Fora da lista: %1$d</string>
     <string name="inventario_resumo_sem_comparacao">Sem lista do esperado para comparar.</string>
     <string name="inventario_compartilhar">Compartilhar</string>
+    <string name="inventario_justificar">Justificar faltantes (%1$d)</string>
+    <string name="inventario_justificar_motivo">Motivo dos que faltaram</string>
+    <string name="inventario_justificar_quais">Quais estão \"%1$s\"?</string>
+    <string name="inventario_justificar_salvar">Salvar</string>
+    <string name="justificativa_emprestado">Emprestado</string>
+    <string name="justificativa_manutencao">Em manutenção</string>
+    <string name="justificativa_baixado">Baixado</string>
+    <string name="justificativa_nao_encontrado">Não encontrado</string>
+    <string name="justificativa_outro">Outro</string>
     <string name="inventario_compartilhar_escolha">Compartilhar o resumo do inventário</string>
     <string name="inventario_compartilhar_assunto">Inventário de %1$s</string>
     <string name="inventario_compartilhar_indisponivel">Nenhum app para compartilhar neste coletor</string>
@@ -395,6 +404,7 @@
     <string name="leitor_motivo_tempo_esgotado">Leitor demorou demais para responder</string>
     <string name="leitor_motivo_regiao">Região de rádio do leitor não configurada: avise o responsável</string>
     <string name="leitor_motivo_bateria">Bateria do leitor fraca: troque ou carregue</string>
+    <string name="leitor_motivo_carregando">Coletor no carregador: tire do berço para ler</string>
     <string name="leitor_motivo_temperatura">Leitor muito quente: deixe esfriar alguns minutos</string>
     <string name="leitor_motivo_queda">O leitor desconectou (bateria, encaixe ou Bluetooth)</string>
     <string name="leitor_motivo_desconhecido">Motivo desconhecido</string>
