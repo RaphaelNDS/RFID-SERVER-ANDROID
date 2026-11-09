@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MediatorLiveData
+import androidx.lifecycle.MutableLiveData
+import com.example.rfid_server.adapter.BuscaLeituras
 import androidx.lifecycle.distinctUntilChanged
 import androidx.lifecycle.map
 import com.example.rfid_server.dados.Situacao
@@ -29,7 +31,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Aba "Leitura": cadastradas e as que ainda esperam o servidor identificar (sem rede). O banco refaz a consulta a
      * cada gravação na tabela (inclusive de uma não cadastrada): lista igual à anterior não remonta a aba nem o título.
      */
-    val leituras: LiveData<List<ItemLeitura>> = repositorio.abaLeitura.distinctUntilChanged().map { lista ->
+    private val leiturasTodas: LiveData<List<ItemLeitura>> = repositorio.abaLeitura.distinctUntilChanged().map { lista ->
         ItemLeitura.montar(
             lista.filter { it.situacao == Situacao.CADASTRADA },
             lista.filter { it.situacao == Situacao.PENDENTE }
@@ -39,13 +41,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val cadastros = RepositorioCadastros.get(application)
 
     /** Aba "Não cadastradas", com a situação do cadastro feito no coletor (se houver). */
-    val naoCadastradas: LiveData<List<ItemNaoCadastrada>> = MediatorLiveData<List<ItemNaoCadastrada>>().apply {
+    private val naoCadastradasTodas: LiveData<List<ItemNaoCadastrada>> = MediatorLiveData<List<ItemNaoCadastrada>>().apply {
         val leituras = repositorio.naoCadastradas.distinctUntilChanged()
         val guardados = cadastros.todos
         val montar = { _: Any? -> value = ItemNaoCadastrada.montar(leituras.value.orEmpty(), guardados.value.orEmpty()) }
         addSource(leituras, montar)
         addSource(guardados, montar)
     }
+
+    /** Texto da busca da tela (vazio = sem filtro). Vale para as duas abas. */
+    val termoBusca = MutableLiveData("")
+
+    /** Aba "Leitura" já filtrada pela [termoBusca]. */
+    val leituras: LiveData<List<ItemLeitura>> = MediatorLiveData<List<ItemLeitura>>().apply {
+        val montar = { _: Any? -> value = BuscaLeituras.filtrar(leiturasTodas.value.orEmpty(), termoBusca.value.orEmpty()) }
+        addSource(leiturasTodas, montar)
+        addSource(termoBusca, montar)
+    }
+
+    /** Aba "Não cadastradas" já filtrada pela [termoBusca]. */
+    val naoCadastradas: LiveData<List<ItemNaoCadastrada>> = MediatorLiveData<List<ItemNaoCadastrada>>().apply {
+        val montar = { _: Any? -> value = BuscaLeituras.filtrarNaoCadastradas(naoCadastradasTodas.value.orEmpty(), termoBusca.value.orEmpty()) }
+        addSource(naoCadastradasTodas, montar)
+        addSource(termoBusca, montar)
+    }
+
+    /** Planilha de TODA a leitura atual (sem o filtro da busca). */
+    fun planilha(): String = BuscaLeituras.csv(leiturasTodas.value.orEmpty(), naoCadastradasTodas.value.orEmpty())
 
     /** O que está guardado no aparelho e ainda não chegou ao servidor (leituras avulsas, de inventário e cadastros). */
     val pendentes: LiveData<Int> = MediatorLiveData<Int>().apply {

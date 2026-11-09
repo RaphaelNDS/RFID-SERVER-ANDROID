@@ -1,0 +1,59 @@
+package com.example.rfid_server.adapter
+
+import com.example.rfid_server.dados.ItemNaoCadastrada
+import java.text.Normalizer
+
+/**
+ * Busca da tela de Leituras e planilha da leitura atual (sem dependência do Android, para os testes).
+ * A busca ignora maiúsculas, acentos e espaços nas pontas e procura em patrimônio, tipo, marca, modelo, código interno,
+ * série e EPC (nas não cadastradas e nas que esperam o servidor, só o EPC).
+ */
+object BuscaLeituras {
+
+    fun filtrar(itens: List<ItemLeitura>, termo: String): List<ItemLeitura> {
+        val t = normalizar(termo)
+        if (t.isEmpty()) return itens
+        return itens.filter { item ->
+            when (item) {
+                is ItemLeitura.Cadastrada -> with(item.tag) {
+                    listOf(patrimonio, tipo, marca, modelo, codigoInterno, numeroSerie, epc).any { normalizar(it.orEmpty()).contains(t) }
+                }
+                is ItemLeitura.Aguardando -> normalizar(item.epc).contains(t)
+            }
+        }
+    }
+
+    fun filtrarNaoCadastradas(itens: List<ItemNaoCadastrada>, termo: String): List<ItemNaoCadastrada> {
+        val t = normalizar(termo)
+        if (t.isEmpty()) return itens
+        return itens.filter { normalizar(it.epc).contains(t) }
+    }
+
+    /**
+     * Planilha (CSV com ";", para o Excel em português) da leitura atual: uma linha por etiqueta, com a situação
+     * (Cadastrada, Aguardando o servidor, Não cadastrada), os dados do bem e o EPC.
+     */
+    fun csv(leituras: List<ItemLeitura>, naoCadastradas: List<ItemNaoCadastrada>): String = buildString {
+        appendLine("Situação;Patrimônio;Tipo;Marca;Modelo;Código interno;Nº de série;Etiqueta (EPC)")
+        leituras.forEach { item ->
+            when (item) {
+                is ItemLeitura.Cadastrada -> with(item.tag) {
+                    linha("Cadastrada", patrimonio, tipo, marca, modelo, codigoInterno, numeroSerie, epc)
+                }
+                is ItemLeitura.Aguardando -> linha("Aguardando o servidor", "", "", "", "", "", "", item.epc)
+            }
+        }
+        naoCadastradas.forEach { linha("Não cadastrada", "", "", "", "", "", "", it.epc) }
+    }
+
+    private fun StringBuilder.linha(vararg celulas: String?) {
+        appendLine(celulas.joinToString(";") { celula(it.orEmpty()) })
+    }
+
+    // Aspas quando o texto tem ";", aspas ou quebra de linha (padrão do CSV)
+    private fun celula(texto: String): String =
+        if (texto.any { it == ';' || it == '"' || it == '\n' }) "\"" + texto.replace("\"", "\"\"") + "\"" else texto
+
+    private fun normalizar(texto: String): String =
+        Normalizer.normalize(texto.trim().lowercase(), Normalizer.Form.NFD).replace(Regex("\\p{M}"), "")
+}

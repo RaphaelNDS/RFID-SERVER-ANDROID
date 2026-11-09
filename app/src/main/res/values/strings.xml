@@ -86,6 +86,10 @@
     <string name="main_nova_leitura">Nova leitura</string>
     <string name="main_menu_recusadas">Leituras recusadas</string>
     <string name="main_configuracoes">Configurações</string>
+    <string name="main_buscar">Buscar na leitura</string>
+    <string name="main_buscar_dica">Patrimônio, tipo, marca ou etiqueta</string>
+    <string name="main_planilha">Compartilhar planilha</string>
+    <string name="main_planilha_vazia">Nenhuma etiqueta nesta leitura para a planilha</string>
     <string name="main_sair_menu">Sair (trocar operador)</string>
     <string name="main_sair_titulo">Sair do coletor</string>
     <string name="main_sair_mensagem">Sair como %1$s? O próximo operador entra com o próprio usuário.</string>

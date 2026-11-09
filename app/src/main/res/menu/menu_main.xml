@@ -8,6 +8,17 @@
         android:title="@string/main_nova_leitura"
         app:showAsAction="always|withText" />
 
+    <!-- Busca e planilha da leitura atual: no menu de três pontos, para não apertar a barra na tela de 320dp -->
+    <item
+        android:id="@+id/menu_buscar"
+        android:title="@string/main_buscar"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/menu_planilha"
+        android:title="@string/main_planilha"
+        app:showAsAction="never" />
+
     <!-- Recusadas dos últimos 30 dias (inclusive de leituras anteriores): o selo da tela só aparece quando há
          recusadas na leitura atual -->
     <item
