@@ -25,6 +25,9 @@ object RegistroErros {
     @Volatile
     private var fila: FilaErros? = null
 
+    /** Erros guardados esperando envio (diagnóstico do coletor). */
+    fun quantidadeGuardada(context: Context): Int = fila(context).quantidade()
+
     private fun fila(context: Context): FilaErros =
         fila ?: synchronized(this) {
             fila ?: FilaErros(

@@ -96,7 +96,7 @@ object RelogioServidor {
     }
 
     /** "7 min adiantado", "3 h 20 min atrasado"... */
-    internal fun descrever(desvioMs: Long): String {
+    fun descrever(desvioMs: Long): String {
         val minutos = (abs(desvioMs) / 60_000.0).roundToLong()
         val direcao = if (desvioMs > 0) "adiantado" else "atrasado"
         val tempo = when {

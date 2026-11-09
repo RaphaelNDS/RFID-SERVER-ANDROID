@@ -79,6 +79,8 @@ class SettingsActivity : AppCompatActivity() {
             if (CliqueUnico.permitir()) AtualizadorApp(this).verificar(manual = true)
         }
 
+        findViewById<Button>(R.id.btnDiagnostico).setOnClickListener { Diagnostico.mostrar(this) }
+
         findViewById<CheckBox>(R.id.chkAvisoLeitura).apply {
             isChecked = AppConfig.isAvisoLeitura(this@SettingsActivity)
             setOnCheckedChangeListener { _, ligado ->
