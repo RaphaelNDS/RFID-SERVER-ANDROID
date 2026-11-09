@@ -53,6 +53,19 @@ class EsperadoLocalTest {
     }
 
     @Test
+    fun `situacao do cadastro e lida e guardada quando o servidor manda`() {
+        val lido = EsperadoLocal.deJson(
+            """{"local":"Sala 1","temReferencia":true,
+                "itens":[{"tag":"E1","situacao":"EMPRESTADO","situacaoRotulo":"Emprestado"},{"tag":"E2"}]}"""
+        )
+
+        assertEquals("EMPRESTADO", lido.itens[0].situacao)
+        assertEquals("Emprestado", lido.itens[0].situacaoRotulo)
+        assertNull("Servidor que não manda: sem situação", lido.itens[1].situacao)
+        assertEquals(lido, EsperadoLocal.deJson(lido.paraJson()))
+    }
+
+    @Test
     fun `campos nulos ou em branco viram nulo`() {
         val lido = EsperadoLocal.deJson(
             """{"local":"Sala 1","temReferencia":true,"finalizadoEm":null,"operador":null,

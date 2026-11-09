@@ -54,7 +54,7 @@ class InventarioNoColetorTest {
             local, temReferencia = true, finalizadoEm = "2026-11-01T10:00:00-03:00", operador = "Ana",
             itens = listOf(
                 ItemEsperado("E-FALTA-1", "PAT-9001", "TI-1", "Notebook", "Dell", "Latitude"),
-                ItemEsperado("E-FALTA-2", "PAT-9002", "TI-2", "Monitor", "LG", null)
+                ItemEsperado("E-FALTA-2", "PAT-9002", "TI-2", "Monitor", "LG", null, "EM_MANUTENCAO", "Em manutenção")
             )
         )
         AppConfig.saveEsperadoJson(contexto, local, esperado.paraJson())
@@ -123,7 +123,19 @@ class InventarioNoColetorTest {
 
             // A justificada aparece com o motivo na lista
             onView(withText(org.hamcrest.Matchers.containsString("→ Emprestado"))).inRoot(isDialog()).check(matches(isDisplayed()))
+            // A outra consta "em manutenção" no cadastro: aparece na lista e "Pelo cadastro" justifica de uma vez
+            onView(withText(org.hamcrest.Matchers.containsString("(no cadastro: Em manutenção)"))).inRoot(isDialog())
+                .check(matches(isDisplayed()))
             foto("08b-inventario-faltantes")
+            onView(withText(contexto.getString(R.string.inventario_usar_cadastro, 1))).inRoot(isDialog()).perform(click())
+            onView(withText(R.string.inventario_justificar_salvar)).inRoot(isDialog()).perform(click())
+            aguardar("faltante justificado pelo cadastro") {
+                onView(withText(org.hamcrest.Matchers.containsString("→ Em manutenção"))).inRoot(isDialog()).check(matches(isDisplayed())); true
+            }
+            assertEquals(
+                FilaJustificativas.Motivo.MANUTENCAO,
+                SincronizadorJustificativas.fila(contexto).pendentes().single { it.epc == "E-FALTA-2" }.motivo
+            )
 
             // Volta ao resumo, fecha e confere que o inventário aparece em "Inventários anteriores"
             onView(withText(R.string.tela_voltar)).inRoot(isDialog()).perform(click())
@@ -134,9 +146,15 @@ class InventarioNoColetorTest {
             aguardar("lista dos anteriores com o local") {
                 onView(withText(org.hamcrest.Matchers.containsString(local))).inRoot(isDialog()).check(matches(isDisplayed())); true
             }
-            // Das duas que faltaram, uma foi justificada: a linha avisa que ainda falta justificar uma
-            onView(withText(org.hamcrest.Matchers.containsString("faltaram 2 (1 sem justificativa)"))).inRoot(isDialog())
-                .check(matches(isDisplayed()))
+            // As duas que faltaram foram justificadas: a linha não avisa "sem justificativa"
+            onView(
+                withText(
+                    org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString("faltaram 2"),
+                        org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("sem justificativa"))
+                    )
+                )
+            ).inRoot(isDialog()).check(matches(isDisplayed()))
             foto("09-inventarios-anteriores")
         }
     }

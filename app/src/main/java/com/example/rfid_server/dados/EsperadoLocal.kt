@@ -12,7 +12,11 @@ data class ItemEsperado(
     val codigoInterno: String?,
     val tipo: String?,
     val marca: String?,
-    val modelo: String?
+    val modelo: String?,
+    /** Situação no cadastro (servidor que manda: EMPRESTADO, EM_MANUTENCAO...); null se o servidor não informa. */
+    val situacao: String? = null,
+    /** Texto pronto da situação ("Emprestado"). */
+    val situacaoRotulo: String? = null
 ) {
     /** "Notebook · Dell · Latitude" (só o que houver). */
     fun descricao(): String = listOfNotNull(tipo, marca, modelo).joinToString(" · ")
@@ -69,6 +73,7 @@ data class EsperadoLocal(
                     JSONObject().put("tag", it.epc).put("patrimonio", it.patrimonio ?: JSONObject.NULL)
                         .put("codigoInterno", it.codigoInterno ?: JSONObject.NULL).put("tipo", it.tipo ?: JSONObject.NULL)
                         .put("marca", it.marca ?: JSONObject.NULL).put("modelo", it.modelo ?: JSONObject.NULL)
+                        .put("situacao", it.situacao ?: JSONObject.NULL).put("situacaoRotulo", it.situacaoRotulo ?: JSONObject.NULL)
                 )
             }
         })
@@ -96,7 +101,9 @@ data class EsperadoLocal(
                         codigoInterno = item.textoOuNulo("codigoInterno"),
                         tipo = item.textoOuNulo("tipo"),
                         marca = item.textoOuNulo("marca"),
-                        modelo = item.textoOuNulo("modelo")
+                        modelo = item.textoOuNulo("modelo"),
+                        situacao = item.textoOuNulo("situacao"),
+                        situacaoRotulo = item.textoOuNulo("situacaoRotulo")
                     )
                 }
             )

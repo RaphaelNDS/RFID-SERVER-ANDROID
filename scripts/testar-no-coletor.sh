@@ -41,4 +41,6 @@ fi
 "$ADB" -s "$COLETOR" uninstall "$APP" >/dev/null || true
 
 grep -q "FAILURES!!!\|INSTRUMENTATION_FAILED\|Process crashed" build/resultado-coletor.txt && { echo "FALHOU no coletor"; exit 1; }
+# Só é OK com o resumo "OK (N tests)" do JUnit: coletor que caiu do adb no meio não deixa resumo nenhum
+grep -q "^OK (" build/resultado-coletor.txt || { echo "FALHOU: os testes não rodaram até o fim no coletor (caiu do adb?)"; exit 1; }
 echo "OK no coletor"

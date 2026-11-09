@@ -173,6 +173,25 @@ class RegrasInventarioTest {
     }
 
     @Test
+    fun `cadastro explica emprestado manutencao e baixado e agrupa pelo motivo`() {
+        fun cs(epc: String, situacao: String?) = item(epc).copy(situacao = situacao)
+        val faltantes = listOf(
+            cs("E1", "EMPRESTADO"), cs("E2", "EM_MANUTENCAO"), cs("E3", "EMPRESTADO"),
+            cs("E4", "EM_USO"), cs("E5", "EXTRAVIADO"), cs("E6", null), cs("E7", "BAIXADO")
+        )
+
+        assertEquals(
+            mapOf(
+                com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo.EMPRESTADO to listOf("E1", "E3"),
+                com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo.MANUTENCAO to listOf("E2"),
+                com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo.BAIXADO to listOf("E7")
+            ),
+            ResumoFinalizacao.justificativasPeloCadastro(faltantes)
+        )
+        assertEquals(emptyMap<Any, Any>(), ResumoFinalizacao.justificativasPeloCadastro(listOf(cs("E4", "EM_USO"))))
+    }
+
+    @Test
     fun `sem lista ou sem faltantes nao ha faltantes por tipo`() {
         assertNull(ResumoFinalizacao("Sala", finalizadoEm, null, 3, null).faltantesPorTipo())
         val c = ComparacaoInventario.comparar(esperado, listOf("E1", "E2", "E3"))
