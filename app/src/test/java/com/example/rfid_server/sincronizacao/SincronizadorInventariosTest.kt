@@ -131,7 +131,7 @@ class SincronizadorInventariosTest {
 
         val falha = sincronizador().processar()
 
-        assertEquals(MotivoFalha.SEM_CONEXAO, falha?.motivo)
+        assertEquals(MotivoFalha.SERVIDOR_FORA_DO_AR, falha?.motivo)
         val inv = dao.inventario("inv-1")
         assertFalse(inv.aberturaEnviada)
         assertNotNull(inv.ultimoErro)
@@ -263,7 +263,7 @@ class SincronizadorInventariosTest {
             inventarios = sincronizador()
         ).processarPendentes()
 
-        assertEquals(EstadoSincronizacao.SEM_CONEXAO, estado)
+        assertEquals(EstadoSincronizacao.SERVIDOR_FORA_DO_AR, estado)
         assertFalse(dao.inventario("inv-1").aberturaEnviada)
     }
 

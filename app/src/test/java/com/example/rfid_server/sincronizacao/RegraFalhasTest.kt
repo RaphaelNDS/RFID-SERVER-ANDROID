@@ -96,6 +96,9 @@ class RegraFalhasTest {
         val semRede = com.example.rfid_server.service.RespostaServidor.Falha(MotivoFalha.SEM_CONEXAO, "x")
         val doServidor = com.example.rfid_server.service.RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "x")
         assertTrue(RegraFalhas.paraTudo(semRede))
+        assertTrue("Servidor parado também para tudo", RegraFalhas.paraTudo(
+            com.example.rfid_server.service.RespostaServidor.Falha(MotivoFalha.SERVIDOR_FORA_DO_AR, "x")
+        ))
         assertFalse(RegraFalhas.paraTudo(doServidor))
 
         val contador = RegraFalhas.Contador()

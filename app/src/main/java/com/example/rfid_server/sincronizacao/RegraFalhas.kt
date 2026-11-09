@@ -21,7 +21,7 @@ internal object RegraFalhas {
 
     // MUITAS_TENTATIVAS (429): o servidor bloqueou o coletor inteiro; cada requisição a mais só mantém o bloqueio
     private val AMBIENTE = setOf(
-        MotivoFalha.SEM_CONEXAO, MotivoFalha.CHAVE_INVALIDA, MotivoFalha.ENDERECO_INVALIDO, MotivoFalha.CERTIFICADO,
+        MotivoFalha.SEM_CONEXAO, MotivoFalha.SERVIDOR_FORA_DO_AR, MotivoFalha.CHAVE_INVALIDA, MotivoFalha.ENDERECO_INVALIDO, MotivoFalha.CERTIFICADO,
         MotivoFalha.MUITAS_TENTATIVAS
     )
 

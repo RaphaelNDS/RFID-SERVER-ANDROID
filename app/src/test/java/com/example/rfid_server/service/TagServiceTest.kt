@@ -254,7 +254,7 @@ class TagServiceTest {
         servidor.shutdown()
 
         assertEquals(
-            RespostaServidor.Falha(MotivoFalha.SEM_CONEXAO, "Sem conexão com o servidor"),
+            RespostaServidor.Falha(MotivoFalha.SERVIDOR_FORA_DO_AR, TagService.MENSAGEM_SERVIDOR_FORA_DO_AR),
             service.buscarTagAgora("E200XYZ")
         )
     }
@@ -305,7 +305,7 @@ class TagServiceTest {
 
         val resposta = aguardar<RespostaServidor<String>> { service.buscarTagPorPatrimonio("PAT-100", it) }
 
-        assertEquals(MotivoFalha.SEM_CONEXAO, motivo(resposta))
+        assertEquals(MotivoFalha.SERVIDOR_FORA_DO_AR, motivo(resposta))
     }
 
     // ================= testarConexao =================
@@ -345,7 +345,7 @@ class TagServiceTest {
     fun `testarConexao com servidor fora do ar indica sem conexao`() {
         servidor.shutdown()
 
-        assertEquals(StatusConexao.SEM_CONEXAO, aguardar<ResultadoConexao> { service.testarConexao(it) }.status)
+        assertEquals(StatusConexao.SERVIDOR_FORA_DO_AR, aguardar<ResultadoConexao> { service.testarConexao(it) }.status)
     }
 
     @Test
@@ -436,7 +436,7 @@ class TagServiceTest {
     fun `envio com servidor fora do ar devolve sem conexao`() {
         servidor.shutdown()
 
-        assertEquals(MotivoFalha.SEM_CONEXAO, motivo(service.enviarLeituraAgora("E200", 0L)))
+        assertEquals(MotivoFalha.SERVIDOR_FORA_DO_AR, motivo(service.enviarLeituraAgora("E200", 0L)))
     }
 
     // ================= inventário =================
@@ -715,7 +715,7 @@ class TagServiceTest {
         assertEquals(MotivoFalha.CHAVE_INVALIDA, motivo(service.cadastrarTagAgora(cadastroCompleto())))
 
         servidor.shutdown()
-        assertEquals(MotivoFalha.SEM_CONEXAO, motivo(service.cadastrarTagAgora(cadastroCompleto())))
+        assertEquals(MotivoFalha.SERVIDOR_FORA_DO_AR, motivo(service.cadastrarTagAgora(cadastroCompleto())))
     }
 
     @Test
@@ -774,7 +774,7 @@ class TagServiceTest {
 
         val resposta = aguardar<RespostaServidor<com.example.rfid_server.SessaoOperador>> { service.entrar("ana@x.com", "x", it) }
 
-        assertEquals(MotivoFalha.SEM_CONEXAO, motivo(resposta))
+        assertEquals(MotivoFalha.SERVIDOR_FORA_DO_AR, motivo(resposta))
     }
 
     @Test

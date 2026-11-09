@@ -243,7 +243,7 @@ class SincronizadorCadastrosTest {
 
         val falha = SincronizadorCadastros(cadastros, FakeLeituraDao(), tagService()).processar()
 
-        assertEquals(MotivoFalha.SEM_CONEXAO, falha?.motivo)
+        assertEquals(MotivoFalha.SERVIDOR_FORA_DO_AR, falha?.motivo)
         val guardado = cadastros.porEpcAgora("E1")!!
         assertEquals(SituacaoCadastro.PENDENTE, guardado.situacao)
         assertNotNull(guardado.erro)

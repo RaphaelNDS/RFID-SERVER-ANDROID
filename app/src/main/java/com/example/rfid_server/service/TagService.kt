@@ -47,7 +47,14 @@ sealed class RespostaServidor<out T> {
 }
 
 enum class MotivoFalha {
+    /** Sem rede, rede lenta (tempo esgotado) ou o endereço não leva a lugar nenhum. */
     SEM_CONEXAO,
+    /**
+     * A conexão foi recusada na hora (porta fechada): a rede chega até a máquina do servidor, mas ele não está rodando
+     * (parado, reiniciando para uma versão nova). Tratada como SEM_CONEXAO na sincronização (para tudo e tenta de novo),
+     * só com outra mensagem: o operador sabe que não é problema do coletor.
+     */
+    SERVIDOR_FORA_DO_AR,
     CHAVE_INVALIDA,
     ENDERECO_INVALIDO,
     /** Erro 5xx, redirecionamento ou resposta que não é o JSON esperado: vale tentar de novo depois. */
@@ -115,7 +122,9 @@ enum class StatusConexao(val descricao: String) {
     CONECTADO("conectado"),
     CHAVE_INVALIDA("chave do coletor inválida ou não configurada"),
     ENDERECO_INVALIDO("endereço do servidor inválido"),
-    SEM_CONEXAO("sem conexão"),
+    SEM_CONEXAO("sem conexão (o coletor está na rede?)"),
+    /** A máquina do servidor recusou a conexão na hora: a porta está fechada (servidor parado ou reiniciando). */
+    SERVIDOR_FORA_DO_AR("o servidor não está respondendo neste endereço (parado ou reiniciando?)"),
     RESPOSTA_INESPERADA("resposta inesperada (servidor desatualizado?)"),
     /** HTTP 429: o servidor bloqueou este coletor por um tempo depois de muitas tentativas com chave inválida. */
     MUITAS_TENTATIVAS("muitas tentativas com chave inválida: aguarde alguns minutos e confira a chave"),
@@ -167,7 +176,7 @@ class TagService internal constructor(
 
                     else -> {
                         Log.w(TAG, "Servidor inacessível em ${url.host}:${url.port}: ${e.message}")
-                        callback(ResultadoConexao(StatusConexao.SEM_CONEXAO))
+                        callback(ResultadoConexao(if (servidorRecusou(e)) StatusConexao.SERVIDOR_FORA_DO_AR else StatusConexao.SEM_CONEXAO))
                     }
                 }
             }
@@ -898,8 +907,27 @@ class TagService internal constructor(
             else -> Unit
         }
 
+        if (servidorRecusou(e)) {
+            Log.w(TAG, "Servidor não está respondendo (conexão recusada) ao $descricao: ${e.message}")
+            return RespostaServidor.Falha(MotivoFalha.SERVIDOR_FORA_DO_AR, MENSAGEM_SERVIDOR_FORA_DO_AR)
+        }
         Log.w(TAG, "Sem conexão ao $descricao: ${e.message}")
         return RespostaServidor.Falha(MotivoFalha.SEM_CONEXAO, "Sem conexão com o servidor")
+    }
+
+    /**
+     * A conexão foi recusada na hora (ECONNREFUSED: a máquina responde, mas a porta está fechada)? É o servidor parado
+     * ou reiniciando, e não falta de rede no coletor (ENETUNREACH, nome que não resolve, tempo esgotado). Em 09/11 o
+     * servidor ficou 10 min parado para um deploy e o coletor dizia só "Sem conexão com o servidor".
+     */
+    private fun servidorRecusou(e: Throwable, profundidade: Int = 0, vistos: MutableSet<Throwable> = HashSet()): Boolean {
+        if (profundidade > 8 || !vistos.add(e)) return false
+        if (e is java.net.ConnectException) {
+            val texto = e.message.orEmpty()
+            if (texto.contains("ECONNREFUSED") || texto.contains("Connection refused", ignoreCase = true)) return true
+        }
+        // Causa e suprimidas: o OkHttp 5 guarda a falha de cada rota tentada como "suppressed" da última
+        return listOfNotNull(e.cause).plus(e.suppressed).any { servidorRecusou(it, profundidade + 1, vistos) }
     }
 
     private fun falhaEndereco() =
@@ -941,6 +969,8 @@ class TagService internal constructor(
 
         /** Mesmo cliente (chave, certificado confirmado), mas falando com [endereco] — ex.: testar um IP ainda não salvo. */
         fun paraEndereco(context: Context, endereco: String) = TagService(HttpClient.get(context)) { endereco }
+
+        const val MENSAGEM_SERVIDOR_FORA_DO_AR = "O servidor não está respondendo (parado ou reiniciando?). Tente de novo em alguns minutos"
 
         const val MENSAGEM_NAO_CONFIGURADO = "Servidor não configurado: informe o IP do servidor nas Configurações do coletor"
 

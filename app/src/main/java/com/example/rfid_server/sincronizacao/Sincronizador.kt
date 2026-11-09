@@ -35,6 +35,8 @@ enum class EstadoSincronizacao(
 ) {
     SINCRONIZADO("Tudo enviado ao servidor"),
     SEM_CONEXAO("Sem conexão com o servidor"),
+    /** A porta do servidor está fechada (parado ou reiniciando): não é problema do coletor; tenta de novo sozinho. */
+    SERVIDOR_FORA_DO_AR("O servidor não está respondendo (parado ou reiniciando?): as leituras ficam guardadas e vão sozinhas quando ele voltar"),
     CHAVE_INVALIDA("Servidor recusou a chave do coletor", dependeDasConfiguracoes = true),
     ENDERECO_INVALIDO("Endereço do servidor inválido", dependeDasConfiguracoes = true),
     ERRO_SERVIDOR("Erro no servidor"),
@@ -609,6 +611,7 @@ class Sincronizador internal constructor(
 
     private fun estadoPara(motivo: MotivoFalha) = when (motivo) {
         MotivoFalha.SEM_CONEXAO -> EstadoSincronizacao.SEM_CONEXAO
+        MotivoFalha.SERVIDOR_FORA_DO_AR -> EstadoSincronizacao.SERVIDOR_FORA_DO_AR
         MotivoFalha.CHAVE_INVALIDA -> EstadoSincronizacao.CHAVE_INVALIDA
         MotivoFalha.ENDERECO_INVALIDO -> EstadoSincronizacao.ENDERECO_INVALIDO
         MotivoFalha.ERRO_SERVIDOR, MotivoFalha.REQUISICAO_RECUSADA -> EstadoSincronizacao.ERRO_SERVIDOR
