@@ -217,7 +217,7 @@ class SincronizadorTest {
 
         val estado = sincronizador().processarPendentes()
 
-        assertEquals(EstadoSincronizacao.SEM_CONEXAO, estado)
+        assertEquals("Porta fechada: o servidor não está respondendo (não é falta de rede)", EstadoSincronizacao.SERVIDOR_FORA_DO_AR, estado)
         assertEquals(1, novasTentativasAgendadas)
         dao.leituras.forEach {
             assertEquals(Situacao.PENDENTE, it.situacao)
@@ -264,7 +264,7 @@ class SincronizadorTest {
         (1..3).forEach { dao.inserir(LeituraEntity(epc = "E$it", lidoEm = 0)) }
         servidor.shutdown()
 
-        assertEquals(EstadoSincronizacao.SEM_CONEXAO, sincronizador().processarPendentes())
+        assertEquals(EstadoSincronizacao.SERVIDOR_FORA_DO_AR, sincronizador().processarPendentes())
     }
 
     @Test(timeout = 10_000)
