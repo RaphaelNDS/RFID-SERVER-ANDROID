@@ -36,8 +36,12 @@ object FiltroInventario {
     fun mostrarCampo(tamanhoDaLista: Int, termo: String): Boolean =
         tamanhoDaLista >= MINIMO_PARA_FILTRAR || termo.isNotBlank()
 
+    /**
+     * Faltando filtrado pelo [termo]. Os que o cadastro já explica (emprestado, em manutenção) vão para o fim, na
+     * mesma ordem entre si: o operador procura primeiro os que deviam estar na sala.
+     */
     fun faltando(itens: List<ItemEsperado>, termo: String): List<ItemEsperado> =
-        filtrar(itens, termo) { listOf(it.patrimonio, it.epc) }
+        filtrar(itens, termo) { listOf(it.patrimonio, it.epc) }.sortedBy { ResumoFinalizacao.motivoPeloCadastro(it) != null }
 
     fun lidas(itens: List<LidaInventario>, termo: String): List<LidaInventario> =
         filtrar(itens, termo) { listOf(it.patrimonio, it.epc) }

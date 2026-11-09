@@ -46,6 +46,16 @@ class RegrasInventarioTest {
     }
 
     @Test
+    fun `faltando explicado pelo cadastro vai para o fim mantendo a ordem`() {
+        val itens = listOf(
+            item("E1").copy(situacao = "EMPRESTADO"), item("E2"), item("E3").copy(situacao = "EM_MANUTENCAO"),
+            item("E4").copy(situacao = "EXTRAVIADO"), item("E5").copy(situacao = "EM_USO")
+        )
+
+        assertEquals(listOf("E2", "E4", "E5", "E1", "E3"), FiltroInventario.faltando(itens, "").map { it.epc })
+    }
+
+    @Test
     fun `filtro das lidas procura no patrimonio e no epc`() {
         val lidas = listOf(LidaInventario("X9", null, true), LidaInventario("E1", "P-E1", false))
 

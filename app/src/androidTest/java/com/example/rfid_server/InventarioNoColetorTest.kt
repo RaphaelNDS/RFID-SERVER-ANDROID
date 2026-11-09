@@ -94,6 +94,11 @@ class InventarioNoColetorTest {
             onView(withId(R.id.btnIniciar)).perform(click())
 
             aguardar("inventário aberto") { onView(withId(R.id.btnFinalizar)).check(matches(isDisplayed())); true }
+            // O bem em manutenção no cadastro diz isso na lista do Faltando (e vem por último)
+            aguardar("situação do cadastro na lista") {
+                onView(withText(contexto.getString(R.string.esperado_situacao, "Em manutenção")))
+                    .check(matches(androidx.test.espresso.matcher.ViewMatchers.withEffectiveVisibility(androidx.test.espresso.matcher.ViewMatchers.Visibility.VISIBLE))); true
+            }
             foto("07-inventario-andamento")
 
             onView(withId(R.id.btnFinalizar)).perform(click())

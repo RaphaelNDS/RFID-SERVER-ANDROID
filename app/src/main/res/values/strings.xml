@@ -299,6 +299,7 @@
     <string name="esperado_patrimonio">Patrimônio %1$s</string>
     <string name="esperado_sem_patrimonio">Sem patrimônio (EPC %1$s)</string>
     <string name="esperado_codigo">Código %1$s</string>
+    <string name="esperado_situacao">No cadastro: %1$s</string>
 
     <!-- Localizar -->
     <string name="localizar_barra_titulo">Localizar patrimônio</string>
