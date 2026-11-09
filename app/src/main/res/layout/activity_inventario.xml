@@ -36,12 +36,13 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"/>
 
-            <!-- Estilo de lista: dá ao campo com sugestões o mesmo espaçamento dos outros -->
+            <!-- Estilo de lista: dá ao campo com sugestões o mesmo espaçamento dos outros. A seta no fim do campo abre a
+                 lista de locais inteira (antes só aparecia digitando uma letra, e parecia que o local não existia) -->
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/campoLocal"
                 style="@style/Widget.RFID.Campo.Lista"
                 android:hint="@string/inventario_local_hint"
-                app:endIconMode="none"
+                app:endIconMode="dropdown_menu"
                 app:helperText="@string/inventario_local_exemplo"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
