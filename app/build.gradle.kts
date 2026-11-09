@@ -5,7 +5,6 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.ksp)
 }
 
@@ -13,7 +12,7 @@ plugins {
 // versionName: mude à mão a cada versão entregue (1.4.0 → 1.4.1 correção, 1.5.0 funcionalidade nova).
 // versionCode: número de commits do git, então sobe sozinho a cada commit e o Android sempre aceita
 // instalar por cima da versão anterior. Para forçar um valor: ./gradlew assembleRelease -Prfid.codigoVersao=N
-val versaoApp = "1.7.7"
+val versaoApp = "1.8.0"
 
 // Abaixo disto o Android recusa instalar por cima (a 1.3.0 instalada nos coletores tem versionCode 6)
 val codigoVersaoMinimo = 7
@@ -95,7 +94,7 @@ if (!assinaturaConfigurada) {
 
 android {
     namespace = "com.example.rfid_server"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         // Identidade do app no Android. ATENÇÃO: mudar este valor faz o Android tratar como OUTRO app
@@ -103,7 +102,7 @@ android {
         // O namespace acima (pacote do código) é independente e não precisa mudar.
         applicationId = "br.com.bkpbr.rfidandroid"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 37
         versionCode = codigoVersao
         versionName = versaoApp
 

@@ -59,9 +59,20 @@ class ConfiancaCertificado(private val impressaoConfirmada: () -> String?) : X50
         fun impressaoDigital(certificado: X509Certificate): String =
             MessageDigest.getInstance("SHA-256").digest(certificado.encoded).joinToString(":") { "%02X".format(it) }
 
-        /** Procura, nas causas de uma falha de conexão, a recusa do certificado (o OkHttp embrulha em SSLHandshakeException). */
-        fun recusaNaCausa(erro: Throwable): CertificateException? =
-            generateSequence(erro) { it.cause }.take(10)
-                .firstOrNull { it is CertificadoNaoConfirmadoException || it is CertificadoDiferenteException } as CertificateException?
+        /**
+         * Procura, numa falha de conexão, a recusa do certificado. O OkHttp embrulha em SSLHandshakeException (causa) e,
+         * a partir do OkHttp 5, quando tenta outra rota ou outra configuração de TLS depois da recusa, a primeira falha
+         * vem como "suppressed" da última: procura nas causas e nas suprimidas, com limite de profundidade.
+         */
+        fun recusaNaCausa(erro: Throwable): CertificateException? = procurar(erro, profundidade = 0, vistos = HashSet())
+
+        private fun procurar(erro: Throwable, profundidade: Int, vistos: MutableSet<Throwable>): CertificateException? {
+            if (profundidade > 10 || !vistos.add(erro)) return null
+            if (erro is CertificadoNaoConfirmadoException) return erro
+            if (erro is CertificadoDiferenteException) return erro
+            erro.cause?.let { causa -> procurar(causa, profundidade + 1, vistos)?.let { return it } }
+            for (suprimida in erro.suppressed) procurar(suprimida, profundidade + 1, vistos)?.let { return it }
+            return null
+        }
     }
 }
