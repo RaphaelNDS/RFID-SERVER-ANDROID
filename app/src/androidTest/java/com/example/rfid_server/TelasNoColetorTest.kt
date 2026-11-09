@@ -20,8 +20,9 @@ import org.junit.runner.RunWith
 /**
  * Teste rápido no próprio coletor, com a versão de teste (br.com.bkpbr.rfidandroid.teste), que fica ao lado do app de
  * produção sem mexer nele: as telas abrem, os recursos do aparelho (som, ícone) funcionam e as regras novas valem no
- * Android de verdade. Rodar com o coletor no adb:
- *   ANDROID_SERIAL=<id do coletor> ./gradlew connectedDebugAndroidTest
+ * Android de verdade. Rodar SÓ no coletor com scripts/testar-no-coletor.sh (o connectedDebugAndroidTest do Gradle roda em
+ * todos os aparelhos que o adb enxerga, mesmo com ANDROID_SERIAL):
+ *   scripts/testar-no-coletor.sh [classe] [--fotos]
  * Não usa o leitor RFID (ele é do app de produção enquanto ele estiver aberto) nem o servidor.
  */
 @RunWith(AndroidJUnit4::class)

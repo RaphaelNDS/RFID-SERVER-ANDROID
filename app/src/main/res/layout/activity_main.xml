@@ -3,6 +3,7 @@
      Operador e fim da sessão vão no subtítulo da barra. Os avisos (recusa, contadores, sincronização) ficam num bloco
      que rola: no pior caso ele encolhe para a lista nunca ter menos que AlturaTopoPrincipal.MINIMO_LISTA_DP -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/raizPrincipal"
     android:orientation="vertical"
     android:layout_width="match_parent"
@@ -234,6 +235,29 @@
         android:background="@color/borda"
         android:layout_width="match_parent"
         android:layout_height="1dp"/>
+
+    <!-- Busca (menu ⋮ → Buscar na leitura): filtra as duas abas; fica escondida para não tirar espaço da lista -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/campoBusca"
+        style="@style/Widget.RFID.Campo"
+        android:hint="@string/main_buscar_dica"
+        app:endIconMode="clear_text"
+        android:visibility="gone"
+        android:layout_marginTop="4dp"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="12dp"
+        android:layout_marginBottom="4dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/edtBusca"
+            android:inputType="text|textNoSuggestions"
+            android:imeOptions="actionSearch"
+            android:maxLines="1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
+    </com.google.android.material.textfield.TextInputLayout>
 
     <!-- Os títulos das abas trazem a quantidade: "Leitura (12)" e "Não cadastradas (3)" -->
     <com.google.android.material.tabs.TabLayout

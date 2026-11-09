@@ -86,6 +86,10 @@
     <string name="main_nova_leitura">Nova leitura</string>
     <string name="main_menu_recusadas">Leituras recusadas</string>
     <string name="main_configuracoes">Configurações</string>
+    <string name="main_buscar">Buscar na leitura</string>
+    <string name="main_buscar_dica">Patrimônio, tipo, marca ou etiqueta</string>
+    <string name="main_planilha">Compartilhar planilha</string>
+    <string name="main_planilha_vazia">Nenhuma etiqueta nesta leitura para a planilha</string>
     <string name="main_sair_menu">Sair (trocar operador)</string>
     <string name="main_sair_titulo">Sair do coletor</string>
     <string name="main_sair_mensagem">Sair como %1$s? O próximo operador entra com o próprio usuário.</string>
@@ -202,6 +206,10 @@
     <string name="inventario_resumo_fora_dialogo">Fora da lista: %1$d</string>
     <string name="inventario_resumo_sem_comparacao">Sem lista do esperado para comparar.</string>
     <string name="inventario_compartilhar">Compartilhar</string>
+    <string name="inventario_anteriores">Inventários anteriores</string>
+    <string name="inventario_anteriores_vazio">Nenhum inventário finalizado neste coletor ainda</string>
+    <string name="inventario_anterior_linha">%1$s · %2$s · %3$d lida(s)</string>
+    <string name="inventario_anterior_faltam">faltaram %1$d</string>
     <string name="inventario_justificar">Justificar faltantes (%1$d)</string>
     <string name="inventario_justificar_motivo">Motivo dos que faltaram</string>
     <string name="inventario_justificar_quais">Quais estão \"%1$s\"?</string>
@@ -324,6 +332,8 @@
     <string name="config_salvo_sem_chave">Salvo, mas sem a chave do coletor o servidor recusa as chamadas</string>
     <string name="config_salvas">Configurações salvas!</string>
     <string name="config_qr_lido">Configuração lida do QR: confira o servidor e toque em Salvar</string>
+    <string name="diagnostico_titulo">Diagnóstico do coletor</string>
+    <string name="diagnostico_compartilhar">Compartilhar</string>
     <string name="config_qr_titulo">Configuração por QR Code</string>
     <string name="config_qr_servidor">Servidor: %1$s</string>
     <string name="config_qr_certificado">Certificado do servidor:</string>

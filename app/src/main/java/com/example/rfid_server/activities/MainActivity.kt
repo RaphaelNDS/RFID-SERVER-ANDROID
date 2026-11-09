@@ -19,6 +19,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.view.isVisible
+import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.ViewModelProvider
 import androidx.viewpager2.widget.ViewPager2
 import com.example.rfid_server.AppConfig
@@ -152,10 +153,18 @@ class MainActivity : AppCompatActivity() {
 
         limitarBlocoDeAvisos()
 
+        // Busca: filtra as duas abas enquanto o operador digita (a lista e o título da aba mostram só o que bate)
+        findViewById<android.widget.EditText>(R.id.edtBusca).doAfterTextChanged { viewModel.termoBusca.value = it?.toString().orEmpty() }
+
         // Plaqueta de patrimônio lida na tela principal: abre o Localizar já buscando o bem
         CodigoDeBarras.ouvir(this) { codigo ->
             if (ConfigQr.ler(codigo) != null) return@ouvir true // QR de configuração: só nas Configurações
             // Gatilho RFID apertado (se o leitor de código de barras disparar junto) ou leitura repetida: não abre de novo
+            // Busca aberta: a plaqueta vai para a busca (acha o bem na leitura atual) em vez de abrir o Localizar
+            if (findViewById<View>(R.id.campoBusca).isVisible) {
+                findViewById<android.widget.EditText>(R.id.edtBusca).setText(codigo)
+                return@ouvir true
+            }
             if (rfidManager.gatilhoApertado.value == true || !CliqueUnico.permitir()) return@ouvir true
             Log.i(TAG, "Código de barras na tela principal: abrindo o Localizar do patrimônio $codigo")
             startActivity(Intent(this, LocalizarActivity::class.java).putExtra(LocalizarActivity.EXTRA_PATRIMONIO, codigo))
@@ -312,6 +321,49 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, R.string.main_enviando_agora, Toast.LENGTH_SHORT).show()
     }
 
+    // ================= BUSCA E PLANILHA DA LEITURA =================
+
+    /** Mostra o campo de busca (com o teclado) ou, se já aberto, limpa e esconde. */
+    private fun alternarBusca() {
+        val campo = findViewById<View>(R.id.campoBusca)
+        val edt = findViewById<android.widget.EditText>(R.id.edtBusca)
+        if (campo.isVisible) {
+            edt.setText("")
+            campo.isVisible = false
+            (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).hideSoftInputFromWindow(edt.windowToken, 0)
+        } else {
+            campo.isVisible = true
+            edt.requestFocus()
+            (getSystemService(INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager).showSoftInput(edt, 0)
+        }
+    }
+
+    /** Planilha (CSV) de toda a leitura atual, para mandar por e-mail ou WhatsApp. */
+    private fun compartilharPlanilha() {
+        val csv = viewModel.planilha()
+        if (csv.lines().count { it.isNotBlank() } <= 1) {
+            Toast.makeText(this, R.string.main_planilha_vazia, Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            val pasta = java.io.File(cacheDir, "relatorios").apply { mkdirs() }
+            pasta.listFiles()?.forEach { it.delete() } // só a última planilha fica guardada
+            val arquivo = java.io.File(pasta, "leituras-" + java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.ROOT).format(java.util.Date()) + ".csv")
+            // Marca de UTF-8 no início: o Excel reconhece os acentos
+            arquivo.writeText(Char(0xFEFF).toString() + csv, Charsets.UTF_8)
+            val uri = androidx.core.content.FileProvider.getUriForFile(this, "$packageName.atualizacao", arquivo)
+            val envio = Intent(Intent.ACTION_SEND).setType("text/csv")
+                .putExtra(Intent.EXTRA_SUBJECT, getString(R.string.main_planilha))
+                .putExtra(Intent.EXTRA_STREAM, uri)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            startActivity(Intent.createChooser(envio, getString(R.string.main_planilha)))
+            Log.i(TAG, "Operador compartilhou a planilha da leitura (${csv.lines().count { it.isNotBlank() } - 1} etiqueta(s))")
+        } catch (e: Exception) {
+            Log.w(TAG, "Planilha da leitura não compartilhada", e)
+            Toast.makeText(this, R.string.inventario_compartilhar_indisponivel, Toast.LENGTH_LONG).show()
+        }
+    }
+
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_main, menu)
         return true
@@ -322,6 +374,16 @@ class MainActivity : AppCompatActivity() {
 
             R.id.menu_nova_leitura -> {
                 confirmarNovaLeitura()
+                true
+            }
+
+            R.id.menu_buscar -> {
+                alternarBusca()
+                true
+            }
+
+            R.id.menu_planilha -> {
+                compartilharPlanilha()
                 true
             }
 

@@ -242,6 +242,15 @@
                         android:layout_marginTop="8dp"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"/>
+
+                    <!-- Situação do coletor numa tela só (versão, servidor, leitor, fila, relógio, espaço): suporte por telefone -->
+                    <Button
+                        android:id="@+id/btnDiagnostico"
+                        style="@style/Widget.RFID.Botao.Contorno"
+                        android:text="@string/diagnostico_titulo"
+                        android:layout_marginTop="8dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"/>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
