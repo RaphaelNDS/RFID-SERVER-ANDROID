@@ -37,7 +37,11 @@ class SincronizadorJustificativas(
         for ((chave, itens) in grupos) {
             val (inventarioId, sessao) = chave
             for (lote in itens.chunked(MAXIMO_POR_ENVIO)) {
-                val corpo = JSONArray().apply { lote.forEach { put(JSONObject().put("tag", it.epc).put("motivo", it.motivo.name)) } }
+                val corpo = JSONArray().apply {
+                    lote.forEach { item ->
+                        put(JSONObject().put("tag", item.epc).put("motivo", item.motivo.name).apply { item.observacao?.let { put("observacao", it) } })
+                    }
+                }
                 when (val resposta = enviar(inventarioId, corpo, sessao)) {
                     is RespostaServidor.Sucesso -> {
                         fila.remover(inventarioId, lote.map { it.epc })

@@ -9,7 +9,9 @@ import android.widget.TextView
 import androidx.annotation.ColorRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import com.example.rfid_server.AppConfig
 import com.example.rfid_server.CorFaixa
+import com.example.rfid_server.FiltroLeitura
 import com.example.rfid_server.DetalheLeitor
 import com.example.rfid_server.EstadoLeitor
 import com.example.rfid_server.FaixaLeitor
@@ -45,7 +47,15 @@ object EstiloFaixaLeitor {
  * de falha ao configurar o gatilho e de bateria baixa (regras em [FaixaLeitor]).
  * Chame no onCreate de uma tela que tenha o include.
  */
-fun AppCompatActivity.mostrarEstadoLeitor(rfidManager: RfidManager) {
+fun AppCompatActivity.mostrarEstadoLeitor(
+    rfidManager: RfidManager,
+    /**
+     * Mostra na faixa "conectado" os filtros da leitura que estão ligados (alcance; "só da empresa" só onde vale, no
+     * Inventário): o operador vê por que a sala vizinha ou uma etiqueta antiga não aparece. O Localizar não usa filtros.
+     */
+    mostrarFiltros: Boolean = false,
+    usaFiltroEmpresa: Boolean = false
+) {
     val painel = findViewById<View>(R.id.painelEstadoLeitor)
     val marca = findViewById<View>(R.id.marcaEstadoLeitor)
     val texto = findViewById<TextView>(R.id.txtEstadoLeitor)
@@ -68,7 +78,8 @@ fun AppCompatActivity.mostrarEstadoLeitor(rfidManager: RfidManager) {
         val agora = SystemClock.elapsedRealtime()
         val mensagem = FaixaLeitor.escolher(estado, detalhe, agora)
 
-        texto.text = textoFaixa(mensagem, estado, detalhe)
+        val filtros = if (mostrarFiltros && mensagem == MensagemFaixa.CONECTADO) textoFiltros(usaFiltroEmpresa) else null
+        texto.text = textoFaixa(mensagem, estado, detalhe).let { if (filtros != null) "$it · $filtros" else it }
         val desconectado = estado == EstadoLeitor.DESCONECTADO || estado == EstadoLeitor.PARADO
         botao.visibility = if (desconectado) View.VISIBLE else View.GONE
 
@@ -86,6 +97,10 @@ fun AppCompatActivity.mostrarEstadoLeitor(rfidManager: RfidManager) {
 
     rfidManager.estado.observe(this) { desenhar() }
     rfidManager.detalhe.observe(this) { desenhar() }
+    // Volta das Configurações com outro filtro: a faixa atualiza sem esperar o leitor mudar de estado
+    lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
+        override fun onResume(owner: androidx.lifecycle.LifecycleOwner) = desenhar()
+    })
 }
 
 private fun Context.textoFaixa(mensagem: MensagemFaixa, estado: EstadoLeitor, detalhe: DetalheLeitor): String =
@@ -115,4 +130,17 @@ private fun Context.textoMotivo(motivo: MotivoFalhaLeitor?): String {
         motivo.detalhe.isNotBlank() -> motivo.detalhe
         else -> getString(R.string.leitor_motivo_desconhecido)
     }
+}
+
+/** "alcance curto", "só da empresa", "alcance médio · só da empresa"; null sem filtro ligado. */
+private fun Context.textoFiltros(usaFiltroEmpresa: Boolean): String? {
+    val partes = buildList {
+        when (AppConfig.getRssiMinimo(this@textoFiltros)) {
+            null -> Unit
+            FiltroLeitura.ALCANCES.last() -> add(getString(R.string.leitor_filtro_curto))
+            else -> add(getString(R.string.leitor_filtro_medio))
+        }
+        if (usaFiltroEmpresa && AppConfig.isSoEtiquetasEmpresa(this@textoFiltros)) add(getString(R.string.leitor_filtro_empresa))
+    }
+    return partes.takeIf { it.isNotEmpty() }?.joinToString(" · ")
 }
