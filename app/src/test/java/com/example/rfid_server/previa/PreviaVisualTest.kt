@@ -48,5 +48,11 @@ class PreviaVisualTest {
             Canvas(bmp).apply { drawColor(android.graphics.Color.WHITE); v.draw(this) }
             File(pasta, "$nome.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
         }
+
+        // Ícone do app (adaptativo, com a máscara do aparelho) em tamanho grande
+        val icone = androidx.core.content.ContextCompat.getDrawable(contexto, R.mipmap.ic_launcher)!!
+        val bmpIcone = Bitmap.createBitmap(384, 384, Bitmap.Config.ARGB_8888)
+        Canvas(bmpIcone).apply { drawColor(android.graphics.Color.WHITE); icone.setBounds(0, 0, 384, 384); icone.draw(this) }
+        File(pasta, "icone.png").outputStream().use { bmpIcone.compress(Bitmap.CompressFormat.PNG, 100, it) }
     }
 }
