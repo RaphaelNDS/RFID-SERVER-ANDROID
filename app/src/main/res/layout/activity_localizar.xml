@@ -77,7 +77,7 @@
         <!-- EPC é comprido: corta no meio para mostrar o começo e o fim -->
         <TextView
             android:id="@+id/txtProcurando"
-            android:textColor="@color/marinho"
+            android:textColor="@color/primaria"
             android:textSize="16sp"
             android:textStyle="bold"
             android:maxLines="1"

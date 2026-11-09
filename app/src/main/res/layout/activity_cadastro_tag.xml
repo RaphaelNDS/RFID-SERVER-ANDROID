@@ -46,7 +46,7 @@
                     <TextView
                         android:id="@+id/txtEpc"
                         android:typeface="monospace"
-                        android:textColor="@color/marinho"
+                        android:textColor="@color/primaria"
                         android:textSize="15sp"
                         android:textStyle="bold"
                         android:layout_marginTop="4dp"

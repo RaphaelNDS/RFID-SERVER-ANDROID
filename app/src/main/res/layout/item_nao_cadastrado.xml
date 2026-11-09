@@ -39,7 +39,7 @@
         <!-- Diz o que o toque faz (antes era o título da aba, "toque para cadastrar"); o toque é no cartão inteiro -->
         <TextView
             android:text="@string/nao_cadastradas_cadastrar"
-            android:textColor="@color/azul"
+            android:textColor="@color/secundaria"
             android:textSize="14sp"
             android:textStyle="bold"
             android:layout_marginStart="8dp"

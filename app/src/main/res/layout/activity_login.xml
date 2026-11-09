@@ -12,7 +12,7 @@
         <!-- Faixa com o nome do sistema -->
         <LinearLayout
             android:orientation="vertical"
-            android:background="@color/marinho"
+            android:background="@drawable/fundo_cabecalho"
             android:paddingStart="24dp"
             android:paddingEnd="24dp"
             android:paddingTop="32dp"
