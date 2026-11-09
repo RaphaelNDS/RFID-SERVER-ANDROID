@@ -826,6 +826,8 @@ class InventarioActivity : AppCompatActivity() {
         val c = resumo.comparacao
 
         val mensagem = buildString {
+            // O local vai na mensagem: no título ("Inventário de X finalizado: N") ele cortava na tela de 320dp
+            append(getString(R.string.inventario_local, resumo.local)).append('\n')
             append(getString(R.string.inventario_resumo_lidas_dialogo, resumo.lidas))
             if (c == null) {
                 append("\n").append(getString(R.string.inventario_resumo_sem_comparacao))
@@ -838,14 +840,17 @@ class InventarioActivity : AppCompatActivity() {
 
         val faltantes = faltantesSemJustificativa(resumo)
         AlertDialog.Builder(this)
-            .setTitle(getString(R.string.inventario_finalizado, resumo.local, resumo.lidas))
+            .setTitle(R.string.inventario_finalizado_titulo)
             .setMessage(mensagem)
             .setPositiveButton(R.string.inventario_compartilhar) { _, _ -> compartilhar(resumo) }
-            .setNegativeButton(R.string.comum_ok, null)
             .apply {
-                // Justificar os que faltaram (emprestado, em manutenção...): vai para o servidor junto com o inventário
+                // Justificar os que faltaram (emprestado, em manutenção...): vai para o servidor junto com o inventário.
+                // Com três botões eles empilham (positivo, negativo, neutro): Justificar fica no meio e o OK por último
                 if (faltantes.isNotEmpty() && resumo.inventarioId.isNotEmpty()) {
-                    setNeutralButton(getString(R.string.inventario_justificar, faltantes.size)) { _, _ -> escolherMotivo(resumo) }
+                    setNegativeButton(getString(R.string.inventario_justificar, faltantes.size)) { _, _ -> escolherMotivo(resumo) }
+                    setNeutralButton(R.string.comum_ok, null)
+                } else {
+                    setNegativeButton(R.string.comum_ok, null)
                 }
             }
             .show()
