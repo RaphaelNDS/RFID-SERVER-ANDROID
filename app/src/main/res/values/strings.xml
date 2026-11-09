@@ -70,6 +70,7 @@
     <string name="main_rodape_inventario">Inventário</string>
     <string name="main_rodape_localizar">Localizar</string>
     <string name="nao_cadastradas_cadastrar">Cadastrar ›</string>
+    <string name="tag_alerta_situacao">⚠ No cadastro: %1$s. Avise o responsável pelo patrimônio</string>
     <string name="tag_sem_patrimonio">Sem patrimônio</string>
     <string name="tag_sem_descricao">Tipo, marca e modelo não informados</string>
     <string name="tag_codigo_serie">Cód. %1$s · Série %2$s</string>

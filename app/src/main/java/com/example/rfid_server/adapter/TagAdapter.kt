@@ -23,6 +23,7 @@ class TagAdapter(
         val txtPatrimonio: TextView = view.findViewById(R.id.txtPatrimonio)
         val txtDescricao: TextView = view.findViewById(R.id.txtDescricao)
         val txtCodigos: TextView = view.findViewById(R.id.txtCodigos)
+        val txtAlerta: TextView = view.findViewById(R.id.txtAlerta)
     }
 
     class VHAguardando(view: View) : RecyclerView.ViewHolder(view) {
@@ -65,6 +66,11 @@ class TagAdapter(
                 // Linha 3: código interno e número de série
                 h.txtCodigos.text = if (linhas.serie != null) ctx.getString(R.string.tag_codigo_serie, linhas.codigo, linhas.serie)
                     else ctx.getString(R.string.tag_codigo, linhas.codigo)
+
+                // Linha 4 (só quando há): bem baixado ou extraviado no cadastro, em vermelho
+                val alerta = item.tag.alertaSituacao()
+                h.txtAlerta.visibility = if (alerta != null) View.VISIBLE else View.GONE
+                h.txtAlerta.text = alerta?.let { ctx.getString(R.string.tag_alerta_situacao, it) }
             }
         }
     }

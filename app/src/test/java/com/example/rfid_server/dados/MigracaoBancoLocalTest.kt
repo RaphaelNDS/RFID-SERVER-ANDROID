@@ -197,4 +197,32 @@ class MigracaoBancoLocalTest {
             colunas(6, tabela).forEach { (coluna, tipo) -> assertEquals("$tabela.$coluna mudou", tipo, colunas(7, tabela)[coluna]) }
         }
     }
+
+    @Test
+    fun `migracao 7 para 8 acrescenta so as colunas de situacao do bem nas leituras como o Room espera`() {
+        assertEquals(8, esquema(8).getInt("version"))
+        assertEquals("Nenhuma tabela nova na versão 8", tabelas(7), tabelas(8))
+
+        val acrescentadas = tabelas(7).flatMap { tabela ->
+            (colunas(8, tabela) - colunas(7, tabela).keys).map { (coluna, tipo) -> Triple(tabela, coluna, tipo) }
+        }.toSet()
+        assertEquals(
+            setOf(
+                Triple("leituras", "situacaoBem", "TEXT" to false),
+                Triple("leituras", "situacaoBemRotulo", "TEXT" to false)
+            ),
+            acrescentadas
+        )
+
+        val daMigracao = BancoLocal.SQL_VERSAO_8.map { sql ->
+            val (tabela, coluna, tipo, resto) =
+                Regex("ALTER TABLE `(\\w+)` ADD COLUMN `(\\w+)` (\\w+)(.*)").matchEntire(sql)!!.destructured
+            Triple(tabela, coluna, tipo to resto.contains("NOT NULL"))
+        }.toSet()
+        assertEquals(acrescentadas, daMigracao)
+
+        tabelas(7).forEach { tabela ->
+            colunas(7, tabela).forEach { (coluna, tipo) -> assertEquals("$tabela.$coluna mudou", tipo, colunas(8, tabela)[coluna]) }
+        }
+    }
 }

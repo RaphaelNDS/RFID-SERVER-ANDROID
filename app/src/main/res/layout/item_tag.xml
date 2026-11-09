@@ -47,5 +47,18 @@
             android:ellipsize="end"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
+
+        <!-- Bem baixado ou extraviado no cadastro (servidor 1.6.2+): não deveria estar circulando -->
+        <TextView
+            android:id="@+id/txtAlerta"
+            android:textColor="@color/erro"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:visibility="gone"
+            android:layout_marginTop="2dp"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

@@ -46,16 +46,16 @@ object BuscaLeituras {
      * (Cadastrada, Aguardando o servidor, Não cadastrada), os dados do bem e o EPC.
      */
     fun csv(leituras: List<ItemLeitura>, naoCadastradas: List<ItemNaoCadastrada>): String = buildString {
-        appendLine("Situação;Patrimônio;Tipo;Marca;Modelo;Código interno;Nº de série;Etiqueta (EPC)")
+        appendLine("Situação;Patrimônio;Tipo;Marca;Modelo;Código interno;Nº de série;Etiqueta (EPC);Situação no cadastro")
         leituras.forEach { item ->
             when (item) {
                 is ItemLeitura.Cadastrada -> with(item.tag) {
-                    linha("Cadastrada", patrimonio, tipo, marca, modelo, codigoInterno, numeroSerie, epc)
+                    linha("Cadastrada", patrimonio, tipo, marca, modelo, codigoInterno, numeroSerie, epc, situacaoRotulo ?: situacao)
                 }
-                is ItemLeitura.Aguardando -> linha("Aguardando o servidor", "", "", "", "", "", "", item.epc)
+                is ItemLeitura.Aguardando -> linha("Aguardando o servidor", "", "", "", "", "", "", item.epc, "")
             }
         }
-        naoCadastradas.forEach { linha("Não cadastrada", "", "", "", "", "", "", it.epc) }
+        naoCadastradas.forEach { linha("Não cadastrada", "", "", "", "", "", "", it.epc, "") }
     }
 
     private fun StringBuilder.linha(vararg celulas: String?) {
