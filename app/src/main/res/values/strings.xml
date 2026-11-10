@@ -375,6 +375,10 @@
     <string name="config_salvo_sem_chave">Salvo, mas sem a chave do coletor o servidor recusa as chamadas</string>
     <string name="config_salvas">Configurações salvas!</string>
     <string name="config_qr_lido">Configuração lida do QR: confira o servidor e toque em Salvar</string>
+    <string name="config_ler_qr">Ler QR Code</string>
+    <string name="config_ler_qr_dica">Aponte o leitor do coletor para o QR da tela Coletores do servidor (ou aperte o gatilho apontando para ele)</string>
+    <string name="config_ler_qr_sem_leitor">O leitor de código de barras não respondeu. Digite o servidor e a chave</string>
+    <string name="config_chave_do_qr">Chave lida do QR: toque em Salvar</string>
     <string name="diagnostico_titulo">Diagnóstico do coletor</string>
     <string name="diagnostico_compartilhar">Compartilhar</string>
     <string name="config_qr_titulo">Configuração por QR Code</string>

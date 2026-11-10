@@ -65,6 +65,34 @@ object CodigoDeBarras {
         }
     }
 
+    /**
+     * Liga o leitor de código de barras agora, como se o gatilho fosse apertado (SOFT_SCAN_TRIGGER do DataWedge): o
+     * código lido chega pelo [ouvir], como os outros. Funciona mesmo com o gatilho físico preso ao RFID. false = sem
+     * DataWedge neste aparelho (não é um coletor Zebra).
+     */
+    fun lerAgora(context: Context): Boolean {
+        try {
+            context.packageManager.getPackageInfo(PACOTE_DATAWEDGE, 0)
+        } catch (e: Exception) {
+            Log.w(TAG, "Sem DataWedge neste aparelho: não dá para ligar o leitor de código de barras")
+            return false
+        }
+        return try {
+            context.sendBroadcast(
+                Intent("com.symbol.datawedge.api.ACTION")
+                    .setPackage(PACOTE_DATAWEDGE)
+                    .putExtra("com.symbol.datawedge.api.SOFT_SCAN_TRIGGER", "START_SCANNING")
+            )
+            Log.i(TAG, "Leitor de código de barras ligado pelo botão (SOFT_SCAN_TRIGGER)")
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Não foi possível ligar o leitor de código de barras", e)
+            false
+        }
+    }
+
+    private const val PACOTE_DATAWEDGE = "com.symbol.datawedge"
+
     private fun plugin(nome: String, vararg parametros: Pair<String, String>) = Bundle().apply {
         putString("PLUGIN_NAME", nome)
         putString("RESET_CONFIG", "false")
