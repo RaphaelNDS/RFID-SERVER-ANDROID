@@ -92,6 +92,7 @@
     <string name="main_planilha">Compartilhar planilha</string>
     <string name="main_planilha_vazia">Nenhuma etiqueta nesta leitura para a planilha</string>
     <string name="main_por_tipo">Resumo por tipo</string>
+    <string name="main_letra_maior">Letra maior</string>
     <string name="main_por_tipo_sem_tipo">Sem tipo informado</string>
     <string name="main_por_tipo_linha">%1$s: %2$d</string>
     <string name="main_por_tipo_aguardando">Aguardando o servidor: %1$d</string>

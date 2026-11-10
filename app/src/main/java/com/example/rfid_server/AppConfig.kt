@@ -278,6 +278,14 @@ object AppConfig {
         return prefs.getBoolean(KEY_AVISO_LEITURA, true)
     }
 
+    // Letra maior em todas as telas (TamanhoTexto), escolhida pelo operador no menu da tela principal
+    fun setLetraMaior(context: Context, ligada: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean(KEY_LETRA_MAIOR, ligada) }
+    }
+
+    fun isLetraMaior(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_LETRA_MAIOR, false)
+
     /** Email do último operador que entrou, para já vir preenchido na tela de login. */
     fun getUltimoEmail(context: Context): String {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -418,6 +426,7 @@ object AppConfig {
     private const val KEY_SESSAO_MOTIVO_FIM_EM = "sessao_motivo_fim_em"
     private const val KEY_ULTIMO_EMAIL = "ultimo_email"
     private const val KEY_AVISO_LEITURA = "aviso_leitura"
+    private const val KEY_LETRA_MAIOR = "letra_maior"
     /** Só para trazer o que a versão 1.5.0 e anteriores guardavam aqui (ver esperadoGuardado). */
     private const val KEY_ESPERADO_PREFIXO = "esperado_"
     private const val PASTA_ESPERADO = "esperado"

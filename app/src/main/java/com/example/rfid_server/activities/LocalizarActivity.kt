@@ -32,6 +32,9 @@ import android.util.Log
 
 class LocalizarActivity : AppCompatActivity() {
 
+    // Sem a "Letra maior" (TamanhoTexto) de propósito: esta tela já é feita de texto grande (proximidade que encolhe para
+    // caber e a barra), e com o resto aumentado não sobrava altura para a proximidade no coletor de 320x533dp
+
     // Leitor compartilhado com a tela principal (uma conexão só). Esta tela não desconecta
     private lateinit var rfidManager: RfidManager
     private var epcLocalizando: String? = null

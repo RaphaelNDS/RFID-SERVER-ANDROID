@@ -71,6 +71,9 @@ import java.util.concurrent.RejectedExecutionException
  */
 class InventarioActivity : AppCompatActivity() {
 
+    // "Letra maior" do menu da tela principal (TamanhoTexto)
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(TamanhoTexto.aplicar(newBase))
+
     private lateinit var repositorio: RepositorioInventario
     private lateinit var rfidManager: RfidManager
     private lateinit var tagService: TagService

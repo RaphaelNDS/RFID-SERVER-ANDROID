@@ -29,6 +29,9 @@ import com.example.rfid_server.service.TagService
  */
 class LoginActivity : AppCompatActivity() {
 
+    // "Letra maior" do menu da tela principal (TamanhoTexto)
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(TamanhoTexto.aplicar(newBase))
+
     private lateinit var edtEmail: EditText
     private lateinit var edtSenha: EditText
     private lateinit var btnEntrar: Button

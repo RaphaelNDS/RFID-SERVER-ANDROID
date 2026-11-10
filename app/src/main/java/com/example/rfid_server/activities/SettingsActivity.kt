@@ -31,6 +31,9 @@ import com.google.android.material.textfield.TextInputLayout
 
 class SettingsActivity : AppCompatActivity() {
 
+    // "Letra maior" do menu da tela principal (TamanhoTexto)
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(TamanhoTexto.aplicar(newBase))
+
     private lateinit var edtIp: EditText
     private lateinit var edtChave: EditText
     private lateinit var layoutChave: TextInputLayout

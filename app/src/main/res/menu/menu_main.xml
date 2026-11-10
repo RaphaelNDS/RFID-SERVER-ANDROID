@@ -32,6 +32,13 @@
         android:title="@string/main_menu_recusadas"
         app:showAsAction="never" />
 
+    <!-- Letra maior em todas as telas (TamanhoTexto): do operador, sem PIN -->
+    <item
+        android:id="@+id/menu_letra_maior"
+        android:title="@string/main_letra_maior"
+        android:checkable="true"
+        app:showAsAction="never" />
+
     <!-- Protegidas por PIN (uso do responsável): ficam no menu de três pontos -->
     <item
         android:id="@+id/menu_settings"
