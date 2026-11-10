@@ -262,6 +262,21 @@
     <string name="inventario_aba_lidas_qtd">Lidas (%1$d)</string>
     <string name="inventario_local">Local: %1$s</string>
     <string name="inventario_lida_com_patrimonio">"Patrimônio %1$s  (%2$s)"</string>
+    <!-- Transferência para este local (servidor 1.7.0), pedida numa etiqueta fora da lista -->
+    <string name="inventario_lida_fora_da_lista_transferir">Fora da lista: não era esperada neste local. Toque para localizar ou transferir.</string>
+    <string name="inventario_fora_localizar">Localizar</string>
+    <string name="inventario_fora_transferir">Transferir para este local</string>
+    <string name="inventario_transferir_titulo">Transferir para este local?</string>
+    <string name="inventario_transferir_mensagem">%1$s\n\nNo cadastro, o local passa a ser %2$s. O responsável continua o mesmo.</string>
+    <string name="inventario_transferir_sem_patrimonio">Etiqueta %1$s</string>
+    <string name="inventario_patrimonio_curto">Patrimônio %1$s</string>
+    <string name="inventario_transferir_confirmar">Transferir</string>
+    <string name="inventario_transferir_dica">Ex.: mudou de sala na reforma</string>
+    <string name="inventario_transferencia_pendente">↪ Transferência para este local aguardando envio</string>
+    <string name="inventario_transferencia_feita">✓ Transferido para este local · guia %1$d</string>
+    <string name="inventario_transferencia_ja_estava">✓ Já consta neste local no cadastro</string>
+    <string name="inventario_transferencia_feita_sem_guia">✓ Transferido para este local</string>
+    <string name="inventario_transferencia_recusada">Transferência recusada: %1$s</string>
     <string name="inventario_todas_encontradas">Todas as %1$d etiquetas esperadas foram encontradas</string>
     <string name="inventario_resumo_lidas">%1$d etiqueta(s) lida(s)</string>
     <string name="inventario_resumo_esperadas">%1$d de %2$d esperada(s)</string>

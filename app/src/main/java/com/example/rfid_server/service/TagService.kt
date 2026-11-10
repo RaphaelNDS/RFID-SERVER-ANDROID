@@ -93,6 +93,18 @@ data class EsperadoBaixado(val esperado: EsperadoLocal?, val etag: String?)
 /** Resposta do envio das justificativas: [invalidas] = tags recusadas de vez (tag ou motivo inválido). */
 data class ResultadoJustificativas(val gravadas: Int, val invalidas: List<String>)
 
+/**
+ * Resposta da transferência de um bem para outro local (servidor 1.7.0). [guia] = nº da guia de transferência, null
+ * quando o bem [jaEstava] no local (reenvio: nenhuma guia nova).
+ */
+data class ResultadoTransferencia(
+    val local: String?,
+    val situacao: String?,
+    val situacaoRotulo: String?,
+    val guia: Long?,
+    val jaEstava: Boolean
+)
+
 /** Histórico do bem na ficha (campos opcionais do servidor; datas em ISO-8601). */
 data class HistoricoBem(
     val ultimoLocal: String?,
@@ -389,6 +401,39 @@ class TagService internal constructor(
                         RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Resposta inválida do servidor")
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * Transfere o bem da etiqueta [epc] para o [local] (servidor 1.7.0): POST /api/android/tags/{epc}/transferencia com
+     * {"local","observacao"?}. Só o local muda (o responsável fica); a guia e o histórico são os mesmos da web.
+     * Reenviar ao mesmo local responde jaEstava=true sem guia nova. 404 (sem cadastro), 409 (baixado), 400 (local
+     * desconhecido ou desativado) e 403 (sem permissão) vêm como REQUISICAO_RECUSADA, com o motivo do servidor.
+     */
+    fun transferirAgora(epc: String, local: String, observacao: String?, sessao: String?): RespostaServidor<ResultadoTransferencia> {
+        val url = url("tags", epc, "transferencia") ?: return falhaEndereco()
+        val descricao = "transferir a tag $epc para $local"
+        val corpo = JSONObject().put("local", local).apply { observacao?.let { put("observacao", it) } }
+        val request = Request.Builder().url(url).header(HttpClient.HEADER_SESSAO, sessao.orEmpty())
+            .post(corpo.toString().toRequestBody(json)).build()
+        return executar(request, descricao) { response ->
+            if (!response.isSuccessful) return@executar falhaHttp(response, descricao)
+            val texto = response.body?.string().orEmpty()
+            try {
+                val o = JSONObject(texto)
+                RespostaServidor.Sucesso(
+                    ResultadoTransferencia(
+                        local = o.optStringOrNull("local")?.ifBlank { null },
+                        situacao = o.optStringOrNull("situacao")?.ifBlank { null },
+                        situacaoRotulo = o.optStringOrNull("situacaoRotulo")?.ifBlank { null },
+                        guia = if (o.isNull("transferencia")) null else o.optLong("transferencia").takeIf { it > 0 },
+                        jaEstava = o.optBoolean("jaEstava", false)
+                    )
+                )
+            } catch (e: JSONException) {
+                Log.e(TAG, "Resposta inválida ao $descricao: ${texto.take(120)}", e)
+                RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "Resposta inválida do servidor")
             }
         }
     }
