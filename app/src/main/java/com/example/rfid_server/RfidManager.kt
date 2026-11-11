@@ -598,9 +598,14 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
     private fun acompanharBateriaDoAparelho() {
         if (acompanhandoBateria) return
         try {
-            ContextCompat.registerReceiver(
-                appContext, receptorBateria, IntentFilter(Intent.ACTION_BATTERY_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED
+            // EXPORTED: BATTERY_CHANGED é protegido (só o sistema envia). Com NOT_EXPORTED, abaixo do Android 13 o
+            // ContextCompat exige uma permissão própria do app e o Android recusa entregar o último estado (o "sticky")
+            // no registro ("Permission Denial: broadcasting BATTERY_CHANGED from null", visto no MC3300x em 11/11):
+            // a faixa do leitor ficava sem bateria até o nível mudar. O estado devolvido no registro vai direto também
+            val atual = ContextCompat.registerReceiver(
+                appContext, receptorBateria, IntentFilter(Intent.ACTION_BATTERY_CHANGED), ContextCompat.RECEIVER_EXPORTED
             )
+            atual?.let { receptorBateria.onReceive(appContext, it) }
             acompanhandoBateria = true
         } catch (e: RuntimeException) {
             Log.w(TAG, "Não foi possível acompanhar a bateria do aparelho", e)

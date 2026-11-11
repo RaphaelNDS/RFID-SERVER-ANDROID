@@ -31,7 +31,7 @@ import java.io.File
  * e o Android só aceita o APK assinado com a mesma chave do app instalado. Os dados do coletor (fila de
  * leituras, configurações) continuam depois da atualização.
  *
- * Automática (tela de login): no máximo uma consulta a cada [INTERVALO_AUTOMATICO_MS]. Manual (Configurações):
+ * Automática (tela de login e ao voltar para a tela de Leituras): no máximo uma consulta a cada [INTERVALO_AUTOMATICO_MS]. Manual (Configurações):
  * sempre, e avisa também quando já está na versão mais nova.
  */
 class AtualizadorApp(private val activity: AppCompatActivity) {
@@ -251,7 +251,7 @@ class AtualizadorApp(private val activity: AppCompatActivity) {
         private const val PASTA = "atualizacao"
         private const val TIPO_APK = "application/vnd.android.package-archive"
 
-        /** Consulta automática (tela de login) no máximo a cada 30 min. */
+        /** Consulta automática (login e tela de Leituras) no máximo a cada 30 min, somando as duas telas. */
         private const val INTERVALO_AUTOMATICO_MS = 30 * 60 * 1000L
 
         @Volatile private var ultimaConsultaAutomatica = 0L

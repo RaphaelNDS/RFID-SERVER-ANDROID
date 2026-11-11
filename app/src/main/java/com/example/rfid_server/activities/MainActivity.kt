@@ -112,6 +112,9 @@ class MainActivity : AppCompatActivity() {
             aoRetomar = {
                 sincronizador.solicitar()
                 handler.postDelayed(sincronizacaoPeriodica, INTERVALO_SINCRONIZACAO_MS)
+                // Versão nova publicada: oferece também aqui, não só no login (coletor que fica logado o turno todo
+                // não passava pelo login e não atualizava; visto em 11/11). No máximo uma consulta a cada 30 min
+                AtualizadorApp(this).verificar(manual = false)
             },
             aoPausar = { handler.removeCallbacks(sincronizacaoPeriodica) }
         )
