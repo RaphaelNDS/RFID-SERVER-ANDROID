@@ -20,7 +20,9 @@ class RepositorioCadastros internal constructor(
     private val solicitarSincronizacao: () -> Unit,
     private val relogio: () -> Long = System::currentTimeMillis,
     /** Token da sessão do operador logado (null = ninguém logado ou sessão expirada). */
-    private val sessaoAtual: () -> String? = { null }
+    private val sessaoAtual: () -> String? = { null },
+    /** Roda sem nenhuma sincronização ao mesmo tempo (Sincronizador.exclusivo): mexer num cadastro que pode estar indo ao servidor. */
+    private val exclusivo: (() -> Unit) -> Unit = { it() }
 ) {
 
     val todos: LiveData<List<CadastroEntity>> = dao.todos()
@@ -71,6 +73,28 @@ class RepositorioCadastros internal constructor(
         }
     }
 
+    /**
+     * A etiqueta [anterior] foi regravada com o código da empresa [novo]: o cadastro guardado dela (pendente ou
+     * recusado) passa para o código novo, pendente de novo. Antes ficava no código antigo, que a etiqueta não tem mais,
+     * e a sincronização mandava (ou recusava para sempre) o cadastro de uma etiqueta que não existe.
+     */
+    fun trocarEpc(anterior: String, novo: String, aoTerminar: (Boolean) -> Unit = {}) {
+        executor.execute {
+            var trocou = false
+            exclusivo {
+                val guardado = dao.porEpc(anterior) ?: return@exclusivo
+                dao.apagar(guardado.id)
+                dao.salvar(guardado.copy(id = 0, epc = novo, situacao = SituacaoCadastro.PENDENTE, erro = null))
+                trocou = true
+            }
+            if (trocou) {
+                Log.i(TAG, "Cadastro guardado da etiqueta $anterior passou para o código novo $novo (etiqueta regravada)")
+                solicitarSincronizacao()
+            }
+            aoTerminar(trocou)
+        }
+    }
+
     /** Cadastro guardado para a etiqueta (pendente ou recusado), para preencher o formulário. */
     fun porEpc(epc: String, callback: (CadastroEntity?) -> Unit) {
         executor.execute { callback(dao.porEpc(epc)) }
@@ -113,7 +137,8 @@ class RepositorioCadastros internal constructor(
                         dao = BancoLocal.get(app).cadastroDao(),
                         executor = ExecutorProtegido.umaThread(app, "gravar o cadastro"),
                         solicitarSincronizacao = Sincronizador.get(app)::solicitar,
-                        sessaoAtual = { SessaoAtual.token(app)?.let { CofreSessoes.get(app).referencia(it) } }
+                        sessaoAtual = { SessaoAtual.token(app)?.let { CofreSessoes.get(app).referencia(it) } },
+                        exclusivo = { bloco -> Sincronizador.get(app).exclusivo(bloco) }
                     )
                 }.also { instancia = it }
             }

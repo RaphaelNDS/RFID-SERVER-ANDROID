@@ -36,6 +36,26 @@ class CadastroColetorTest {
     // ---------- RepositorioCadastros ----------
 
     @Test
+    fun `etiqueta regravada leva o cadastro guardado para o codigo novo`() {
+        repositorio.salvar(cadastro(epc = "E-FABRICA"))
+        dao.marcarRecusado(dao.porEpc("E-FABRICA")!!.id, "erro")
+        var trocou: Boolean? = null
+
+        repositorio.trocarEpc("E-FABRICA", "424B50PAT1") { trocou = it }
+
+        assertEquals(true, trocou)
+        assertEquals(null, dao.porEpc("E-FABRICA"))
+        val novo = dao.porEpc("424B50PAT1")!!
+        assertEquals(SituacaoCadastro.PENDENTE, novo.situacao)
+        assertEquals("PAT-1", novo.patrimonio)
+        assertEquals(null, novo.erro)
+
+        // Sem cadastro guardado: nada a trocar
+        repositorio.trocarEpc("OUTRA", "424B50PAT2") { trocou = it }
+        assertEquals(false, trocou)
+    }
+
+    @Test
     fun `salvar guarda pendente sem espacos e pede sincronizacao`() {
         var terminou = false
 

@@ -163,7 +163,7 @@ data class LidaInventario(
      * o bem extraviado na sala é justamente o caso de trazê-lo para o local onde está.
      */
     val podePedirTransferencia: Boolean
-        get() = foraDaLista && ficha != null && !semCadastro && ficha.situacao != "BAIXADO" &&
+        get() = foraDaLista && ficha != null && !semCadastro && ficha.situacao != "BAIXADO" && ficha.situacao != "VENDIDO" &&
             transferencia?.estado.let { it == null || it == com.example.rfid_server.sincronizacao.FilaTransferencias.Estado.RECUSADA }
 
     companion object {

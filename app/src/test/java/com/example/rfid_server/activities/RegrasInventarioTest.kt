@@ -217,6 +217,15 @@ class RegrasInventarioTest {
     }
 
     @Test
+    fun `no limite so as novas ficam de fora e as que falharam antes continuam sendo tentadas`() {
+        val r = ConsultasForaDaLista(maximo = 2, esperaFalhaMs = 1000)
+        assertEquals(listOf("A", "B"), r.paraConsultar(listOf("A", "B"), agora = 0))
+        r.falhou("B", agora = 0)
+        // A lista vem com as mais novas primeiro: "C" é nova e passa do limite, "B" falhou e já pode tentar de novo
+        assertEquals(listOf("B"), r.paraConsultar(listOf("C", "A", "B"), agora = 2000))
+    }
+
+    @Test
     fun `fichas entram so nas fora da lista e o patrimonio conhecido vem do cadastro`() {
         val lidas = listOf(LidaInventario("E1", "P-1", foraDaLista = false), LidaInventario("X1", null, foraDaLista = true),
             LidaInventario("X2", null, foraDaLista = true))
