@@ -14,7 +14,8 @@ import java.io.File
  *  - aceita: fica FEITA, com o nº da guia (ou "já estava no local");
  *  - recusa (404 sem cadastro, 409 bem baixado, 400 local desconhecido, 403 sem permissão): fica RECUSADA, com o
  *    motivo do servidor para a aba Lidas, e vai para a tela de erros;
- *  - erro do servidor ou sessão recusada: fica PENDENTE para a próxima passada (sai depois de [PRAZO_MS]);
+ *  - sessão de quem pediu recusada pelo servidor (encerrada): RECUSADA, para o operador poder pedir de novo;
+ *  - erro do servidor: fica PENDENTE para a próxima passada (sai depois de [PRAZO_MS]); erros seguidos param a etapa;
  *  - falha do ambiente (rede, chave, certificado): para a passada, como nas outras etapas.
  */
 class SincronizadorTransferencias(
@@ -32,9 +33,11 @@ class SincronizadorTransferencias(
             registrarErro(TipoErro.ENVIO_RECUSADO, "Transferências de bem descartadas: o servidor não aceitou no prazo")
         }
 
+        val erros = RegraFalhas.Contador()
         for (item in fila.pendentes()) {
             when (val resposta = enviar(item.epc, item.local, item.observacao, item.sessao)) {
                 is RespostaServidor.Sucesso -> {
+                    erros.deuCerto()
                     val r = resposta.valor
                     fila.concluir(item, r.guia, r.jaEstava)
                     if (r.jaEstava) Log.i(TAG, "Etiqueta ${item.epc} já estava em ${item.local} no servidor: nenhuma guia nova")
@@ -47,8 +50,18 @@ class SincronizadorTransferencias(
                 is RespostaServidor.Falha -> when {
                     RegraFalhas.paraTudo(resposta) -> return resposta
                     resposta.motivo == MotivoFalha.REQUISICAO_RECUSADA -> recusar(item, resposta.mensagem)
-                    // Erro do servidor ou sessão recusada: fica para a próxima passada (o prazo vale também)
-                    else -> Log.w(TAG, "Transferência da etiqueta ${item.epc} para ${item.local} não enviada agora: ${resposta.mensagem}")
+                    // A sessão de quem pediu acabou (fim do turno, saiu, outro login): com ela o servidor nunca aceita.
+                    // Antes ficava "aguardando envio" 7 dias sem deixar pedir de novo
+                    resposta.motivo == MotivoFalha.SESSAO_INVALIDA -> recusar(item, MENSAGEM_SESSAO_ENCERRADA)
+                    // Erro do servidor: fica para a próxima passada (o prazo vale também). Erros seguidos demais = o
+                    // servidor está com problema: para a etapa em vez de esperar o tempo limite de cada pedido
+                    else -> {
+                        Log.w(TAG, "Transferência da etiqueta ${item.epc} para ${item.local} não enviada agora: ${resposta.mensagem}")
+                        if (erros.falhou(resposta)) {
+                            Log.w(TAG, "Erros seguidos ao enviar transferências: o resto fica para a próxima passada")
+                            return null
+                        }
+                    }
                 }
             }
         }
@@ -65,6 +78,8 @@ class SincronizadorTransferencias(
         private const val TAG = "SINCRONIZACAO"
         /** Tempo que um pedido fica na fila (pendente, ou respondido para a aba Lidas mostrar). */
         const val PRAZO_MS = 7L * 24 * 60 * 60 * 1000
+
+        const val MENSAGEM_SESSAO_ENCERRADA = "a sessão de quem pediu terminou antes do envio; entre de novo e peça outra vez"
 
         @Volatile
         private var fila: FilaTransferencias? = null

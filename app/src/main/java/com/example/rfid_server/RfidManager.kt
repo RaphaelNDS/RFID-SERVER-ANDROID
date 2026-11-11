@@ -295,6 +295,7 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         try {
             // Leitura RFID SOMENTE no gatilho; com uma tela de código de barras aberta, o gatilho fica com o leitor de códigos
             r.Config.setTriggerMode(modoGatilho(), true)
+            modoNoLeitor = modoGatilho()
         } catch (e: Exception) {
             Log.e(TAG, "Erro ao configurar o gatilho do leitor RFID", e)
             // O gatilho é o mais grave (sem ele a leitura não começa): é o que a faixa mostra
@@ -350,9 +351,26 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
     private fun modoGatilho(): ENUM_TRIGGER_MODE =
         if (gatilhoNoCodigoDeBarras) ENUM_TRIGGER_MODE.BARCODE_MODE else ENUM_TRIGGER_MODE.RFID_MODE
 
+    // Modo gravado no leitor pela última chamada (null = não se sabe: leitor solto). Só na thread do executor
+    private var modoNoLeitor: ENUM_TRIGGER_MODE? = null
+
+    // Roda na thread do executor. Grava o modo no leitor conectado, se ainda não for ele
+    private fun aplicarModoGatilho(r: RFIDReader, modo: ENUM_TRIGGER_MODE) {
+        if (modoNoLeitor == modo) return
+        try {
+            r.Config.setTriggerMode(modo, true)
+            modoNoLeitor = modo
+            Log.i(TAG, "Gatilho do coletor no ${if (modo == ENUM_TRIGGER_MODE.BARCODE_MODE) "leitor de código de barras" else "RFID"}")
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao mudar o gatilho para o ${if (modo == ENUM_TRIGGER_MODE.BARCODE_MODE) "código de barras" else "RFID"}", e)
+        }
+    }
+
     /**
      * Tela que lê código de barras com o gatilho (Configurações, para o QR de configuração): [ligado] = o gatilho vai
-     * para o leitor de código de barras enquanto ela está aberta; false = volta ao RFID. Sem o leitor conectado, conecta
+     * para o leitor de código de barras enquanto ela está aberta. false = a tela saiu: o RFID volta só quando uma tela
+     * de leitura assume o leitor ([definirOuvinte]); indo para o login ou para outro app, o gatilho continua lendo
+     * código de barras (antes ficava no RFID sem ninguém ouvindo até o leitor ser solto). Sem o leitor conectado, conecta
      * só para mudar o modo (e solta depois, como sempre que nenhuma tela lê RFID).
      */
     fun gatilhoParaCodigoDeBarras(ligado: Boolean) {
@@ -364,12 +382,8 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
                 if (ligado) tentarConectar()
                 return@execute
             }
-            try {
-                r.Config.setTriggerMode(modoGatilho(), true)
-                Log.i(TAG, "Gatilho do coletor no ${if (ligado) "leitor de código de barras" else "RFID"}")
-            } catch (e: Exception) {
-                Log.e(TAG, "Erro ao mudar o gatilho para o ${if (ligado) "código de barras" else "RFID"}", e)
-            }
+            if (ligado) aplicarModoGatilho(r, ENUM_TRIGGER_MODE.BARCODE_MODE)
+            else if (ouvinte != null) aplicarModoGatilho(r, ENUM_TRIGGER_MODE.RFID_MODE)
         }
     }
     /** As Configurações mudaram a potência: aplica já, se o leitor estiver conectado (senão, vale na próxima conexão). */
@@ -422,6 +436,7 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         } finally {
             reader = null
             readers = null
+            modoNoLeitor = null
             // Sem leitor, não há configuração falha para mostrar (a próxima conexão configura de novo)
             atualizarDetalhe { it.copy(falhaConfiguracao = null) }
         }
@@ -661,6 +676,8 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
 
         executor.execute {
             cancelarDesconexaoOciosa()
+            // Leitor já conectado com o gatilho no código de barras (voltando das Configurações): passa ao RFID
+            reader?.takeIf { it.isConnected && this.ouvinte != null }?.let { aplicarModoGatilho(it, modoGatilho()) }
             // Já há uma tentativa marcada: não antecipa (evita conectar duas vezes seguidas)
             if (proximaTentativa == null && this.ouvinte != null) tentarConectar()
         }

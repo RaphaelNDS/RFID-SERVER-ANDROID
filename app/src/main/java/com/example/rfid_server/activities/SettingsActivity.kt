@@ -102,7 +102,7 @@ class SettingsActivity : AppCompatActivity() {
         btnSalvar.setOnClickListener { if (CliqueUnico.permitir()) salvar() }
 
         // QR de configuração (tela Coletores do servidor): preenche servidor e chave; o responsável confere e salva com o PIN
-        CodigoDeBarras.ouvir(this) { codigo ->
+        CodigoDeBarras.ouvir(this, sensivel = true) { codigo ->
             val config = ConfigQr.ler(codigo)
             when {
                 config != null -> {
@@ -117,7 +117,7 @@ class SettingsActivity : AppCompatActivity() {
                     true
                 }
                 else -> {
-                    Log.i(TAG, "Código lido nas Configurações não é o QR de configuração (RFIDCFG1|...): ${codigo.take(12)}…")
+                    Log.i(TAG, "Código lido nas Configurações não é o QR de configuração (RFIDCFG1|...): ${CodigoDeBarras.paraLog(codigo, sensivel = true)}")
                     false
                 }
             }

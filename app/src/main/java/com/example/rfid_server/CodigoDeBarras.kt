@@ -103,7 +103,7 @@ object CodigoDeBarras {
      * Recebe os códigos lidos enquanto a [activity] está na frente. [aoLer] devolve true se a tela tratou o código;
      * false = comportamento de teclado: o código vai para o campo com foco (como antes do perfil do DataWedge).
      */
-    fun ouvir(activity: AppCompatActivity, aoLer: (String) -> Boolean) {
+    fun ouvir(activity: AppCompatActivity, sensivel: Boolean = false, aoLer: (String) -> Boolean) {
         activity.lifecycle.addObserver(object : DefaultLifecycleObserver {
             private val receptor = object : BroadcastReceiver() {
                 override fun onReceive(context: Context, intent: Intent) {
@@ -114,7 +114,7 @@ object CodigoDeBarras {
                         Log.i(TAG, "Código de barras ignorado em ${activity.javaClass.simpleName}: há um diálogo aberto")
                         return
                     }
-                    Log.i(TAG, "Código de barras lido em ${activity.javaClass.simpleName}: ${paraLog(codigo)}")
+                    Log.i(TAG, "Código de barras lido em ${activity.javaClass.simpleName}: ${paraLog(codigo, sensivel)}")
                     if (!aoLer(codigo)) noCampoComFoco(activity, codigo)
                 }
             }
@@ -134,21 +134,16 @@ object CodigoDeBarras {
     }
 
     /**
-     * O que do código lido pode ir para o log. O QR de configuração (ou só a chave, lida nas Configurações) leva a chave
-     * do coletor: no log fica só o endereço do servidor, ou o tamanho. Patrimônio e local aparecem (até 40 caracteres).
+     * O que do código lido pode ir para o log. O QR de configuração leva a chave do coletor: fica só o servidor. Na tela
+     * [sensivel] (Configurações) qualquer outro código pode ser a chave, que tem formato livre no servidor: fica só o
+     * tamanho. Nas outras telas (patrimônio, local) aparece até 40 caracteres.
      */
-    internal fun paraLog(codigo: String): String {
+    internal fun paraLog(codigo: String, sensivel: Boolean = false): String {
         val partes = codigo.split('|')
         if (partes.size >= 3 && partes[0].startsWith("RFIDCFG")) return "QR de configuração (${partes[0]}|${partes[1]}|…)"
-        if (pareceChave(codigo)) return "${codigo.length} caracteres (pode ser a chave do coletor; não registrado)"
+        if (sensivel) return "${codigo.length} caracteres (tela com a chave do coletor: conteúdo não registrado)"
         return codigo.take(40)
     }
-
-    // Chave do coletor: um bloco só, sem espaço, com letras e números misturados (patrimônio costuma ser só número
-    // ou ter separador)
-    private fun pareceChave(codigo: String) =
-        codigo.length >= 8 && codigo.none { it.isWhitespace() || it == '/' || it == '-' || it == '.' } &&
-            codigo.any { it.isLetter() } && codigo.any { it.isDigit() } && codigo.any { it.isLowerCase() }
 
     /** Como o teclado fazia: escreve o código no campo com foco (substitui o texto) e deixa o cursor no fim. */
     fun noCampoComFoco(activity: AppCompatActivity, codigo: String): Boolean {
