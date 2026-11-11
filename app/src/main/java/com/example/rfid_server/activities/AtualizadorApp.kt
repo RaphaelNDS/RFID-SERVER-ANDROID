@@ -42,7 +42,9 @@ class AtualizadorApp(private val activity: AppCompatActivity) {
             return
         }
 
-        val agora = System.currentTimeMillis()
+        // Tempo desde a ligação do aparelho: com o relógio corrigido para trás, a conta com o relógio ficava negativa e
+        // a consulta automática parava por meses
+        val agora = android.os.SystemClock.elapsedRealtime()
         if (!manual && !aguardandoPermissao && agora - ultimaConsultaAutomatica < INTERVALO_AUTOMATICO_MS) return
         ultimaConsultaAutomatica = agora
         aguardandoPermissao = false
@@ -145,8 +147,10 @@ class AtualizadorApp(private val activity: AppCompatActivity) {
             val recusa = (resposta as? RespostaServidor.Sucesso)?.let { conferirApk(versao, it.valor) }
 
             activity.runOnUiThread {
-                if (dialogo.isShowing) dialogo.dismiss()
+                // A tela pode ter fechado durante o download: o diálogo diz que está aberto, mas a janela já não existe e o
+                // dismiss derrubava o app ("View not attached to window manager"). Confere a tela antes
                 if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                if (dialogo.isShowing) dialogo.dismiss()
 
                 when (resposta) {
                     is RespostaServidor.Sucesso ->

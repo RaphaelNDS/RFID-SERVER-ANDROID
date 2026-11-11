@@ -145,10 +145,22 @@ object CodigoDeBarras {
         return codigo.take(40)
     }
 
+    /**
+     * Campo de senha (texto, web ou número, como o PIN): o código lido não vai para ele. Compara classe + variação: só o
+     * bit 0x80 deixava passar o numberPassword e barrava campos comuns (e-mail web, filtro) que têm o mesmo bit.
+     */
+    internal fun ehCampoDeSenha(inputType: Int): Boolean {
+        val tipo = inputType and (EditorInfo.TYPE_MASK_CLASS or EditorInfo.TYPE_MASK_VARIATION)
+        return tipo == (EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_VARIATION_PASSWORD) ||
+            tipo == (EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD) ||
+            tipo == (EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_VARIATION_WEB_PASSWORD) ||
+            tipo == (EditorInfo.TYPE_CLASS_NUMBER or EditorInfo.TYPE_NUMBER_VARIATION_PASSWORD)
+    }
+
     /** Como o teclado fazia: escreve o código no campo com foco (substitui o texto) e deixa o cursor no fim. */
     fun noCampoComFoco(activity: AppCompatActivity, codigo: String): Boolean {
         val campo = activity.currentFocus as? EditText ?: return false
-        if (campo.inputType and EditorInfo.TYPE_TEXT_VARIATION_PASSWORD == EditorInfo.TYPE_TEXT_VARIATION_PASSWORD) return false
+        if (ehCampoDeSenha(campo.inputType)) return false
         campo.setText(codigo)
         campo.setSelection(campo.text.length)
         return true
