@@ -2,6 +2,7 @@ package com.example.rfid_server
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CodigoDeBarrasLogTest {
@@ -27,5 +28,18 @@ class CodigoDeBarrasLogTest {
         assertEquals("000123", CodigoDeBarras.paraLog("000123"))
         assertEquals("12345/2", CodigoDeBarras.paraLog("12345/2"))
         assertEquals("SALA 10", CodigoDeBarras.paraLog("SALA 10"))
+    }
+
+    @Test
+    fun `campo de senha de texto, web e numero nao recebe o codigo, campos comuns recebem`() {
+        val e = android.view.inputmethod.EditorInfo::class.java
+        fun c(nome: String) = e.getField(nome).getInt(null)
+        val texto = c("TYPE_CLASS_TEXT"); val numero = c("TYPE_CLASS_NUMBER")
+        assertTrue(CodigoDeBarras.ehCampoDeSenha(texto or c("TYPE_TEXT_VARIATION_PASSWORD")))
+        assertTrue(CodigoDeBarras.ehCampoDeSenha(texto or c("TYPE_TEXT_VARIATION_WEB_PASSWORD")))
+        assertTrue("PIN (numberPassword)", CodigoDeBarras.ehCampoDeSenha(numero or c("TYPE_NUMBER_VARIATION_PASSWORD")))
+        assertFalse("e-mail web tem o mesmo bit 0x80", CodigoDeBarras.ehCampoDeSenha(texto or c("TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS")))
+        assertFalse(CodigoDeBarras.ehCampoDeSenha(texto or c("TYPE_TEXT_VARIATION_FILTER")))
+        assertFalse(CodigoDeBarras.ehCampoDeSenha(texto))
     }
 }

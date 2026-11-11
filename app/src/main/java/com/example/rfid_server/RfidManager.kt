@@ -159,7 +159,9 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
 
     // Roda na thread do executor
     private fun tentarConectar() {
-        proximaTentativa = null
+        // Cancela a tentativa marcada (não só esquece): chamada de fora da sequência (gravar etiqueta, Configurações)
+        // com uma tentativa marcada criava duas sequências de tentativas ao mesmo tempo
+        cancelarProximaTentativa()
         if (conectado) {
             atualizarEstado(EstadoLeitor.CONECTADO)
             desconectarSeOcioso()
@@ -360,9 +362,18 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         try {
             r.Config.setTriggerMode(modo, true)
             modoNoLeitor = modo
+            // Voltou a valer: a falha anterior do gatilho sai da faixa
+            if (modo == ENUM_TRIGGER_MODE.RFID_MODE) {
+                atualizarDetalhe { d -> d.takeIf { it.falhaConfiguracao?.parte == ParteConfiguracao.GATILHO }?.copy(falhaConfiguracao = null) ?: d }
+            }
             Log.i(TAG, "Gatilho do coletor no ${if (modo == ENUM_TRIGGER_MODE.BARCODE_MODE) "leitor de código de barras" else "RFID"}")
         } catch (e: Exception) {
             Log.e(TAG, "Erro ao mudar o gatilho para o ${if (modo == ENUM_TRIGGER_MODE.BARCODE_MODE) "código de barras" else "RFID"}", e)
+            // Sem o modo RFID o gatilho não lê: a faixa mostra a falha e "Reconectar" configura do zero (antes a faixa
+            // ficava verde, "conectado", com o gatilho parado no código de barras)
+            if (modo == ENUM_TRIGGER_MODE.RFID_MODE) {
+                atualizarDetalhe { it.copy(falhaConfiguracao = FalhaConfiguracao(ParteConfiguracao.GATILHO, motivoDe(e))) }
+            }
         }
     }
 
@@ -694,6 +705,9 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         executor.execute {
             if (ouvinte != null) return@execute
             cancelarProximaTentativa()
+            // Sem tela de leitura, o gatilho volta já ao leitor de código de barras (login, cadastro e outros apps leem
+            // código de barras com ele); antes ficava no RFID até a desconexão ociosa, 2 min depois
+            reader?.takeIf { it.isConnected }?.let { aplicarModoGatilho(it, ENUM_TRIGGER_MODE.BARCODE_MODE) }
             // As tentativas acabaram de ser canceladas: a faixa deixa de dizer "tentando de novo"
             if (ultimoEstado == EstadoLeitor.DESCONECTADO) atualizarEstado(EstadoLeitor.PARADO)
             agendarDesconexaoOciosa()
@@ -817,8 +831,9 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
 
     private fun tratarGatilho(e: RfidStatusEvents) {
         val evento = e.StatusEventData.HandheldTriggerEventData.handheldEvent
-        // Gatilho emprestado ao leitor de código de barras (Configurações): não começa leitura RFID
-        if (gatilhoNoCodigoDeBarras) return
+        // Gatilho emprestado ao leitor de código de barras (Configurações): não começa leitura RFID. O SOLTAR passa sempre:
+        // apertado antes de a tela de código de barras abrir, a leitura RFID ficava ligada e a tela acesa para sempre
+        if (gatilhoNoCodigoDeBarras && evento.ordinal != HANDHELD_TRIGGER_EVENT_TYPE.HANDHELD_TRIGGER_RELEASED.ordinal) return
 
         // Na thread do leitor (a mesma de conectar e desconectar), e não na de eventos do SDK: como no exemplo da Zebra,
         // o perform()/stop() não segura o despacho de eventos, apertar e soltar ficam sempre nessa ordem e não competem
@@ -903,7 +918,8 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
 
         // Inventário comum: as leituras ficam na fila do SDK (getReadTags). Localização (TagLocationing): a fila vem
         // vazia e a leitura, com a distância, vem anexada ao próprio evento (setAttachTagDataWithReadEvent)
-        val tags = reader?.Actions?.getReadTags(100)
+        // takeIf: o SDK pode devolver a lista vazia (e não null) na localização; sem isto a distância se perdia
+        val tags = reader?.Actions?.getReadTags(100)?.takeIf { it.isNotEmpty() }
             ?: e.readEventData?.tagData?.let { arrayOf(it) }
             ?: return
         val destino = ouvinte ?: return

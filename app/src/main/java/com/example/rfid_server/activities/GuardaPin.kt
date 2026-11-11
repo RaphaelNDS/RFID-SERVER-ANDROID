@@ -213,6 +213,12 @@ class GuardaPin(private val activity: AppCompatActivity, private val tagService:
                 tagService.liberarPin(email, senha) { resposta ->
                     activity.runOnUiThread {
                         if (activity.isFinishing || activity.isDestroyed) return@runOnUiThread
+                        // O operador cancelou enquanto o servidor respondia: não apaga o PIN nem abre a criação de outro
+                        // (antes apagava, e cancelando a criação o coletor ficava sem PIN)
+                        if (!dialogo.isShowing) {
+                            Log.i(TAG, "Liberação do PIN respondida depois de cancelada: ignorada, o PIN continua")
+                            return@runOnUiThread
+                        }
                         botao.isEnabled = true
                         when (resposta) {
                             is RespostaServidor.Sucesso -> {
