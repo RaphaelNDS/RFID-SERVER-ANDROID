@@ -41,7 +41,8 @@ class PreviaVisualTest {
         for ((nome, layout) in telas) {
             val v = LayoutInflater.from(contexto).inflate(layout, null, false)
             val largura = 480
-            val altura = if (nome.startsWith("item")) 200 else 800
+            // Configurações: a tela inteira (rola no coletor), para ver os botões de baixo
+            val altura = when { nome.startsWith("item") -> 200; nome == "configuracoes" -> 1700; else -> 800 }
             v.measure(View.MeasureSpec.makeMeasureSpec(largura, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(altura, View.MeasureSpec.EXACTLY))
             v.layout(0, 0, largura, altura)
             val bmp = Bitmap.createBitmap(largura, altura, Bitmap.Config.ARGB_8888)
