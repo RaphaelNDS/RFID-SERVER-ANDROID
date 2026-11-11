@@ -108,7 +108,8 @@ class SincronizadorTransferenciasTest {
     fun `erro do servidor fica pendente para a proxima passada`() {
         fila.adicionar("inv-1", "E1", "SALA 12", null, agora)
 
-        sincronizador { RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "HTTP 500") }.processar()
+        val falha = sincronizador { RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "HTTP 500") }.processar()
+        assertEquals("erro do servidor não pode deixar a passada como tudo enviado", MotivoFalha.ERRO_SERVIDOR, falha?.motivo)
 
         assertEquals(1, fila.pendentes().size)
         assertTrue(erros.isEmpty())
@@ -119,7 +120,7 @@ class SincronizadorTransferenciasTest {
         // Antes ficava "aguardando envio" 7 dias: com a sessão de quem pediu encerrada o servidor nunca aceita
         fila.adicionar("inv-1", "E1", "SALA 12", "token-velho", agora)
 
-        sincronizador { RespostaServidor.Falha(MotivoFalha.SESSAO_INVALIDA, "Sessão encerrada") }.processar()
+        sincronizador { RespostaServidor.Falha(MotivoFalha.SESSAO_INVALIDA, "Sessão encerrada", "ENCERRADA") }.processar()
 
         val item = fila.doInventario("inv-1").getValue("E1")
         assertEquals(FilaTransferencias.Estado.RECUSADA, item.estado)
@@ -127,11 +128,27 @@ class SincronizadorTransferenciasTest {
     }
 
     @Test
+    fun `sessao recusada por motivo que pode voltar espera ate 24 h, depois recusa`() {
+        // Ex.: banco do servidor restaurado (DESCONHECIDA): as leituras esperam 24 h, a transferência também
+        fila.adicionar("inv-1", "E1", "SALA 12", "token", agora)
+        val desconhecida = { RespostaServidor.Falha(MotivoFalha.SESSAO_INVALIDA, "Sessão desconhecida", "DESCONHECIDA") }
+
+        sincronizador { desconhecida() }.processar()
+        assertEquals(1, fila.pendentes().size)
+
+        agora += SincronizadorTransferencias.ESPERA_SESSAO_MS + 1
+        sincronizador { desconhecida() }.processar()
+        assertEquals(FilaTransferencias.Estado.RECUSADA, fila.doInventario("inv-1").getValue("E1").estado)
+    }
+
+    @Test
     fun `erros seguidos do servidor param a etapa`() {
         for (i in 1..5) fila.adicionar("inv-1", "E$i", "SALA 12", null, agora)
 
-        sincronizador { RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "HTTP 500") }.processar()
+        val falha = sincronizador { RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "HTTP 500") }.processar()
 
+        // A passada não fica "tudo enviado": devolve a falha (a tela mostra o erro e a nova tentativa é agendada)
+        assertEquals(MotivoFalha.ERRO_SERVIDOR, falha?.motivo)
         // Para no limite de erros seguidos em vez de esperar o tempo limite de cada pedido
         assertEquals(RegraFalhas.LIMITE_ERROS_SEGUIDOS, enviados.size)
         assertEquals(5, fila.pendentes().size)

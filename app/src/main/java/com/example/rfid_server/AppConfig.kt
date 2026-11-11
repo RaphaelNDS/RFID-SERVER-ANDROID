@@ -175,6 +175,18 @@ object AppConfig {
     }
 
     /**
+     * Apaga a sessão só se a guardada ainda for a do [token]: quem viu a sessão vencer numa thread (gatilho,
+     * sincronização) não apaga a renovada nesse meio-tempo na tela (AvisoSessao, login). Devolve true se apagou.
+     */
+    fun limparSessaoSeFor(context: Context, token: String): Boolean {
+        synchronized(travaSegredos) {
+            if (lerSegredo(context, KEY_SESSAO_TOKEN, "o token da sessão") != token) return false
+            limparSessao(context)
+        }
+        return true
+    }
+
+    /**
      * O servidor recusou de vez a sessão [token] (ver FimDaSessaoAtual): apaga a sessão, só se a guardada ainda for
      * essa (um login novo feito nesse meio-tempo fica), e guarda o [motivoServidor] (ex.: "DESATIVADO"), o email do
      * operador e a hora, para a tela de login mostrar uma vez de quem era a sessão. Devolve true se apagou.

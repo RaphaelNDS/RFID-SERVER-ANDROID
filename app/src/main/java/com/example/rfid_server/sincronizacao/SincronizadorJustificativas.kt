@@ -33,6 +33,7 @@ class SincronizadorJustificativas(
             registrarErro(TipoErro.ENVIO_RECUSADO, "Justificativas de inventário descartadas: o servidor não aceitou no prazo")
         }
 
+        var comErro = 0
         val grupos = fila.pendentes().groupBy { it.inventarioId to it.sessao }
         for ((chave, itens) in grupos) {
             val (inventarioId, sessao) = chave
@@ -44,7 +45,7 @@ class SincronizadorJustificativas(
                 }
                 when (val resposta = enviar(inventarioId, corpo, sessao)) {
                     is RespostaServidor.Sucesso -> {
-                        fila.remover(inventarioId, lote.map { it.epc })
+                        fila.removerEnviados(lote)
                         Log.i(TAG, "${resposta.valor.gravadas} justificativa(s) do inventário $inventarioId gravada(s) no servidor")
                         if (resposta.valor.invalidas.isNotEmpty()) {
                             Log.w(TAG, "Servidor recusou ${resposta.valor.invalidas.size} justificativa(s) do inventário $inventarioId: ${resposta.valor.invalidas}")
@@ -58,16 +59,21 @@ class SincronizadorJustificativas(
                     is RespostaServidor.Falha -> when {
                         RegraFalhas.paraTudo(resposta) -> return resposta
                         resposta.motivo == MotivoFalha.REQUISICAO_RECUSADA -> {
-                            fila.remover(inventarioId, lote.map { it.epc })
+                            fila.removerEnviados(lote)
                             Log.w(TAG, "Servidor recusou as justificativas do inventário $inventarioId: ${resposta.mensagem}")
                             registrarErro(TipoErro.ENVIO_RECUSADO, "Servidor recusou justificativas de inventário: ${resposta.mensagem}")
                         }
                         // Erro do servidor ou sessão recusada: ficam para a próxima passada (o prazo vale para elas também)
-                        else -> Log.w(TAG, "Justificativas do inventário $inventarioId não enviadas agora: ${resposta.mensagem}")
+                        else -> {
+                            Log.w(TAG, "Justificativas do inventário $inventarioId não enviadas agora: ${resposta.mensagem}")
+                            if (resposta.motivo != MotivoFalha.SESSAO_INVALIDA) comErro += lote.size
+                        }
                     }
                 }
             }
         }
+        // Erro do servidor: a passada não está "tudo enviado" e a nova tentativa é agendada (antes devolvia null)
+        if (comErro > 0) return RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "O servidor não conseguiu processar $comErro justificativa(s): nova tentativa depois")
         return null
     }
 

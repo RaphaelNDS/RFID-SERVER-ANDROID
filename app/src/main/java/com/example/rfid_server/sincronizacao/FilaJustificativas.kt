@@ -56,6 +56,17 @@ class FilaJustificativas(private val arquivo: File) {
         gravar(ler().filterNot { it.inventarioId == inventarioId && it.epc in epcs })
     }
 
+    /**
+     * Tira só os itens que foram enviados, iguais ao que estava na fila na hora do envio. Uma justificativa trocada pelo
+     * operador enquanto o envio estava no ar (outro motivo, outra hora) fica para a próxima passada; [remover] por EPC
+     * apagava a nova, que nunca chegava ao servidor.
+     */
+    @Synchronized
+    fun removerEnviados(enviados: Collection<Item>) {
+        val conjunto = enviados.toSet()
+        gravar(ler().filterNot { it in conjunto })
+    }
+
     /** Tira as criadas antes de [limite] (servidor que nunca aceitou); devolve quantas saíram. */
     @Synchronized
     fun descartarAntigas(limite: Long): Int {

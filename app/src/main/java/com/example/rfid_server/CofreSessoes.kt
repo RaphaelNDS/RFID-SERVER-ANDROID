@@ -138,8 +138,12 @@ class CofreSessoes internal constructor(
                         // Referências ainda gravadas no banco local (inclusive recusadas guardadas): o token delas fica
                         emUso = {
                             val banco = BancoLocal.get(app)
+                            // Também as filas em arquivo (justificativas e transferências pendentes): sem o token, o
+                            // envio iria com a referência que não se resolve e a transferência seria recusada
                             (banco.leituraDao().sessoesEmUso() + banco.inventarioDao().sessoesEmUso() +
-                                banco.cadastroDao().sessoesEmUso()).toSet()
+                                banco.cadastroDao().sessoesEmUso() +
+                                com.example.rfid_server.sincronizacao.SincronizadorJustificativas.fila(app).pendentes().mapNotNull { it.sessao } +
+                                com.example.rfid_server.sincronizacao.SincronizadorTransferencias.fila(app).pendentes().mapNotNull { it.sessao }).toSet()
                         }
                     ).also { cofre ->
                         // Fora da thread de quem pediu (pode ser a tela): o Room não aceita consulta na thread principal

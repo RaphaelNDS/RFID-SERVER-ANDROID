@@ -34,6 +34,7 @@ class SincronizadorTransferencias(
         }
 
         val erros = RegraFalhas.Contador()
+        var comErro = 0
         for (item in fila.pendentes()) {
             when (val resposta = enviar(item.epc, item.local, item.observacao, item.sessao)) {
                 is RespostaServidor.Sucesso -> {
@@ -50,21 +51,30 @@ class SincronizadorTransferencias(
                 is RespostaServidor.Falha -> when {
                     RegraFalhas.paraTudo(resposta) -> return resposta
                     resposta.motivo == MotivoFalha.REQUISICAO_RECUSADA -> recusar(item, resposta.mensagem)
-                    // A sessão de quem pediu acabou (fim do turno, saiu, outro login): com ela o servidor nunca aceita.
-                    // Antes ficava "aguardando envio" 7 dias sem deixar pedir de novo
+                    // Sessão recusada por um motivo que pode voltar (ex.: DESCONHECIDA depois de restaurar o banco do servidor):
+                    // espera, como as leituras, até [ESPERA_SESSAO_MS] desde o pedido
+                    resposta.motivo == MotivoFalha.SESSAO_INVALIDA && MotivoSessao.podeVoltar(resposta.motivoSessao) &&
+                        relogio() - item.criadoEm < ESPERA_SESSAO_MS ->
+                        Log.w(TAG, "Transferência da etiqueta ${item.epc}: sessão recusada (${resposta.motivoSessao ?: "sem motivo"}), tenta de novo depois")
+                    // A sessão de quem pediu acabou de vez (fim do turno, saiu, desativado) ou passou do prazo: com ela o
+                    // servidor nunca aceita. Recusada, deixa pedir de novo (antes ficava "aguardando envio" 7 dias)
                     resposta.motivo == MotivoFalha.SESSAO_INVALIDA -> recusar(item, MENSAGEM_SESSAO_ENCERRADA)
                     // Erro do servidor: fica para a próxima passada (o prazo vale também). Erros seguidos demais = o
                     // servidor está com problema: para a etapa em vez de esperar o tempo limite de cada pedido
                     else -> {
                         Log.w(TAG, "Transferência da etiqueta ${item.epc} para ${item.local} não enviada agora: ${resposta.mensagem}")
+                        comErro++
                         if (erros.falhou(resposta)) {
                             Log.w(TAG, "Erros seguidos ao enviar transferências: o resto fica para a próxima passada")
-                            return null
+                            return resposta
                         }
                     }
                 }
             }
         }
+        // Erro do servidor em algum pedido: a passada não está "tudo enviado" e a nova tentativa é agendada (antes devolvia
+        // null e a tela dizia "Tudo enviado" com a transferência parada até a sincronização periódica)
+        if (comErro > 0) return RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "O servidor não conseguiu processar $comErro transferência(s): nova tentativa depois")
         return null
     }
 
@@ -78,6 +88,9 @@ class SincronizadorTransferencias(
         private const val TAG = "SINCRONIZACAO"
         /** Tempo que um pedido fica na fila (pendente, ou respondido para a aba Lidas mostrar). */
         const val PRAZO_MS = 7L * 24 * 60 * 60 * 1000
+
+        /** Sessão recusada por motivo que pode voltar: espera isto desde o pedido (o mesmo prazo das leituras). */
+        const val ESPERA_SESSAO_MS = 24L * 60 * 60 * 1000
 
         const val MENSAGEM_SESSAO_ENCERRADA = "a sessão de quem pediu terminou antes do envio; entre de novo e peça outra vez"
 
