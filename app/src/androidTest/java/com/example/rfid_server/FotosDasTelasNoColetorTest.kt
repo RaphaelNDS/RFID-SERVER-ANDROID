@@ -62,7 +62,11 @@ class FotosDasTelasNoColetorTest {
             val agora = System.currentTimeMillis()
             listOf(
                 LeituraEntity(epc = "424B5030313233000000000A", lidoEm = agora, situacao = Situacao.CADASTRADA, envioConcluido = true,
-                    codigoInterno = "TI-0412", tipo = "Notebook", marca = "Dell", modelo = "Latitude 5440", patrimonio = "0123/2019", numeroSerie = "SN-8H2K"),
+                    codigoInterno = "TI-0412", tipo = "Notebook", marca = "Dell", modelo = "Latitude 5440", patrimonio = "0123/2019", numeroSerie = "SN-8H2K",
+                    situacaoBem = "DISPONIVEL", situacaoBemRotulo = "Disponível"),
+                LeituraEntity(epc = "424B5030313234000000000B", lidoEm = agora, situacao = Situacao.CADASTRADA, envioConcluido = true,
+                    codigoInterno = "TI-0413", tipo = "Notebook", marca = "Dell", modelo = "Latitude 5440", patrimonio = "0124/2019", numeroSerie = "SN-8H2L",
+                    situacaoBem = "ALUGADO", situacaoBemRotulo = "Alugado"),
                 LeituraEntity(epc = "E28011606000020000000001", lidoEm = agora, situacao = Situacao.CADASTRADA, envioConcluido = true,
                     codigoInterno = "TI-0007", tipo = "Monitor", marca = "LG", modelo = "24MK430H", patrimonio = "PAT-1007", numeroSerie = "SN-77",
                     situacaoBem = "BAIXADO", situacaoBemRotulo = "Baixado"),
@@ -70,10 +74,26 @@ class FotosDasTelasNoColetorTest {
                 LeituraEntity(epc = "E28011606000020000000003", lidoEm = agora, situacao = Situacao.PENDENTE)
             ).forEach { dao.inserir(it) }
             foto("01-principal")
+            // Menu ⋮ → "Resumo da leitura", com a parte "Por situação" (locadora)
+            androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu(contexto)
+            androidx.test.espresso.Espresso.onView(androidx.test.espresso.matcher.ViewMatchers.withText(R.string.main_por_tipo))
+                .perform(androidx.test.espresso.action.ViewActions.click())
+            foto("07-resumo-da-leitura")
         }
 
         ActivityScenario.launch(InventarioActivity::class.java).use { foto("02-inventario-inicio") }
         ActivityScenario.launch(LocalizarActivity::class.java).use { foto("03-localizar") }
+        // Localizando um patrimônio: linha "Procurando" com "Ficha" e "Alterar"; a ficha abre sem o botão Localizar
+        ActivityScenario.launch<LocalizarActivity>(
+            Intent(contexto, LocalizarActivity::class.java)
+                .putExtra(LocalizarActivity.EXTRA_EPC, "424B5030313234000000000B")
+                .putExtra(LocalizarActivity.EXTRA_PATRIMONIO, "0124/2019")
+        ).use {
+            foto("08-localizar-procurando")
+            androidx.test.espresso.Espresso.onView(androidx.test.espresso.matcher.ViewMatchers.withId(R.id.btnFichaLocalizar))
+                .perform(androidx.test.espresso.action.ViewActions.click())
+            foto("09-ficha-pelo-localizar")
+        }
         ActivityScenario.launch<CadastroTagActivity>(
             Intent(contexto, CadastroTagActivity::class.java).putExtra(CadastroTagActivity.EXTRA_EPC, "E28011606000020000000002")
         ).use { foto("04-cadastro") }
