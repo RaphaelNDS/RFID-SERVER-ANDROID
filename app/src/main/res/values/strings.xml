@@ -70,7 +70,8 @@
     <string name="main_rodape_inventario">Inventário</string>
     <string name="main_rodape_localizar">Localizar</string>
     <string name="nao_cadastradas_cadastrar">Cadastrar ›</string>
-    <string name="tag_alerta_situacao">⚠ No cadastro: %1$s. Avise o responsável pelo patrimônio</string>
+    <string name="tag_alerta_situacao">⚠ No cadastro: %1$s. Não deveria estar aqui</string>
+    <string name="tag_alerta_alugado">⚠ No cadastro: %1$s. A devolução não foi registrada</string>
     <string name="tag_sem_patrimonio">Sem patrimônio</string>
     <string name="tag_sem_descricao">Tipo, marca e modelo não informados</string>
     <string name="tag_codigo_serie">Cód. %1$s · Série %2$s</string>
@@ -188,7 +189,7 @@
     <string name="ficha_pedido">Pedido: %1$s</string>
     <string name="ficha_local_entrega">Foi para: %1$s</string>
     <string name="ficha_previsao_devolucao">Devolução prevista: %1$s</string>
-    <string name="ficha_aviso_baixado">⚠ BEM BAIXADO no sistema: não deveria estar em uso. Avise o responsável pelo patrimônio.</string>
+    <string name="ficha_aviso_baixado">⚠ BEM BAIXADO no sistema: não deveria estar aqui.</string>
     <string name="ficha_aviso_extraviado">⚠ Bem marcado como EXTRAVIADO: foi encontrado aqui. Ao finalizar um inventário com ele, volta para \"Em uso\".</string>
     <string name="ficha_localizar">Localizar</string>
     <string name="ficha_fechar">Fechar</string>
@@ -241,6 +242,7 @@
     <string name="inventario_resumo_sem_justificativa">Sem justificativa: %1$d</string>
     <string name="inventario_resumo_alertas">⚠ Lidos baixados ou extraviados no cadastro: %1$d</string>
     <string name="inventario_lida_alerta">⚠ Fora da lista · no cadastro: %1$s</string>
+    <string name="inventario_lida_alerta_alugado">⚠ Fora da lista · no cadastro: %1$s (devolução não registrada)</string>
     <string name="inventario_lida_sem_cadastro">Fora da lista · etiqueta não cadastrada</string>
     <string name="inventario_resumo_faltando_tipos">Faltando: %1$d (%2$s)</string>
     <string name="inventario_justificar_motivo">Motivo dos que faltaram</string>
