@@ -42,6 +42,20 @@ object BuscaLeituras {
             .sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenBy { normalizar(it.first) })
 
     /**
+     * Cadastradas por situação no cadastro (Disponível, Alugado, Em manutenção...: locadora, servidor 1.12.0), as que
+     * têm mais primeiro. Vazio se o servidor não manda a situação de nenhuma (aí o resumo não mostra a parte).
+     */
+    fun contagemPorSituacao(leituras: List<ItemLeitura>, semSituacao: String): List<Pair<String, Int>> {
+        val cadastradas = leituras.filterIsInstance<ItemLeitura.Cadastrada>()
+        if (cadastradas.none { it.tag.situacao != null || it.tag.situacaoRotulo != null }) return emptyList()
+        return cadastradas
+            .map { (it.tag.situacaoRotulo ?: it.tag.situacao)?.trim().orEmpty().ifEmpty { semSituacao } }
+            .groupBy { normalizar(it) }
+            .map { (_, nomes) -> nomes.first() to nomes.size }
+            .sortedWith(compareByDescending<Pair<String, Int>> { it.second }.thenBy { normalizar(it.first) })
+    }
+
+    /**
      * Planilha (CSV com ";", para o Excel em português) da leitura atual: uma linha por etiqueta, com a situação
      * (Cadastrada, Aguardando o servidor, Não cadastrada), os dados do bem e o EPC.
      */

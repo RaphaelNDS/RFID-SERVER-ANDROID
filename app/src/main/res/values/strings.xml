@@ -91,13 +91,15 @@
     <string name="main_buscar_dica">Patrimônio, tipo, marca ou etiqueta</string>
     <string name="main_planilha">Compartilhar planilha</string>
     <string name="main_planilha_vazia">Nenhuma etiqueta nesta leitura para a planilha</string>
-    <string name="main_por_tipo">Resumo por tipo</string>
+    <string name="main_por_tipo">Resumo da leitura</string>
     <string name="main_letra_maior">Letra maior</string>
     <string name="main_por_tipo_sem_tipo">Sem tipo informado</string>
     <string name="main_por_tipo_linha">%1$s: %2$d</string>
     <string name="main_por_tipo_aguardando">Aguardando o servidor: %1$d</string>
     <string name="main_por_tipo_nao_cadastradas">Não cadastradas: %1$d</string>
     <string name="main_por_tipo_total">Total: %1$d etiqueta(s)</string>
+    <string name="main_por_situacao_titulo">Por situação:</string>
+    <string name="main_por_situacao_sem">Sem situação informada</string>
     <string name="main_sair_menu">Sair (trocar operador)</string>
     <string name="main_sair_titulo">Sair do coletor</string>
     <string name="main_sair_mensagem">Sair como %1$s? O próximo operador entra com o próprio usuário.</string>
@@ -329,6 +331,7 @@
     <string name="localizar_procurando_patrimonio">Procurando: Patrimônio %1$s</string>
     <string name="localizar_procurando_epc">Procurando: EPC %1$s</string>
     <string name="localizar_alterar">Alterar</string>
+    <string name="localizar_ficha">Ficha</string>
     <string name="localizar_titulo">Patrimônio procurado</string>
     <string name="localizar_hint">Número do patrimônio</string>
     <string name="localizar_buscar">Buscar</string>

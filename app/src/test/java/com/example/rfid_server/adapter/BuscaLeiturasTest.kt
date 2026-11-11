@@ -42,6 +42,22 @@ class BuscaLeiturasTest {
     }
 
     @Test
+    fun `contagem por situacao da locadora, vazia sem situacao do servidor`() {
+        val itens = listOf(
+            ItemLeitura.Cadastrada(TagView("A", "1", "Coletor", null, null, "P1", "", "DISPONIVEL", "Disponível")),
+            ItemLeitura.Cadastrada(TagView("B", "2", "Coletor", null, null, "P2", "", "DISPONIVEL", "Disponível")),
+            ItemLeitura.Cadastrada(TagView("C", "3", "Coletor", null, null, "P3", "", "ALUGADO", "Alugado")),
+            ItemLeitura.Cadastrada(TagView("D", "4", "Coletor", null, null, "P4", "")),
+            ItemLeitura.Aguardando("E")
+        )
+        assertEquals(
+            listOf("Disponível" to 2, "Alugado" to 1, "Sem situação" to 1),
+            BuscaLeituras.contagemPorSituacao(itens, "Sem situação")
+        )
+        assertEquals(emptyList<Pair<String, Int>>(), BuscaLeituras.contagemPorSituacao(listOf(notebook, monitor), "Sem situação"))
+    }
+
+    @Test
     fun `contagem por tipo junta grafias e ordena do mais comum`() {
         val itens = listOf(
             ItemLeitura.Cadastrada(TagView("A", "1", "Monitor", null, null, "P1", "")),

@@ -371,10 +371,16 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.main_planilha_vazia, Toast.LENGTH_SHORT).show()
             return
         }
+        val porSituacao = viewModel.resumoPorSituacao(getString(R.string.main_por_situacao_sem))
         val texto = buildString {
             porTipo.forEach { (tipo, quantos) -> append(getString(R.string.main_por_tipo_linha, tipo, quantos)).append('\n') }
             if (aguardando > 0) append(getString(R.string.main_por_tipo_aguardando, aguardando)).append('\n')
             if (naoCadastradas > 0) append(getString(R.string.main_por_tipo_nao_cadastradas, naoCadastradas)).append('\n')
+            // Locadora: quantos disponíveis, alugados (devolução não registrada), em manutenção... no que foi lido
+            if (porSituacao.isNotEmpty()) {
+                append('\n').append(getString(R.string.main_por_situacao_titulo)).append('\n')
+                porSituacao.forEach { (situacao, quantos) -> append(getString(R.string.main_por_tipo_linha, situacao, quantos)).append('\n') }
+            }
             append('\n').append(getString(R.string.main_por_tipo_total, total))
         }
         Log.i(TAG, "Operador abriu o resumo por tipo da leitura (${porTipo.size} tipo(s), $total etiqueta(s))")

@@ -21,14 +21,16 @@ object FichaBem {
 
     private const val TAG = "FICHA"
 
-    fun mostrar(activity: AppCompatActivity, tag: TagView) {
+    /** [jaLocalizando]: aberta do próprio Localizar, sem o botão "Localizar" (já está procurando este bem). */
+    fun mostrar(activity: AppCompatActivity, tag: TagView, jaLocalizando: Boolean = false) {
         if (!CliqueUnico.permitir()) return
         val cadastro = textoCadastro(activity, tag)
 
-        val dialogo = AlertDialog.Builder(activity)
+        val construtor = AlertDialog.Builder(activity)
             .setTitle(activity.getString(R.string.ficha_titulo, tag.patrimonio.ifBlank { activity.getString(R.string.tag_sem_patrimonio) }))
             .setMessage(cadastro + "\n\n" + activity.getString(R.string.ficha_buscando))
-            .setPositiveButton(R.string.ficha_localizar) { _, _ ->
+            .setNegativeButton(R.string.ficha_fechar, null)
+        if (!jaLocalizando) construtor.setPositiveButton(R.string.ficha_localizar) { _, _ ->
                 Log.i(TAG, "Operador foi localizar ${tag.epc} (patrimônio ${tag.patrimonio}) pela ficha")
                 activity.startActivity(
                     Intent(activity, LocalizarActivity::class.java)
@@ -36,8 +38,7 @@ object FichaBem {
                         .putExtra(LocalizarActivity.EXTRA_PATRIMONIO, tag.patrimonio.ifBlank { null })
                 )
             }
-            .setNegativeButton(R.string.ficha_fechar, null)
-            .show()
+        val dialogo = construtor.show()
 
         TagService(activity).buscarHistorico(tag.epc) { resposta ->
             activity.runOnUiThread {
