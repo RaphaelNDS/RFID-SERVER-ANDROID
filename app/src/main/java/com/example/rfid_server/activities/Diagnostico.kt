@@ -9,6 +9,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.example.rfid_server.AppConfig
+import com.example.rfid_server.R
 import com.example.rfid_server.RfidManager
 import com.example.rfid_server.SessaoAtual
 import com.example.rfid_server.VersaoApp
@@ -73,10 +74,10 @@ object Diagnostico {
                 val texto = texto(dados)
                 Log.i(TAG, "Diagnóstico do coletor aberto:\n$texto")
                 val dialogo = AlertDialog.Builder(activity)
-                    .setTitle(com.example.rfid_server.R.string.diagnostico_titulo)
+                    .setTitle(R.string.diagnostico_titulo)
                     .setMessage(texto)
-                    .setPositiveButton(com.example.rfid_server.R.string.diagnostico_compartilhar) { _, _ -> compartilhar(activity, texto) }
-                    .setNegativeButton(com.example.rfid_server.R.string.comum_ok, null)
+                    .setPositiveButton(R.string.diagnostico_compartilhar) { _, _ -> compartilhar(activity, texto) }
+                    .setNegativeButton(R.string.comum_ok, null)
                     .show()
                 dialogo.findViewById<TextView>(android.R.id.message)?.apply {
                     typeface = Typeface.MONOSPACE
@@ -143,10 +144,10 @@ object Diagnostico {
 
     private fun compartilhar(activity: AppCompatActivity, texto: String) {
         val envio = Intent(Intent.ACTION_SEND).setType("text/plain")
-            .putExtra(Intent.EXTRA_SUBJECT, activity.getString(com.example.rfid_server.R.string.diagnostico_titulo))
+            .putExtra(Intent.EXTRA_SUBJECT, activity.getString(R.string.diagnostico_titulo))
             .putExtra(Intent.EXTRA_TEXT, texto)
         try {
-            activity.startActivity(Intent.createChooser(envio, activity.getString(com.example.rfid_server.R.string.diagnostico_compartilhar)))
+            activity.startActivity(Intent.createChooser(envio, activity.getString(R.string.diagnostico_compartilhar)))
         } catch (e: Exception) {
             Log.w(TAG, "Nenhum app para compartilhar o diagnóstico", e)
         }

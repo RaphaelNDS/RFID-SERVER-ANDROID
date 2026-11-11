@@ -1,10 +1,13 @@
 package com.example.rfid_server.sincronizacao
 
-import com.example.rfid_server.ExecutorProtegido
 import android.content.Context
 import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import com.example.rfid_server.CofreSessoes
+import com.example.rfid_server.ExecutorProtegido
+import com.example.rfid_server.SessaoAtual
+import com.example.rfid_server.api.UltimaSincronizacaoOk
 import com.example.rfid_server.dados.BancoLocal
 import com.example.rfid_server.dados.LeituraDao
 import com.example.rfid_server.dados.LeituraEntity
@@ -17,8 +20,6 @@ import com.example.rfid_server.service.RespostaServidor
 import com.example.rfid_server.service.ResultadoLote
 import com.example.rfid_server.service.StatusLote
 import com.example.rfid_server.service.TagService
-import com.example.rfid_server.CofreSessoes
-import com.example.rfid_server.SessaoAtual
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -248,7 +249,7 @@ class Sincronizador internal constructor(
         }
 
         // Hora da última passada completa: vai para o servidor no cabeçalho X-Ultima-Sinc-Ok (diagnóstico do coletor)
-        com.example.rfid_server.api.UltimaSincronizacaoOk.registrar()
+        UltimaSincronizacaoOk.registrar()
         return atualizarEstado(EstadoSincronizacao.SINCRONIZADO)
     }
 

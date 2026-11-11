@@ -3,6 +3,7 @@ package com.example.rfid_server
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.example.rfid_server.activities.LoginActivity
+import com.example.rfid_server.erros.MascaraSensivel
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -70,7 +71,7 @@ class SessaoEncerradaPeloServidorTest {
         val fim = AppConfig.tirarMotivoFimSessao(context, agora + 60_000)
 
         assertEquals(AppConfig.FimSessao("EXPIRADA", "ana@x.com", agora), fim)
-        assertEquals("a***@x.com", com.example.rfid_server.erros.MascaraSensivel.email(fim!!.email))
+        assertEquals("a***@x.com", MascaraSensivel.email(fim!!.email))
     }
 
     @Test

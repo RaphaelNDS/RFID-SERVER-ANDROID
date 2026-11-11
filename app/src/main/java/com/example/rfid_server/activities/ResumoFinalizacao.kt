@@ -1,7 +1,10 @@
 package com.example.rfid_server.activities
 
+import com.example.rfid_server.CelulaCsv
+import com.example.rfid_server.adapter.BuscaLeituras
 import com.example.rfid_server.dados.ComparacaoInventario
 import com.example.rfid_server.dados.ItemEsperado
+import com.example.rfid_server.sincronizacao.FilaJustificativas
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -39,11 +42,11 @@ data class ResumoFinalizacao(
         val c = comparacao ?: return emptyList()
         val faltando = c.faltando.mapTo(HashSet()) { it.epc }
         return esperados
-            .groupBy { com.example.rfid_server.adapter.BuscaLeituras.normalizar(it.tipo.orEmpty().ifBlank { semTipo }) }
+            .groupBy { BuscaLeituras.normalizar(it.tipo.orEmpty().ifBlank { semTipo }) }
             .map { (_, itens) ->
                 ContagemTipo(itens.first().tipo?.trim().orEmpty().ifEmpty { semTipo }, itens.count { it.epc !in faltando }, itens.size)
             }
-            .sortedWith(compareByDescending<ContagemTipo> { it.faltam }.thenBy { com.example.rfid_server.adapter.BuscaLeituras.normalizar(it.tipo) })
+            .sortedWith(compareByDescending<ContagemTipo> { it.faltam }.thenBy { BuscaLeituras.normalizar(it.tipo) })
     }
 
     /** "2 Notebook, 1 Monitor": os tipos que tiveram faltantes, no máximo [maximo] (o resto vira "…"); null se nada faltou. */
@@ -72,7 +75,7 @@ data class ResumoFinalizacao(
 
     private fun StringBuilder.linha(situacao: String, patrimonio: String?, descricao: String?, epc: String, motivo: String?) {
         appendLine(listOf(situacao, patrimonio.orEmpty(), descricao.orEmpty(), epc, motivo.orEmpty())
-            .joinToString(";") { com.example.rfid_server.CelulaCsv.formatar(it) })
+            .joinToString(";") { CelulaCsv.formatar(it) })
     }
 
     /**
@@ -131,19 +134,19 @@ data class ResumoFinalizacao(
          * Motivo que a situação no cadastro já explica (o bem consta como emprestado ou em manutenção, então faltar
          * no local é esperado). Null para as outras situações: aí só o operador sabe o motivo.
          */
-        fun motivoPeloCadastro(item: ItemEsperado): com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo? =
+        fun motivoPeloCadastro(item: ItemEsperado): FilaJustificativas.Motivo? =
             when (item.situacao) {
                 // ALUGADO: locação (servidor 1.12.0; o EMPRESTADO antigo virou ALUGADO)
-                "EMPRESTADO", "ALUGADO" -> com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo.EMPRESTADO
-                "EM_MANUTENCAO" -> com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo.MANUTENCAO
-                "BAIXADO" -> com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo.BAIXADO
+                "EMPRESTADO", "ALUGADO" -> FilaJustificativas.Motivo.EMPRESTADO
+                "EM_MANUTENCAO" -> FilaJustificativas.Motivo.MANUTENCAO
+                "BAIXADO" -> FilaJustificativas.Motivo.BAIXADO
                 else -> null
             }
 
         /** Faltantes sem justificativa que o cadastro explica, agrupados pelo motivo (EPCs). */
         fun justificativasPeloCadastro(
             semJustificativa: List<ItemEsperado>
-        ): Map<com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo, List<String>> =
+        ): Map<FilaJustificativas.Motivo, List<String>> =
             semJustificativa.mapNotNull { item -> motivoPeloCadastro(item)?.let { it to item.epc } }
                 .groupBy({ it.first }, { it.second })
 

@@ -1,5 +1,6 @@
 package com.example.rfid_server.adapter
 
+import com.example.rfid_server.CelulaCsv
 import com.example.rfid_server.dados.ItemNaoCadastrada
 import java.text.Normalizer
 
@@ -73,7 +74,7 @@ object BuscaLeituras {
     }
 
     private fun StringBuilder.linha(vararg celulas: String?) {
-        appendLine(celulas.joinToString(";") { com.example.rfid_server.CelulaCsv.formatar(it.orEmpty()) })
+        appendLine(celulas.joinToString(";") { CelulaCsv.formatar(it.orEmpty()) })
     }
 
     /** Minúsculas, sem acentos e sem espaços nas pontas: para comparar textos digitados de jeitos diferentes. */

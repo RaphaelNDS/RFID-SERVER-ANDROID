@@ -1,19 +1,22 @@
 package com.example.rfid_server.activities
 
 import android.os.Bundle
-import android.widget.Button
-import android.widget.EditText
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
 import android.view.View
 import android.view.inputmethod.InputMethodManager
+import android.widget.Button
+import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle
+import com.example.rfid_server.AvisoLeitura
 import com.example.rfid_server.CodigoDeBarras
 import com.example.rfid_server.ConfigQr
-import com.example.rfid_server.AvisoLeitura
 import com.example.rfid_server.EstadoLeitor
 import com.example.rfid_server.Proximidade
 import com.example.rfid_server.R
@@ -23,11 +26,9 @@ import com.example.rfid_server.RitmoAviso
 import com.example.rfid_server.VigiaSinal
 import com.example.rfid_server.service.RespostaServidor
 import com.example.rfid_server.service.TagService
+import com.example.rfid_server.view.TagView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.progressindicator.LinearProgressIndicator
-import android.os.Handler
-import android.os.Looper
-import android.util.Log
 
 
 class LocalizarActivity : AppCompatActivity() {
@@ -310,7 +311,7 @@ class LocalizarActivity : AppCompatActivity() {
         Log.i(TAG, "Ficha do bem procurado aberta no Localizar: $epc")
         FichaBem.mostrar(
             this,
-            com.example.rfid_server.view.TagView(
+            TagView(
                 epc = epc, codigoInterno = "", tipo = null, marca = null, modelo = null,
                 patrimonio = patrimonioLocalizando.orEmpty(), numeroSerie = ""
             ),

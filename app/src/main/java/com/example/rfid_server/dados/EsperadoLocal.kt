@@ -1,9 +1,11 @@
 package com.example.rfid_server.dados
 
-import org.json.JSONArray
-import org.json.JSONObject
+import com.example.rfid_server.sincronizacao.FilaTransferencias
+import com.example.rfid_server.view.TagView
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
+import org.json.JSONArray
+import org.json.JSONObject
 
 /** Uma etiqueta que deveria estar no local (dados atuais do cadastro, para localizar pelo patrimônio). */
 data class ItemEsperado(
@@ -148,11 +150,11 @@ data class LidaInventario(
     /** Lida mas não esperada no local (só quando há lista do esperado para comparar). */
     val foraDaLista: Boolean,
     /** Cadastro da fora da lista consultado no servidor (patrimônio, tipo, situação); null enquanto não consultou. */
-    val ficha: com.example.rfid_server.view.TagView? = null,
+    val ficha: TagView? = null,
     /** O servidor respondeu que a etiqueta fora da lista não está cadastrada. */
     val semCadastro: Boolean = false,
     /** Transferência para este local pedida pelo operador (pendente ou já respondida pelo servidor); null = nenhuma. */
-    val transferencia: com.example.rfid_server.sincronizacao.FilaTransferencias.Item? = null
+    val transferencia: FilaTransferencias.Item? = null
 ) {
     /** Patrimônio para mostrar: o da lista do esperado ou, na fora da lista, o do cadastro consultado. */
     val patrimonioConhecido: String? get() = patrimonio ?: ficha?.patrimonio?.ifBlank { null }
@@ -164,13 +166,13 @@ data class LidaInventario(
      */
     val podePedirTransferencia: Boolean
         get() = foraDaLista && ficha != null && !semCadastro && ficha.situacao != "BAIXADO" && ficha.situacao != "VENDIDO" &&
-            transferencia?.estado.let { it == null || it == com.example.rfid_server.sincronizacao.FilaTransferencias.Estado.RECUSADA }
+            transferencia?.estado.let { it == null || it == FilaTransferencias.Estado.RECUSADA }
 
     companion object {
         /** Junta às lidas o que já se sabe das fora da lista ([fichas] por EPC, as [semCadastro] e as [transferencias]). */
         fun comFichas(
-            lidas: List<LidaInventario>, fichas: Map<String, com.example.rfid_server.view.TagView>, semCadastro: Set<String>,
-            transferencias: Map<String, com.example.rfid_server.sincronizacao.FilaTransferencias.Item> = emptyMap()
+            lidas: List<LidaInventario>, fichas: Map<String, TagView>, semCadastro: Set<String>,
+            transferencias: Map<String, FilaTransferencias.Item> = emptyMap()
         ): List<LidaInventario> =
             if (fichas.isEmpty() && semCadastro.isEmpty() && transferencias.isEmpty()) lidas
             else lidas.map {

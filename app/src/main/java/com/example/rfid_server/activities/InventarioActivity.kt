@@ -6,12 +6,11 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import android.util.Log
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.ForegroundColorSpan
+import android.util.Log
 import android.view.View
-import androidx.core.graphics.drawable.toDrawable
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.ArrayAdapter
@@ -24,6 +23,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toDrawable
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
@@ -31,15 +31,12 @@ import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.LiveData
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.example.rfid_server.CodigoDeBarras
-import com.example.rfid_server.CofreSessoes
-import com.example.rfid_server.sincronizacao.FilaJustificativas
-import com.example.rfid_server.sincronizacao.FilaTransferencias
-import com.example.rfid_server.sincronizacao.SincronizadorTransferencias
-import com.example.rfid_server.sincronizacao.SincronizadorJustificativas
-import com.example.rfid_server.ConfigQr
 import com.example.rfid_server.AppConfig
 import com.example.rfid_server.AvisoLeitura
+import com.example.rfid_server.CodigoDeBarras
+import com.example.rfid_server.CofreSessoes
+import com.example.rfid_server.ConfigQr
+import com.example.rfid_server.ExecutorProtegido
 import com.example.rfid_server.R
 import com.example.rfid_server.RegrasLocalizar
 import com.example.rfid_server.RfidManager
@@ -52,10 +49,17 @@ import com.example.rfid_server.dados.InventarioEntity
 import com.example.rfid_server.dados.ItemEsperado
 import com.example.rfid_server.dados.LidaInventario
 import com.example.rfid_server.dados.RepositorioInventario
+import com.example.rfid_server.service.MotivoFalha
 import com.example.rfid_server.service.RespostaServidor
 import com.example.rfid_server.service.TagService
 import com.example.rfid_server.sincronizacao.EstadoSincronizacao
+import com.example.rfid_server.sincronizacao.FilaJustificativas
+import com.example.rfid_server.sincronizacao.FilaTransferencias
+import com.example.rfid_server.sincronizacao.RegraFalhas
 import com.example.rfid_server.sincronizacao.Sincronizador
+import com.example.rfid_server.sincronizacao.SincronizadorJustificativas
+import com.example.rfid_server.sincronizacao.SincronizadorTransferencias
+import com.example.rfid_server.view.TagView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.textfield.TextInputLayout
@@ -139,7 +143,7 @@ class InventarioActivity : AppCompatActivity() {
     // thread principal. Os mapas e o registro só são mexidos na thread principal
     private val consultas = Executors.newSingleThreadExecutor()
     private val registroConsultas = ConsultasForaDaLista()
-    private val fichasForaDaLista = HashMap<String, com.example.rfid_server.view.TagView>()
+    private val fichasForaDaLista = HashMap<String, TagView>()
     private val semCadastroForaDaLista = HashSet<String>()
     // Transferências para este local pedidas no inventário aberto (FilaTransferencias), por EPC: lidas do arquivo ao
     // abrir o inventário e a cada mudança da sincronização (que é quem envia e grava a resposta do servidor)
@@ -514,12 +518,12 @@ class InventarioActivity : AppCompatActivity() {
                 consultas.execute {
                     // Inventário trocado ou fechado: nem chama o servidor (a consulta seria descartada)
                     if (geracaoDoPedido != geracao) return@execute
-                    val resposta: RespostaServidor<com.example.rfid_server.view.TagView> =
+                    val resposta: RespostaServidor<TagView> =
                         if (SystemClock.elapsedRealtime() < consultasSuspensasAte) {
-                            RespostaServidor.Falha(com.example.rfid_server.service.MotivoFalha.SEM_CONEXAO, "consultas suspensas depois de falha do ambiente")
+                            RespostaServidor.Falha(MotivoFalha.SEM_CONEXAO, "consultas suspensas depois de falha do ambiente")
                         } else {
                             servico.buscarTagAgora(epc).also {
-                                if (it is RespostaServidor.Falha && com.example.rfid_server.sincronizacao.RegraFalhas.paraTudo(it)) {
+                                if (it is RespostaServidor.Falha && RegraFalhas.paraTudo(it)) {
                                     consultasSuspensasAte = SystemClock.elapsedRealtime() + 60_000L
                                     Log.w(TAG, "Consultas das etiquetas fora da lista suspensas por um tempo: ${it.mensagem}")
                                 }
@@ -528,7 +532,7 @@ class InventarioActivity : AppCompatActivity() {
                     runOnUiThread {
                         if (isDestroyed || geracaoDoPedido != geracao) return@runOnUiThread
                         when (resposta) {
-                            is com.example.rfid_server.service.RespostaServidor.Sucesso -> {
+                            is RespostaServidor.Sucesso -> {
                                 fichasForaDaLista[epc] = resposta.valor
                                 resposta.valor.alertaSituacao()?.let {
                                     Log.w(TAG, "Etiqueta $epc (patrimônio ${resposta.valor.patrimonio}) lida no inventário de " +
@@ -537,7 +541,7 @@ class InventarioActivity : AppCompatActivity() {
                                     aviso.naoDeveriaEstar()
                                 }
                             }
-                            is com.example.rfid_server.service.RespostaServidor.NaoEncontrado -> semCadastroForaDaLista += epc
+                            is RespostaServidor.NaoEncontrado -> semCadastroForaDaLista += epc
                             else -> {
                                 registroConsultas.falhou(epc, SystemClock.elapsedRealtime())
                                 agendarNovaConsulta()
@@ -1505,7 +1509,7 @@ class InventarioActivity : AppCompatActivity() {
 
         private fun executorHistorico(context: android.content.Context): java.util.concurrent.Executor =
             historicoExecutor ?: synchronized(this) {
-                historicoExecutor ?: com.example.rfid_server.ExecutorProtegido
+                historicoExecutor ?: ExecutorProtegido
                     .umaThread(context, "guardar o histórico dos inventários").also { historicoExecutor = it }
             }
         private const val ABA_FALTANDO = 0

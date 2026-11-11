@@ -87,7 +87,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val todas = leiturasTodas.value.orEmpty()
         return Triple(
             BuscaLeituras.contagemPorTipo(todas, semTipo),
-            todas.count { it is com.example.rfid_server.adapter.ItemLeitura.Aguardando },
+            todas.count { it is ItemLeitura.Aguardando },
             naoCadastradasTodas.value.orEmpty().size
         )
     }
@@ -97,8 +97,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         BuscaLeituras.contagemPorSituacao(leiturasTodas.value.orEmpty(), semSituacao)
 
     /** Etiquetas da leitura atual (sem busca) com alerta no cadastro: alugado, vendido, baixado, extraviado. */
-    val comAlerta: LiveData<Set<String>> = leiturasTodas.map<List<com.example.rfid_server.adapter.ItemLeitura>, Set<String>> { lista ->
-        lista.mapNotNullTo(HashSet()) { item -> (item as? com.example.rfid_server.adapter.ItemLeitura.Cadastrada)?.tag?.takeIf { it.alertaSituacao() != null }?.epc }
+    val comAlerta: LiveData<Set<String>> = leiturasTodas.map<List<ItemLeitura>, Set<String>> { lista ->
+        lista.mapNotNullTo(HashSet()) { item -> (item as? ItemLeitura.Cadastrada)?.tag?.takeIf { it.alertaSituacao() != null }?.epc }
     }.distinctUntilChanged()
 
     /** Planilha de TODA a leitura atual (sem o filtro da busca). */

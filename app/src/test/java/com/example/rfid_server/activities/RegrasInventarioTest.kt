@@ -4,13 +4,15 @@ import com.example.rfid_server.dados.ComparacaoInventario
 import com.example.rfid_server.dados.EsperadoLocal
 import com.example.rfid_server.dados.ItemEsperado
 import com.example.rfid_server.dados.LidaInventario
+import com.example.rfid_server.sincronizacao.FilaJustificativas
+import com.example.rfid_server.view.TagView
+import java.time.OffsetDateTime
+import java.time.ZoneId
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.time.OffsetDateTime
-import java.time.ZoneId
 
 class RegrasInventarioTest {
 
@@ -192,9 +194,9 @@ class RegrasInventarioTest {
 
         assertEquals(
             mapOf(
-                com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo.EMPRESTADO to listOf("E1", "E3"),
-                com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo.MANUTENCAO to listOf("E2"),
-                com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo.BAIXADO to listOf("E7")
+                FilaJustificativas.Motivo.EMPRESTADO to listOf("E1", "E3"),
+                FilaJustificativas.Motivo.MANUTENCAO to listOf("E2"),
+                FilaJustificativas.Motivo.BAIXADO to listOf("E7")
             ),
             ResumoFinalizacao.justificativasPeloCadastro(faltantes)
         )
@@ -229,7 +231,7 @@ class RegrasInventarioTest {
     fun `fichas entram so nas fora da lista e o patrimonio conhecido vem do cadastro`() {
         val lidas = listOf(LidaInventario("E1", "P-1", foraDaLista = false), LidaInventario("X1", null, foraDaLista = true),
             LidaInventario("X2", null, foraDaLista = true))
-        val ficha = com.example.rfid_server.view.TagView("X1", "CI", "Monitor", null, null, "PAT-77", "", "BAIXADO", "Baixado")
+        val ficha = TagView("X1", "CI", "Monitor", null, null, "PAT-77", "", "BAIXADO", "Baixado")
 
         val r = LidaInventario.comFichas(lidas, mapOf("X1" to ficha, "E1" to ficha), setOf("X2"))
 

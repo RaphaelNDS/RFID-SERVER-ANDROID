@@ -1,9 +1,5 @@
 package com.example.rfid_server.activities
 
-import com.example.rfid_server.CodigoDeBarras
-import com.example.rfid_server.ConfigQr
-import com.example.rfid_server.api.RelogioServidor
-import com.example.rfid_server.erros.MascaraSensivel
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
@@ -25,16 +21,21 @@ import androidx.viewpager2.widget.ViewPager2
 import com.example.rfid_server.AppConfig
 import com.example.rfid_server.AvisoLeitura
 import com.example.rfid_server.BuildConfig
+import com.example.rfid_server.CodigoDeBarras
+import com.example.rfid_server.ConfigQr
 import com.example.rfid_server.MainViewModel
 import com.example.rfid_server.R
 import com.example.rfid_server.RfidManager
 import com.example.rfid_server.SessaoAtual
-import com.example.rfid_server.service.TagService
+import com.example.rfid_server.SessaoOperador
 import com.example.rfid_server.adapter.MainPagerAdapter
+import com.example.rfid_server.api.RelogioServidor
 import com.example.rfid_server.dados.ContagemSessao
 import com.example.rfid_server.dados.RepositorioInventario
 import com.example.rfid_server.dados.RepositorioLeituras
+import com.example.rfid_server.erros.MascaraSensivel
 import com.example.rfid_server.fragment.TitulosAbas
+import com.example.rfid_server.service.TagService
 import com.example.rfid_server.sincronizacao.EstadoSincronizacao
 import com.example.rfid_server.sincronizacao.SincronizacaoWorker
 import com.example.rfid_server.sincronizacao.Sincronizador
@@ -264,7 +265,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** Operador e até quando vale a sessão, no subtítulo da barra do topo (a linha própria tirava altura da lista). */
-    private fun mostrarOperador(sessao: com.example.rfid_server.SessaoOperador) {
+    private fun mostrarOperador(sessao: SessaoOperador) {
         // Primeiro nome: com o nome completo o subtítulo cortava ("Até 13:16 · Oper…" nas fotos do coletor)
         val nome = sessao.nome.trim().substringBefore(" ").ifEmpty { sessao.nome }
         // Com a letra maior não cabem os dois: fica o nome (quem está usando importa mais que o horário da sessão)

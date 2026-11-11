@@ -4,8 +4,10 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
-import com.example.rfid_server.dados.BancoLocal
 import androidx.core.content.edit
+import com.example.rfid_server.dados.BancoLocal
+import com.example.rfid_server.sincronizacao.SincronizadorJustificativas
+import com.example.rfid_server.sincronizacao.SincronizadorTransferencias
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
@@ -142,8 +144,8 @@ class CofreSessoes internal constructor(
                             // envio iria com a referência que não se resolve e a transferência seria recusada
                             (banco.leituraDao().sessoesEmUso() + banco.inventarioDao().sessoesEmUso() +
                                 banco.cadastroDao().sessoesEmUso() +
-                                com.example.rfid_server.sincronizacao.SincronizadorJustificativas.fila(app).pendentes().mapNotNull { it.sessao } +
-                                com.example.rfid_server.sincronizacao.SincronizadorTransferencias.fila(app).pendentes().mapNotNull { it.sessao }).toSet()
+                                SincronizadorJustificativas.fila(app).pendentes().mapNotNull { it.sessao } +
+                                SincronizadorTransferencias.fila(app).pendentes().mapNotNull { it.sessao }).toSet()
                         }
                     ).also { cofre ->
                         // Fora da thread de quem pediu (pode ser a tela): o Room não aceita consulta na thread principal

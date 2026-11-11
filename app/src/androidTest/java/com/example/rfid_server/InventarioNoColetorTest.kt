@@ -14,11 +14,13 @@ import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import com.example.rfid_server.activities.HistoricoInventarios
 import com.example.rfid_server.activities.InventarioActivity
 import com.example.rfid_server.dados.EsperadoLocal
 import com.example.rfid_server.dados.ItemEsperado
 import com.example.rfid_server.sincronizacao.FilaJustificativas
 import com.example.rfid_server.sincronizacao.SincronizadorJustificativas
+import java.io.File
 import org.hamcrest.Matchers.startsWith
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -26,7 +28,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
 
 /**
  * Fluxo do inventário no próprio coletor, sem servidor (versão de teste, ao lado do app de produção): um local com a
@@ -127,7 +128,7 @@ class InventarioNoColetorTest {
             assertTrue("Justificativa com a sessão de quem justificou", pendente.sessao != null)
             // E fica no histórico: a fila esquece quando o servidor confirma, o resumo reaberto não pode esquecer
             aguardar("justificativa guardada no histórico") {
-                com.example.rfid_server.activities.HistoricoInventarios(File(contexto.filesDir, "historico_inventarios"))
+                HistoricoInventarios(File(contexto.filesDir, "historico_inventarios"))
                     .motivos(pendente.inventarioId)["E-FALTA-1"] == FilaJustificativas.Motivo.EMPRESTADO
             }
 

@@ -6,9 +6,13 @@ import com.example.rfid_server.api.HttpClient
 import com.example.rfid_server.dados.CadastroEntity
 import com.example.rfid_server.dados.FakeCadastroDao
 import com.example.rfid_server.dados.FakeLeituraDao
+import com.example.rfid_server.dados.LeituraDao
 import com.example.rfid_server.dados.LeituraEntity
+import com.example.rfid_server.dados.RepositorioLeituras
 import com.example.rfid_server.service.MotivoFalha
+import com.example.rfid_server.service.RespostaServidor
 import com.example.rfid_server.service.TagService
+import java.util.concurrent.Executor
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.json.JSONArray
@@ -21,7 +25,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import java.util.concurrent.Executor
 
 /**
  * 1.6.2: erro do servidor num item só não trava a fila; prazo de 24 h da sessão recusada não recomeça a cada
@@ -93,11 +96,11 @@ class RegraFalhasTest {
 
     @Test
     fun `so falhas do ambiente param tudo e erros seguidos param a etapa`() {
-        val semRede = com.example.rfid_server.service.RespostaServidor.Falha(MotivoFalha.SEM_CONEXAO, "x")
-        val doServidor = com.example.rfid_server.service.RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "x")
+        val semRede = RespostaServidor.Falha(MotivoFalha.SEM_CONEXAO, "x")
+        val doServidor = RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "x")
         assertTrue(RegraFalhas.paraTudo(semRede))
         assertTrue("Servidor parado também para tudo", RegraFalhas.paraTudo(
-            com.example.rfid_server.service.RespostaServidor.Falha(MotivoFalha.SERVIDOR_FORA_DO_AR, "x")
+            RespostaServidor.Falha(MotivoFalha.SERVIDOR_FORA_DO_AR, "x")
         ))
         assertFalse(RegraFalhas.paraTudo(doServidor))
 
@@ -161,7 +164,7 @@ class RegraFalhasTest {
     @Test
     fun `leitura que nao foi gravada pode ser lida de novo`() {
         var falhar = true
-        val dao = object : com.example.rfid_server.dados.LeituraDao by FakeLeituraDao() {
+        val dao = object : LeituraDao by FakeLeituraDao() {
             val gravadas = mutableListOf<String>()
             override fun inserir(leitura: LeituraEntity): Long {
                 if (falhar) throw IllegalStateException("database or disk is full")
@@ -169,7 +172,7 @@ class RegraFalhasTest {
                 return gravadas.size.toLong()
             }
         }
-        val repositorio = com.example.rfid_server.dados.RepositorioLeituras(
+        val repositorio = RepositorioLeituras(
             dao = dao, executor = ExecutorProtegido(Executor { it.run() }, "teste") { _, _ -> },
             solicitarSincronizacao = {}, sessaoAtual = { "sessao-ana" }
         )
