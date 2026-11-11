@@ -328,8 +328,8 @@
 
     <!-- Localizar -->
     <string name="localizar_barra_titulo">Localizar patrimônio</string>
-    <string name="localizar_procurando_patrimonio">Procurando: Patrimônio %1$s</string>
-    <string name="localizar_procurando_epc">Procurando: EPC %1$s</string>
+    <string name="localizar_procurando_patrimonio">Patrimônio %1$s</string>
+    <string name="localizar_procurando_epc">EPC %1$s</string>
     <string name="localizar_alterar">Alterar</string>
     <string name="localizar_ficha">Ficha</string>
     <string name="localizar_titulo">Patrimônio procurado</string>
