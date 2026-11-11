@@ -34,6 +34,23 @@ class HistoricoInventarios(private val pasta: File) {
     /** Do mais novo para o mais antigo (data de finalização); arquivo ilegível é ignorado. */
     fun listar(): List<ResumoFinalizacao> = synchronized(TRAVA) { lerTodos().map { it.second } }
 
+    /**
+     * Os inventários guardados, cada um com as etiquetas já justificadas no histórico, lendo cada arquivo uma vez só
+     * ("Inventários anteriores": antes relia o arquivo e a fila de justificativas uma vez para cada inventário).
+     */
+    fun listarComJustificadas(): List<Pair<ResumoFinalizacao, Set<String>>> = synchronized(TRAVA) {
+        pasta.listFiles { f -> f.isFile && f.name.endsWith(".json") }.orEmpty()
+            .mapNotNull { arquivo ->
+                try {
+                    val texto = arquivo.readText()
+                    deJson(texto) to motivosDe(JSONObject(texto)).keys
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            .sortedByDescending { it.first.finalizadoEm }
+    }
+
     /** Guarda o motivo das etiquetas [epcs] do inventário [inventarioId] (justificar de novo troca o motivo). */
     fun justificar(
         inventarioId: String, epcs: Collection<String>, motivo: FilaJustificativas.Motivo, observacao: String? = null

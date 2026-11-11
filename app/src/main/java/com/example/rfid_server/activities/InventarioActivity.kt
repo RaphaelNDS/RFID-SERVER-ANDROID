@@ -1203,9 +1203,15 @@ class InventarioActivity : AppCompatActivity() {
     /** Lista dos inventários finalizados neste coletor (os mais novos primeiro); tocar reabre o resumo. */
     private fun mostrarAnteriores() {
         noHistorico {
-            val anteriores = historico().listar()
+            // Cada arquivo do histórico e a fila de justificativas lidos uma vez só (antes: uma vez por inventário)
+            val comJustificadas = historico().listarComJustificadas()
+            val anteriores = comJustificadas.map { it.first }
+            val naFila = SincronizadorJustificativas.fila(this).pendentes().groupBy({ it.inventarioId }, { it.epc })
             // Quantos faltantes de cada um ainda estão sem justificativa (lê arquivos: aqui, fora da tela)
-            val semMotivo = anteriores.map { faltantesSemJustificativa(it).size }
+            val semMotivo = comJustificadas.map { (r, justificadas) ->
+                val naFilaDele = naFila[r.inventarioId].orEmpty().toSet()
+                r.comparacao?.faltando.orEmpty().count { it.epc !in justificadas && it.epc !in naFilaDele }
+            }
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 if (anteriores.isEmpty()) {
@@ -1251,7 +1257,8 @@ class InventarioActivity : AppCompatActivity() {
         val motivosFila = fila.motivos(resumo.inventarioId)
         val obsFila = fila.observacoes(resumo.inventarioId)
         val obsHistorico = historico().observacoes(resumo.inventarioId)
-        return motivosDe(resumo).mapValues { (epc, motivo) ->
+        // O mesmo que motivosDe, sem ler a fila de novo
+        return (historico().motivos(resumo.inventarioId) + motivosFila).mapValues { (epc, motivo) ->
             val obs = if (epc in motivosFila) obsFila[epc] else obsHistorico[epc]
             getString(textoMotivo(motivo)) + (obs?.let { ": $it" } ?: "")
         }
