@@ -33,6 +33,7 @@ class SincronizadorInventarios(
 
     /** Processa todos os inventários pendentes. Devolve a falha que deve interromper a sincronização, ou null. */
     fun processar(): RespostaServidor.Falha? {
+        recusasZeradas.clear()
         val pendentes = dao.comPendencias()
         if (pendentes.isEmpty()) return limpar()
 
@@ -194,9 +195,13 @@ class SincronizadorInventarios(
         registrarErro(TipoErro.ENVIO_RECUSADO, mensagem)
     }
 
+    // Inventários com as recusas já zeradas nesta passada: o retrato do início da passada continua com recusas > 0, e
+    // cada lote aceito gravava o zero de novo
+    private val recusasZeradas = mutableSetOf<String>()
+
     /** Alguma etapa foi aceita: as recusas anteriores não eram definitivas. */
     private fun aceito(inventario: InventarioEntity) {
-        if (inventario.recusas > 0) dao.zerarRecusas(inventario.id)
+        if (inventario.recusas > 0 && recusasZeradas.add(inventario.id)) dao.zerarRecusas(inventario.id)
     }
 
     /**

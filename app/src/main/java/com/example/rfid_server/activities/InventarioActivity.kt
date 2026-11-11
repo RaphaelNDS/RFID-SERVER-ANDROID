@@ -346,6 +346,8 @@ class InventarioActivity : AppCompatActivity() {
         super.onDestroy()
         if (::aviso.isInitialized) aviso.liberar()
         principal.removeCallbacks(rodarComparacao)
+        principal.removeCallbacks(redesenharLidas)
+        principal.removeCallbacks(reconsultar)
         arquivos.shutdown()
         consultas.shutdownNow()
     }
@@ -426,6 +428,8 @@ class InventarioActivity : AppCompatActivity() {
         // Cálculo agendado é cancelado; o que já está rodando termina, mas é descartado (outra geração)
         geracao++
         principal.removeCallbacks(rodarComparacao)
+        principal.removeCallbacks(redesenharLidas)
+        principal.removeCallbacks(reconsultar)
         calculoAgendado = false
         recalcularDepois = false
 
@@ -532,15 +536,37 @@ class InventarioActivity : AppCompatActivity() {
                                 }
                             }
                             is com.example.rfid_server.service.RespostaServidor.NaoEncontrado -> semCadastroForaDaLista += epc
-                            else -> registroConsultas.falhou(epc, SystemClock.elapsedRealtime())
+                            else -> {
+                                registroConsultas.falhou(epc, SystemClock.elapsedRealtime())
+                                agendarNovaConsulta()
+                            }
                         }
-                        situacao?.let { adapterLidas.atualizar(comFichas(it.lidas)) }
+                        agendarRedesenhoLidas()
                     }
                 }
             } catch (e: RejectedExecutionException) {
                 return // tela fechando
             }
         }
+    }
+
+    // As respostas das consultas chegam uma a uma (até 300): a lista é refeita uma vez a cada leva, não a cada resposta
+    // (com milhares de lidas, refazer e comparar a lista inteira 300 vezes travava a tela)
+    private val redesenharLidas = Runnable { situacao?.let { adapterLidas.atualizar(comFichas(it.lidas)) } }
+
+    private fun agendarRedesenhoLidas() {
+        principal.removeCallbacks(redesenharLidas)
+        principal.postDelayed(redesenharLidas, ESPERA_REDESENHO_LIDAS_MS)
+    }
+
+    // Consulta que falhou só era tentada de novo quando o cálculo rodava (leitura nova, lista nova, filtro): parado
+    // revisando a lista com a rede de volta, o operador nunca via o alerta do baixado ou do alugado. Uma tentativa
+    // depois da espera das falhas, mesmo sem leitura nova
+    private val reconsultar = Runnable { situacao?.let { consultarForaDaLista(it.lidas) } }
+
+    private fun agendarNovaConsulta() {
+        principal.removeCallbacks(reconsultar)
+        principal.postDelayed(reconsultar, ESPERA_NOVA_CONSULTA_MS)
     }
 
     /** Lidas com alerta no cadastro (baixado, extraviado), já consultadas: EPC → texto para o resumo. */
@@ -745,7 +771,9 @@ class InventarioActivity : AppCompatActivity() {
     private fun aplicarEsperado(novo: EsperadoLocal, doServidor: Boolean) {
         esperado = novo
         patrimoniosEsperados = novo.itens.associate { it.epc to it.patrimonio }
-        temListaEsperada = novo.temReferencia && novo.itens.isNotEmpty()
+        // A mesma regra da tela (SituacaoTelaInventario.calcular): com referência, mesmo de lista vazia (o último
+        // inventário não achou nada), o que é lido está fora da lista. Antes a tela dizia "Fora da lista" e o bipe era o normal
+        temListaEsperada = novo.temReferencia
         val origem = if (doServidor) "do servidor" else "guardada no coletor"
 
         if (novo.temReferencia) {
@@ -978,7 +1006,7 @@ class InventarioActivity : AppCompatActivity() {
                         ResumoFinalizacao(
                             inventario.local, finalizadoEm, operador, it, final, inventario.id,
                             etiquetasGravadas, esperadoAgora?.itens.orEmpty(),
-                            alertasAgora.filterKeys { epc -> epc in etiquetasGravadas }
+                            etiquetasGravadas.toHashSet().let { gravadas -> alertasAgora.filterKeys { epc -> epc in gravadas } }
                         )
                     }
                     // Guarda o resumo para "Inventários anteriores" (o inventário sai do coletor quando chega ao
@@ -1455,6 +1483,10 @@ class InventarioActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "INVENTARIO"
+        // Junta as respostas das consultas das fora da lista que chegam juntas numa atualização da lista
+        private const val ESPERA_REDESENHO_LIDAS_MS = 300L
+        // Nova tentativa das consultas que falharam: um pouco depois da espera de 60 s do ConsultasForaDaLista
+        private const val ESPERA_NOVA_CONSULTA_MS = 61_000L
         /** Marca de UTF-8 no início da planilha: o Excel reconhece os acentos. */
         private val BOM_UTF8 = Char(0xFEFF).toString()
 

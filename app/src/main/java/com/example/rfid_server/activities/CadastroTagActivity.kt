@@ -425,6 +425,16 @@ class CadastroTagActivity : AppCompatActivity() {
                         // O cadastro passa a ser do código novo; a leitura antiga (não cadastrada) fica como estava
                         epc = resultado.epc
                         findViewById<TextView>(R.id.txtEpc).text = epc
+                        // O cadastro guardado do código antigo (pendente ou recusado) passa para o novo. Sem ele, o que
+                        // está no formulário não está salvo para o código novo: voltar pede confirmação (antes fechava
+                        // sem perguntar, porque o formulário era igual ao salvo do código antigo)
+                        repositorio.trocarEpc(anterior, resultado.epc) { trocou ->
+                            runOnUiThread {
+                                if (trocou || isFinishing || isDestroyed) return@runOnUiThread
+                                formularioSalvo = FormularioCadastro()
+                                atualizarAlteracoes()
+                            }
+                        }
                         btnSalvar.isEnabled = salvarAntes
                         atualizarBotaoGravar()
                         Toast.makeText(this, R.string.cadastro_gravada, Toast.LENGTH_LONG).show()

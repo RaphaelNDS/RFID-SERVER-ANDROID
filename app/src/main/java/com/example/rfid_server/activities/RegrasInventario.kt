@@ -125,7 +125,9 @@ class ConsultasForaDaLista(private val maximo: Int = 300, private val esperaFalh
             if (epc in pedidas) continue
             val falhou = falhas[epc]
             if (falhou != null && agora - falhou < esperaFalhaMs) continue
-            if (falhou == null && pedidas.size + falhas.size >= maximo) break
+            // No limite, só as novas ficam de fora: as que falharam antes (mais abaixo na lista, que vem com as mais
+            // novas primeiro) continuam sendo tentadas de novo. Com "break" elas nunca mais eram pedidas
+            if (falhou == null && pedidas.size + falhas.size >= maximo) continue
             falhas.remove(epc)
             pedidas += epc
             novas += epc

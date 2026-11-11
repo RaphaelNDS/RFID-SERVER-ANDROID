@@ -62,7 +62,14 @@ class RepositorioInventario internal constructor(
 
     /** Abre um inventário no [local]. Se já houver um aberto, não abre outro (devolve false em [aoTerminar]). */
     fun abrir(local: String, aoTerminar: (Boolean) -> Unit = {}) {
-        val nome = local.trim().replace(Regex("\\s+"), " ")
+        // A mesma regra da tela e do servidor (LocalInventario): sem conferir aqui, outro chamador gravaria um local que o
+        // servidor recusa (400) em toda passada, até o coletor desistir
+        val nome = com.example.rfid_server.activities.LocalInventario.normalizar(local)
+        if (nome.isEmpty() || !com.example.rfid_server.activities.LocalInventario.dentroDoLimite(nome)) {
+            Log.w(TAG, "Inventário não aberto: local vazio ou com mais de ${com.example.rfid_server.activities.LocalInventario.MAXIMO} caracteres")
+            aoTerminar(false)
+            return
+        }
         val iniciadoEm = relogio()
 
         executor.execute {

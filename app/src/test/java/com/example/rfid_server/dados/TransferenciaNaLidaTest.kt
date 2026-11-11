@@ -30,6 +30,7 @@ class TransferenciaNaLidaTest {
         assertFalse("Ficha ainda não consultada", fora.copy(ficha = null).podePedirTransferencia)
         assertFalse(fora.copy(ficha = null, semCadastro = true).podePedirTransferencia)
         assertFalse("O servidor recusa bem baixado (409)", fora.copy(ficha = ficha("BAIXADO")).podePedirTransferencia)
+        assertFalse("Vendido também não deveria estar aqui (o servidor recusa)", fora.copy(ficha = ficha("VENDIDO")).podePedirTransferencia)
         assertFalse(LidaInventario("E1", "0123/2019", foraDaLista = false, ficha = ficha()).podePedirTransferencia)
     }
 
