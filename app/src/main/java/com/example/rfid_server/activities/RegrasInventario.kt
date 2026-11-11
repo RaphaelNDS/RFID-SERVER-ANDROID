@@ -273,7 +273,8 @@ data class ResumoFinalizacao(
          */
         fun motivoPeloCadastro(item: ItemEsperado): com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo? =
             when (item.situacao) {
-                "EMPRESTADO" -> com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo.EMPRESTADO
+                // ALUGADO: locação (servidor 1.12.0; o EMPRESTADO antigo virou ALUGADO)
+                "EMPRESTADO", "ALUGADO" -> com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo.EMPRESTADO
                 "EM_MANUTENCAO" -> com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo.MANUTENCAO
                 "BAIXADO" -> com.example.rfid_server.sincronizacao.FilaJustificativas.Motivo.BAIXADO
                 else -> null

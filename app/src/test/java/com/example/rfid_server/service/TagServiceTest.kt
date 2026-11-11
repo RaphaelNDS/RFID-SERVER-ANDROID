@@ -100,6 +100,10 @@ class TagServiceTest {
         assertEquals("Baixado", baixado.alertaSituacao())
         assertEquals("Emprestado: só na ficha, sem alerta no cartão", null, emprestado.alertaSituacao())
         assertEquals("Extraviado sem rótulo usa o código", "EXTRAVIADO", baixado.copy(situacao = "EXTRAVIADO", situacaoRotulo = null).alertaSituacao())
+        // Locação (servidor 1.12.0): alugado lido aqui = devolução não registrada; vendido não deveria estar aqui
+        assertEquals("Alugado", baixado.copy(situacao = "ALUGADO", situacaoRotulo = "Alugado").alertaSituacao())
+        assertEquals("Vendido", baixado.copy(situacao = "VENDIDO", situacaoRotulo = "Vendido").alertaSituacao())
+        assertEquals(null, baixado.copy(situacao = "DISPONIVEL", situacaoRotulo = "Disponível").alertaSituacao())
     }
 
     @Test
@@ -282,6 +286,18 @@ class TagServiceTest {
     }
 
     // ================= buscarHistorico (ficha) =================
+
+    @Test
+    fun `ficha le a locacao do servidor 1_12_0 com pedido numerico`() {
+        servidor.enqueue(json(200, """{"epc":"E1","situacao":"ALUGADO","situacaoRotulo":"Alugado","pedido":12,
+            "cliente":"Construtora X","previsaoDevolucao":"2026-11-30","localEntrega":"Obra Rua Y"}"""))
+
+        val resposta = aguardar<RespostaServidor<HistoricoBem>> { service.buscarHistorico("E1", it) }
+
+        val h = (resposta as RespostaServidor.Sucesso).valor
+        assertEquals(listOf("12", "Construtora X", "2026-11-30", "Obra Rua Y"), listOf(h.pedido, h.cliente, h.previsaoDevolucao, h.localEntrega))
+        assertEquals(false, h.vazio)
+    }
 
     @Test
     fun `ficha le situacao unidade local e responsavel do servidor 1_6_0`() {

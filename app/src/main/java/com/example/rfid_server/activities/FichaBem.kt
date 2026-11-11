@@ -69,7 +69,12 @@ object FichaBem {
             (h.situacaoRotulo ?: h.situacao)?.let { add(activity.getString(R.string.ficha_situacao, it)) }
             h.local?.let { add(activity.getString(R.string.ficha_local, it)) }
             h.unidade?.let { add(activity.getString(R.string.ficha_unidade, it)) }
-            h.responsavel?.let { add(activity.getString(R.string.ficha_responsavel, it)) }
+            // Locação (servidor 1.12.0): alugado ou em devolução, com quem está, o pedido, até quando e para onde foi. O
+            // responsável não aparece mais (pedido do usuário em 11/11: na locadora o que importa é o cliente)
+            h.cliente?.let { add(activity.getString(R.string.ficha_cliente, it)) }
+            h.pedido?.let { add(activity.getString(R.string.ficha_pedido, it)) }
+            h.localEntrega?.let { add(activity.getString(R.string.ficha_local_entrega, it)) }
+            h.previsaoDevolucao?.let { add(activity.getString(R.string.ficha_previsao_devolucao, dataCurta(it))) }
             h.ultimoLocal?.let { local ->
                 add(activity.getString(R.string.ficha_ultimo_local, local, h.ultimoInventarioEm?.let(::data) ?: "—"))
             }
@@ -78,6 +83,10 @@ object FichaBem {
             }
         }.joinToString("\n")
     }
+
+    // "2026-11-30" (só a data) → "30/11/2026"; outro formato vai para [data]
+    private fun dataCurta(texto: String): String =
+        Regex("""^(\d{4})-(\d{2})-(\d{2})$""").find(texto)?.destructured?.let { (a, m, d) -> "$d/$m/$a" } ?: data(texto)
 
     // ISO-8601 do servidor → "09/11/2026 10:37" no fuso do coletor; texto fora do formato aparece como veio
     private fun data(iso: String): String =
