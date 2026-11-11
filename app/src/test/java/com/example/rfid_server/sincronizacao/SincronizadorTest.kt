@@ -1,12 +1,18 @@
 package com.example.rfid_server.sincronizacao
 
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
-import com.example.rfid_server.erros.TipoErro
 import com.example.rfid_server.api.HttpClient
+import com.example.rfid_server.dados.FakeInventarioDao
 import com.example.rfid_server.dados.FakeLeituraDao
+import com.example.rfid_server.dados.InventarioEntity
+import com.example.rfid_server.dados.LeituraDao
 import com.example.rfid_server.dados.LeituraEntity
 import com.example.rfid_server.dados.Situacao
+import com.example.rfid_server.erros.TipoErro
 import com.example.rfid_server.service.TagService
+import java.time.OffsetDateTime
+import java.util.concurrent.Executor
+import java.util.concurrent.TimeUnit
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.json.JSONObject
@@ -19,9 +25,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import java.time.OffsetDateTime
-import java.util.concurrent.Executor
-import java.util.concurrent.TimeUnit
 
 /**
  * Testa a fila offline de ponta a ponta: DAO em memória + TagService real + servidor HTTP falso.
@@ -78,7 +81,7 @@ class SincronizadorTest {
         sincronizador().processarPendentes()
 
         val (tipo, mensagem) = errosRegistrados.single()
-        assertEquals(com.example.rfid_server.erros.TipoErro.ENVIO_RECUSADO, tipo)
+        assertEquals(TipoErro.ENVIO_RECUSADO, tipo)
         assertTrue("Sem o EPC, para recusas iguais se agruparem", mensagem.startsWith("Servidor recusou uma leitura:") && !mensagem.contains("RUIM"))
         assertEquals("Sincronizou: aproveita para enviar os erros guardados", 1, enviosDeErros)
     }
@@ -90,7 +93,7 @@ class SincronizadorTest {
 
         sincronizador().processarPendentes()
 
-        assertEquals(com.example.rfid_server.erros.TipoErro.ERRO_SERVIDOR, errosRegistrados.single().first)
+        assertEquals(TipoErro.ERRO_SERVIDOR, errosRegistrados.single().first)
         assertEquals(1, enviosDeErros)
     }
 
@@ -108,7 +111,7 @@ class SincronizadorTest {
     @Test(timeout = 10_000)
     fun `passada que termina com excecao ainda envia os erros guardados uma vez`() {
         // Ex.: banco local cheio ao ler a fila
-        val daoQuebrado = object : com.example.rfid_server.dados.LeituraDao by dao {
+        val daoQuebrado = object : LeituraDao by dao {
             override fun pendentes(): List<LeituraEntity> = throw IllegalStateException("database or disk is full")
         }
         val sincronizador = Sincronizador(
@@ -693,8 +696,8 @@ class SincronizadorTest {
 
     @Test(timeout = 10_000)
     fun `sessao retida nao trava os inventarios`() {
-        val inventarioDao = com.example.rfid_server.dados.FakeInventarioDao()
-        inventarioDao.inserirInventario(com.example.rfid_server.dados.InventarioEntity("inv-1", "Sala 101", 1_000, sessaoOperador = "sessao-bruno"))
+        val inventarioDao = FakeInventarioDao()
+        inventarioDao.inserirInventario(InventarioEntity("inv-1", "Sala 101", 1_000, sessaoOperador = "sessao-bruno"))
         dao.inserir(LeituraEntity(epc = "E1", lidoEm = agora, sessaoOperador = "sessao-ana"))
         servidor.enqueue(json(401, sessaoRecusada))   // lote da Ana
         servidor.enqueue(json(401, sessaoRecusada))   // E1 sozinha: retida

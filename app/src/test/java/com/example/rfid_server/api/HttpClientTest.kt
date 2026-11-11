@@ -1,5 +1,7 @@
 package com.example.rfid_server.api
 
+import com.example.rfid_server.BuildConfig
+import java.util.concurrent.TimeUnit
 import okhttp3.Request
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -8,7 +10,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
-import java.util.concurrent.TimeUnit
 
 class HttpClientTest {
 
@@ -49,8 +50,8 @@ class HttpClientTest {
         get(HttpClient.criar { "minha-chave-123" })
 
         val recebida = servidor.takeRequest(5, TimeUnit.SECONDS)!!
-        assertEquals(com.example.rfid_server.BuildConfig.VERSION_NAME, recebida.getHeader(HttpClient.HEADER_VERSAO_APP))
-        assertEquals(com.example.rfid_server.BuildConfig.VERSION_CODE.toString(), recebida.getHeader(HttpClient.HEADER_VERSAO_CODIGO))
+        assertEquals(BuildConfig.VERSION_NAME, recebida.getHeader(HttpClient.HEADER_VERSAO_APP))
+        assertEquals(BuildConfig.VERSION_CODE.toString(), recebida.getHeader(HttpClient.HEADER_VERSAO_CODIGO))
     }
 
     @Test

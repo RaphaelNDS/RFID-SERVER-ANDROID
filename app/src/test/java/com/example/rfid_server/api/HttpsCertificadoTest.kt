@@ -1,6 +1,6 @@
 package com.example.rfid_server.api
 
-import com.example.rfid_server.AppConfig
+import com.example.rfid_server.configuracoes.AppConfig
 import com.example.rfid_server.service.MotivoFalha
 import com.example.rfid_server.service.RespostaServidor
 import com.example.rfid_server.service.ResultadoConexao

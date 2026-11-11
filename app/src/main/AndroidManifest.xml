@@ -49,14 +49,9 @@
         <!-- Telas sempre em pé: com o coletor na mão a tela girava sozinha, recriava a tela no meio da leitura
              (o Localizar perdia o gatilho) e o layout foi desenhado para retrato -->
         <activity
-            android:name=".activities.LoginActivity"
+            android:name=".sessao.LoginActivity"
             android:screenOrientation="portrait"
-            android:exported="true">
-
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
-            </intent-filter>
+            android:exported="false">
 
             <meta-data
                 android:name="android.app.lib_name"
@@ -64,17 +59,31 @@
 
         </activity>
 
-        <activity android:name=".activities.MainActivity" android:screenOrientation="portrait" />
+        <!-- Ícone do app com o endereço antigo da tela de login (até a 2.7.8 ela ficava em .activities): atalhos na
+             tela inicial dos coletores e configurações de quiosque guardam esse endereço, e sem o apelido o atalho
+             sumia ou dizia "app não instalado" depois da atualização (organização dos pacotes na 2.7.9) -->
+        <activity-alias
+            android:name=".activities.LoginActivity"
+            android:targetActivity=".sessao.LoginActivity"
+            android:exported="true">
 
-        <activity android:name=".activities.SettingsActivity" android:screenOrientation="portrait" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
 
-        <activity android:name=".activities.LocalizarActivity" android:screenOrientation="portrait" />
+        <activity android:name=".leituras.MainActivity" android:screenOrientation="portrait" />
 
-        <activity android:name=".activities.InventarioActivity" android:screenOrientation="portrait" />
+        <activity android:name=".configuracoes.SettingsActivity" android:screenOrientation="portrait" />
+
+        <activity android:name=".localizar.LocalizarActivity" android:screenOrientation="portrait" />
+
+        <activity android:name=".inventario.InventarioActivity" android:screenOrientation="portrait" />
 
         <!-- adjustResize: com o teclado aberto, a barra do "Salvar cadastro" sobe junto e fica à vista -->
         <activity
-            android:name=".activities.CadastroTagActivity"
+            android:name=".cadastro.CadastroTagActivity"
             android:screenOrientation="portrait"
             android:windowSoftInputMode="adjustResize" />
 

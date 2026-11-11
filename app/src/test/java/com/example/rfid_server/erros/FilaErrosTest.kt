@@ -1,11 +1,13 @@
 package com.example.rfid_server.erros
 
+import com.example.rfid_server.service.MotivoFalha
+import com.example.rfid_server.service.RespostaServidor
+import java.io.File
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.File
 
 class FilaErrosTest {
 
@@ -147,7 +149,7 @@ class FilaErrosTest {
         var envios = 0
         val falha = { _: org.json.JSONArray ->
             envios++
-            com.example.rfid_server.service.RespostaServidor.Falha(com.example.rfid_server.service.MotivoFalha.ERRO_SERVIDOR, "HTTP 503")
+            RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "HTTP 503")
         }
 
         RegistroErros.enviarPendentes(fila, falha)
@@ -206,15 +208,15 @@ class FilaErrosTest {
 
         RegistroErros.enviarPendentes(fila) { lote ->
             enviados += lote.length()
-            com.example.rfid_server.service.RespostaServidor.Falha(
-                com.example.rfid_server.service.MotivoFalha.REQUISICAO_RECUSADA, "Servidor recusou a requisição (HTTP 400)"
+            RespostaServidor.Falha(
+                MotivoFalha.REQUISICAO_RECUSADA, "Servidor recusou a requisição (HTTP 400)"
             )
         }
         assertEquals("Os 50 recusados saem", 10, fila.quantidade())
 
         RegistroErros.enviarPendentes(fila) { lote ->
             enviados += lote.length()
-            com.example.rfid_server.service.RespostaServidor.Sucesso(Unit)
+            RespostaServidor.Sucesso(Unit)
         }
         assertEquals(listOf(50, 10), enviados)
         assertEquals(0, fila.quantidade())
@@ -226,7 +228,7 @@ class FilaErrosTest {
         repeat(3) { fila.registrar(TipoErro.ENVIO_RECUSADO, "recusa $it") }
 
         RegistroErros.enviarPendentes(fila) {
-            com.example.rfid_server.service.RespostaServidor.Falha(com.example.rfid_server.service.MotivoFalha.ERRO_SERVIDOR, "HTTP 503")
+            RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "HTTP 503")
         }
 
         assertEquals(3, fila.quantidade())
@@ -240,7 +242,7 @@ class FilaErrosTest {
 
         RegistroErros.enviarPendentes(fila) { lote ->
             enviados += lote.length()
-            com.example.rfid_server.service.RespostaServidor.Sucesso(Unit)
+            RespostaServidor.Sucesso(Unit)
         }
 
         assertEquals(listOf(50, 50, 20), enviados)

@@ -1,0 +1,327 @@
+package com.example.rfid_server.inventario
+
+import com.example.rfid_server.dados.ComparacaoInventario
+import com.example.rfid_server.dados.EsperadoLocal
+import com.example.rfid_server.dados.ItemEsperado
+import com.example.rfid_server.dados.LidaInventario
+import com.example.rfid_server.sincronizacao.FilaJustificativas
+import com.example.rfid_server.view.TagView
+import java.time.OffsetDateTime
+import java.time.ZoneId
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class RegrasInventarioTest {
+
+    private fun item(epc: String, patrimonio: String? = "P-$epc", tipo: String? = "Notebook", marca: String? = "Dell") =
+        ItemEsperado(epc, patrimonio, null, tipo, marca, null)
+
+    private val esperado = EsperadoLocal(
+        local = "Sala 101",
+        temReferencia = true,
+        itens = listOf(item("E1"), item("E2"), item("E3", patrimonio = null))
+    )
+    private val patrimonios = esperado.itens.associate { it.epc to it.patrimonio }
+
+    // ================= FILTRO =================
+
+    @Test
+    fun `campo de filtro so aparece com lista grande ou com texto digitado`() {
+        assertFalse(FiltroInventario.mostrarCampo(19, ""))
+        assertFalse(FiltroInventario.mostrarCampo(5, "   "))
+        assertTrue(FiltroInventario.mostrarCampo(20, ""))
+        assertTrue(FiltroInventario.mostrarCampo(3, "12"))
+    }
+
+    @Test
+    fun `filtro do faltando procura no patrimonio e no epc sem diferenciar maiusculas`() {
+        val itens = listOf(item("E200AA", "1234"), item("E200BB", "5678"), item("E300CC", null))
+
+        assertEquals(listOf("E200AA"), FiltroInventario.faltando(itens, "23").map { it.epc })
+        assertEquals(listOf("E200AA", "E200BB"), FiltroInventario.faltando(itens, "e200").map { it.epc })
+        assertEquals(listOf("E300CC"), FiltroInventario.faltando(itens, " cc ").map { it.epc })
+        assertEquals(itens, FiltroInventario.faltando(itens, ""))
+        assertTrue(FiltroInventario.faltando(itens, "zzz").isEmpty())
+    }
+
+    @Test
+    fun `faltando explicado pelo cadastro vai para o fim mantendo a ordem`() {
+        val itens = listOf(
+            item("E1").copy(situacao = "EMPRESTADO"), item("E2"), item("E3").copy(situacao = "EM_MANUTENCAO"),
+            item("E4").copy(situacao = "EXTRAVIADO"), item("E5").copy(situacao = "EM_USO")
+        )
+
+        assertEquals(listOf("E2", "E4", "E5", "E1", "E3"), FiltroInventario.faltando(itens, "").map { it.epc })
+    }
+
+    @Test
+    fun `filtro das lidas procura no patrimonio e no epc`() {
+        val lidas = listOf(LidaInventario("X9", null, true), LidaInventario("E1", "P-E1", false))
+
+        assertEquals(listOf("E1"), FiltroInventario.lidas(lidas, "p-e").map { it.epc })
+        assertEquals(listOf("X9"), FiltroInventario.lidas(lidas, "x9").map { it.epc })
+    }
+
+    // ================= RITMO =================
+
+    @Test
+    fun `primeiro calculo sai na hora e os seguintes respeitam o intervalo`() {
+        assertEquals(0, RitmoComparacao.espera(agora = 1_000, ultimoCalculo = null))
+        assertEquals(200, RitmoComparacao.espera(agora = 1_100, ultimoCalculo = 1_000, intervaloMs = 300))
+        assertEquals(0, RitmoComparacao.espera(agora = 1_300, ultimoCalculo = 1_000, intervaloMs = 300))
+        assertEquals(0, RitmoComparacao.espera(agora = 5_000, ultimoCalculo = 1_000, intervaloMs = 300))
+    }
+
+    @Test
+    fun `relogio que voltou nao faz esperar mais que o intervalo`() {
+        assertEquals(300, RitmoComparacao.espera(agora = 0, ultimoCalculo = 10_000, intervaloMs = 300))
+    }
+
+    // ================= SITUAÇÃO DA TELA =================
+
+    @Test
+    fun `situacao compara e poe as fora da lista primeiro`() {
+        val s = SituacaoTelaInventario.calcular(esperado, patrimonios, listOf("E1", "X9", "E3"), termo = "")
+
+        assertEquals(3, s.totalLidas)
+        assertEquals(2, s.comparacao!!.encontradas)
+        assertEquals(1, s.comparacao!!.foraDaLista)
+        assertEquals(listOf("E2"), s.faltando.map { it.epc })
+        assertEquals(listOf("X9", "E1", "E3"), s.lidas.map { it.epc })
+        assertTrue(s.lidas[0].foraDaLista)
+        assertEquals("P-E1", s.lidas[1].patrimonio)
+    }
+
+    @Test
+    fun `filtro nao muda as contagens so as listas`() {
+        val s = SituacaoTelaInventario.calcular(esperado, patrimonios, listOf("E1", "X9"), termo = "x9")
+
+        assertEquals(2, s.totalLidas)
+        assertEquals(2, s.comparacao!!.faltando.size)
+        assertEquals(listOf("X9"), s.lidas.map { it.epc })
+        assertTrue(s.faltando.isEmpty())
+    }
+
+    @Test
+    fun `sem lista do esperado nao ha comparacao nem fora da lista`() {
+        val primeiro = EsperadoLocal(local = "Sala 101", temReferencia = false)
+
+        for (e in listOf(null, primeiro)) {
+            val s = SituacaoTelaInventario.calcular(e, emptyMap(), listOf("A", "B"), termo = "")
+            assertNull(s.comparacao)
+            assertTrue(s.faltando.isEmpty())
+            assertEquals(listOf("A", "B"), s.lidas.map { it.epc })
+            assertTrue(s.lidas.none { it.foraDaLista })
+        }
+    }
+
+    // ================= RESUMO =================
+
+    private val finalizadoEm = OffsetDateTime.parse("2026-11-05T14:30:00-03:00").toInstant().toEpochMilli()
+    private val fuso = ZoneId.of("America/Sao_Paulo")
+
+    @Test
+    fun `texto compartilhado tem local data operador contagens e o que faltou`() {
+        val c = ComparacaoInventario.comparar(
+            esperado.copy(itens = listOf(item("E1"), item("E2", "777"), item("E3", patrimonio = null, tipo = null, marca = null))),
+            listOf("E1", "X9")
+        )
+        val texto = ResumoFinalizacao("Sala 101", finalizadoEm, "Ana", 2, c).textoCompartilhar(fuso)
+
+        assertEquals(
+            """
+            Inventário de Sala 101
+            Finalizado em: 05/11/2026 14:30
+            Operador: Ana
+            Etiquetas lidas: 2
+            Encontradas: 1 de 3 esperada(s)
+            Faltando: 2
+            Fora da lista: 1
+
+            O que faltou:
+            - Patrimônio 777 - Notebook · Dell
+            - EPC E3
+            """.trimIndent(),
+            texto
+        )
+    }
+
+    @Test
+    fun `texto compartilhado mostra a justificativa de cada faltante`() {
+        val c = ComparacaoInventario.comparar(
+            esperado.copy(itens = listOf(item("E2", "777"), item("E3", patrimonio = null, tipo = null, marca = null))),
+            emptyList()
+        )
+        val texto = ResumoFinalizacao("Sala 101", finalizadoEm, "Ana", 0, c)
+            .textoCompartilhar(fuso, justificativas = mapOf("E2" to "Outro: levado para a obra"))
+
+        assertTrue(texto, texto.endsWith("- Patrimônio 777 - Notebook · Dell (Outro: levado para a obra)\n- EPC E3"))
+    }
+
+    @Test
+    fun `contagem por tipo junta grafias e poe primeiro o tipo com mais faltantes`() {
+        val itens = listOf(
+            item("E1", tipo = "Monitor"), item("E2", tipo = "monitor "), item("E3", tipo = "Notebook"),
+            item("E4", tipo = "Cadeira"), item("E5", tipo = null)
+        )
+        val c = ComparacaoInventario.comparar(esperado.copy(itens = itens), listOf("E3", "E4"))
+        val r = ResumoFinalizacao("Sala 101", finalizadoEm, "Ana", 2, c, "inv", listOf("E3", "E4"), itens)
+
+        assertEquals(
+            listOf(
+                ResumoFinalizacao.ContagemTipo("Monitor", 0, 2),
+                ResumoFinalizacao.ContagemTipo("Sem tipo", 0, 1),
+                ResumoFinalizacao.ContagemTipo("Cadeira", 1, 1),
+                ResumoFinalizacao.ContagemTipo("Notebook", 1, 1)
+            ),
+            r.porTipo("Sem tipo")
+        )
+        assertEquals("2 Monitor, 1 Sem tipo", r.faltantesPorTipo("Sem tipo", maximo = 3))
+        assertEquals("2 Monitor, …", r.faltantesPorTipo("Sem tipo", maximo = 1))
+        assertTrue(r.textoCompartilhar(fuso).contains("Por tipo (encontradas de esperadas):\n- Monitor: 0 de 2\n- Sem tipo informado: 0 de 1"))
+    }
+
+    @Test
+    fun `cadastro explica emprestado manutencao e baixado e agrupa pelo motivo`() {
+        fun cs(epc: String, situacao: String?) = item(epc).copy(situacao = situacao)
+        val faltantes = listOf(
+            cs("E1", "EMPRESTADO"), cs("E2", "EM_MANUTENCAO"), cs("E3", "EMPRESTADO"),
+            cs("E4", "EM_USO"), cs("E5", "EXTRAVIADO"), cs("E6", null), cs("E7", "BAIXADO")
+        )
+
+        assertEquals(
+            mapOf(
+                FilaJustificativas.Motivo.EMPRESTADO to listOf("E1", "E3"),
+                FilaJustificativas.Motivo.MANUTENCAO to listOf("E2"),
+                FilaJustificativas.Motivo.BAIXADO to listOf("E7")
+            ),
+            ResumoFinalizacao.justificativasPeloCadastro(faltantes)
+        )
+        assertEquals(emptyMap<Any, Any>(), ResumoFinalizacao.justificativasPeloCadastro(listOf(cs("E4", "EM_USO"))))
+    }
+
+    @Test
+    fun `consultas das fora da lista uma vez cada com limite e nova tentativa so depois da espera`() {
+        val r = ConsultasForaDaLista(maximo = 3, esperaFalhaMs = 1000)
+
+        assertEquals(listOf("A", "B", "C"), r.paraConsultar(listOf("A", "B", "C", "D"), agora = 0))
+        assertEquals("Já pedidas e limite atingido", emptyList<String>(), r.paraConsultar(listOf("A", "B", "C", "D"), agora = 10))
+
+        r.falhou("B", agora = 100)
+        assertEquals("Falha recente espera", emptyList<String>(), r.paraConsultar(listOf("B"), agora = 500))
+        assertEquals("Depois da espera tenta de novo", listOf("B"), r.paraConsultar(listOf("B"), agora = 1200))
+
+        r.limpar()
+        assertEquals(listOf("D"), r.paraConsultar(listOf("D"), agora = 2000))
+    }
+
+    @Test
+    fun `no limite so as novas ficam de fora e as que falharam antes continuam sendo tentadas`() {
+        val r = ConsultasForaDaLista(maximo = 2, esperaFalhaMs = 1000)
+        assertEquals(listOf("A", "B"), r.paraConsultar(listOf("A", "B"), agora = 0))
+        r.falhou("B", agora = 0)
+        // A lista vem com as mais novas primeiro: "C" é nova e passa do limite, "B" falhou e já pode tentar de novo
+        assertEquals(listOf("B"), r.paraConsultar(listOf("C", "A", "B"), agora = 2000))
+    }
+
+    @Test
+    fun `fichas entram so nas fora da lista e o patrimonio conhecido vem do cadastro`() {
+        val lidas = listOf(LidaInventario("E1", "P-1", foraDaLista = false), LidaInventario("X1", null, foraDaLista = true),
+            LidaInventario("X2", null, foraDaLista = true))
+        val ficha = TagView("X1", "CI", "Monitor", null, null, "PAT-77", "", "BAIXADO", "Baixado")
+
+        val r = LidaInventario.comFichas(lidas, mapOf("X1" to ficha, "E1" to ficha), setOf("X2"))
+
+        assertEquals(null, r[0].ficha)
+        assertEquals("P-1", r[0].patrimonioConhecido)
+        assertEquals("PAT-77", r[1].patrimonioConhecido)
+        assertEquals("Baixado", r[1].ficha!!.alertaSituacao())
+        assertTrue(r[2].semCadastro)
+    }
+
+    @Test
+    fun `texto compartilhado lista os lidos com alerta no cadastro`() {
+        val r = ResumoFinalizacao("Sala", finalizadoEm, "Ana", 3, null, alertas = mapOf("X1" to "Patrimônio PAT-77 - Monitor (Baixado)"))
+
+        assertTrue(r.textoCompartilhar(fuso).endsWith("Atenção, lidos com alerta no cadastro:\n- Patrimônio PAT-77 - Monitor (Baixado)"))
+    }
+
+    @Test
+    fun `sem lista ou sem faltantes nao ha faltantes por tipo`() {
+        assertNull(ResumoFinalizacao("Sala", finalizadoEm, null, 3, null).faltantesPorTipo())
+        val c = ComparacaoInventario.comparar(esperado, listOf("E1", "E2", "E3"))
+        val r = ResumoFinalizacao("Sala 101", finalizadoEm, "Ana", 3, c, "inv", listOf("E1", "E2", "E3"), esperado.itens)
+        assertNull(r.faltantesPorTipo())
+        // Um tipo só e nada faltando: a seção não acrescenta nada ao texto
+        assertFalse(r.textoCompartilhar(fuso).contains("Por tipo"))
+    }
+
+    @Test
+    fun `texto sem comparacao e sem operador`() {
+        val texto = ResumoFinalizacao("Almoxarifado", finalizadoEm, null, 5, null).textoCompartilhar(fuso)
+
+        assertTrue(texto.startsWith("Inventário de Almoxarifado\nFinalizado em: 05/11/2026 14:30\nOperador: não identificado\nEtiquetas lidas: 5\n"))
+        assertTrue(texto.contains("Sem lista do esperado"))
+        assertFalse(texto.contains("O que faltou"))
+    }
+
+    @Test
+    fun `nada faltando nao lista faltantes`() {
+        val c = ComparacaoInventario.comparar(esperado, listOf("E1", "E2", "E3"))
+        val texto = ResumoFinalizacao("Sala 101", finalizadoEm, "Ana", 3, c).textoCompartilhar(fuso)
+
+        assertTrue(texto.endsWith("Faltando: 0\nFora da lista: 0"))
+    }
+
+    @Test
+    fun `faltante sem patrimonio e sem descricao aparece pelo epc`() {
+        assertEquals("EPC E9", ResumoFinalizacao.descreverFaltante(item("E9", patrimonio = null, tipo = null, marca = null)))
+        assertEquals("Patrimônio 1 - Notebook · Dell", ResumoFinalizacao.descreverFaltante(item("E9", patrimonio = "1")))
+    }
+
+    // ================= local do inventário =================
+
+    @Test
+    fun `local e normalizado como no servidor`() {
+        assertEquals("Sala 101", LocalInventario.normalizar("  Sala   101 "))
+        assertEquals("Sala 101 bloco B", LocalInventario.normalizar("Sala\t101\n bloco  B"))
+        assertEquals("", LocalInventario.normalizar("   "))
+    }
+
+    @Test
+    fun `local de ate 120 caracteres depois de normalizado e aceito`() {
+        assertTrue(LocalInventario.dentroDoLimite("a".repeat(120)))
+        assertFalse(LocalInventario.dentroDoLimite("a".repeat(121)))
+        // Espaços repetidos e nas pontas não contam: viram um só, como no servidor
+        assertTrue(LocalInventario.dentroDoLimite("  " + "a".repeat(60) + "     " + "b".repeat(59) + "  "))
+        assertFalse(LocalInventario.dentroDoLimite("a".repeat(60) + " " + "b".repeat(60)))
+    }
+
+    // ================= CABEÇALHO =================
+
+    @Test
+    fun `instrucao do gatilho so aparece ate a primeira leitura`() {
+        assertTrue(RegrasTelaInventario.mostrarInstrucao(0))
+        assertFalse(RegrasTelaInventario.mostrarInstrucao(1))
+        assertFalse(RegrasTelaInventario.mostrarInstrucao(500))
+    }
+
+    @Test
+    fun `planilha tem uma linha por etiqueta com a situacao e a justificativa dos que faltaram`() {
+        val itens = listOf(item("E1"), item("E2", patrimonio = "P;2"), item("E3"))
+        val local = EsperadoLocal("Sala 101", temReferencia = true, itens = itens)
+        val c = ComparacaoInventario.comparar(local, setOf("E1", "X9"))
+        val resumo = ResumoFinalizacao("Sala 101", finalizadoEm, "Ana", 2, c, "inv-1", listOf("E1", "X9"), itens)
+
+        val linhas = resumo.csv(mapOf("E2" to "Emprestado")).trim().lines()
+
+        assertEquals("Situação;Patrimônio;Descrição;Etiqueta (EPC);Justificativa", linhas[0])
+        assertEquals("Encontrada;P-E1;Notebook · Dell;E1;", linhas[1])
+        assertEquals("Fora da lista;;;X9;", linhas[2])
+        assertEquals("Ponto e vírgula no patrimônio vai entre aspas", "Faltando;\"P;2\";Notebook · Dell;E2;Emprestado", linhas[3])
+        assertEquals("Faltando;P-E3;Notebook · Dell;E3;", linhas[4])
+    }
+}

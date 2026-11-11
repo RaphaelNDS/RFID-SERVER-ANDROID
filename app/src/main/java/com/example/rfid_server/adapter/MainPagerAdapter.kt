@@ -3,8 +3,8 @@ package com.example.rfid_server.adapter
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentActivity
 import androidx.viewpager2.adapter.FragmentStateAdapter
-import com.example.rfid_server.fragment.FragmentLeitura
-import com.example.rfid_server.fragment.FragmentNaoCadastradas
+import com.example.rfid_server.leituras.FragmentLeitura
+import com.example.rfid_server.leituras.FragmentNaoCadastradas
 
 class MainPagerAdapter(activity: FragmentActivity) :
     FragmentStateAdapter(activity) {

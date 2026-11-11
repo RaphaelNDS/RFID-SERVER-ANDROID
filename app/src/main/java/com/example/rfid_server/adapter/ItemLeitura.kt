@@ -30,9 +30,7 @@ sealed class ItemLeitura {
         companion object {
             fun de(tag: TagView) = LinhasTag(
                 patrimonio = tag.patrimonio.preenchido(),
-                descricao = listOfNotNull(tag.tipo.preenchido(), tag.marca.preenchido(), tag.modelo.preenchido())
-                    .joinToString(" · ")
-                    .ifEmpty { null },
+                descricao = tag.descricao().ifEmpty { null },
                 codigo = tag.codigoInterno.trim(),
                 serie = tag.numeroSerie.preenchido()
             )

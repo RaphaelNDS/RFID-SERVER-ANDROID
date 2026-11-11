@@ -1,7 +1,13 @@
 package com.example.rfid_server.service
 
+import com.example.rfid_server.sessao.SessaoOperador
 import com.example.rfid_server.api.HttpClient
+import com.example.rfid_server.dados.CadastroEntity
+import com.example.rfid_server.dados.VersaoPublicada
 import com.example.rfid_server.view.TagView
+import java.time.OffsetDateTime
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
@@ -14,9 +20,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
-import java.time.OffsetDateTime
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
 /**
  * Testa o TagService contra um servidor HTTP falso (MockWebServer), conferindo
@@ -625,13 +628,13 @@ class TagServiceTest {
     private val apkFalso = "conteúdo do APK".toByteArray()
     private val shaApkFalso = java.security.MessageDigest.getInstance("SHA-256").digest(apkFalso).joinToString("") { "%02x".format(it) }
     private fun versao(sha: String = shaApkFalso, tamanho: Long = apkFalso.size.toLong()) =
-        com.example.rfid_server.dados.VersaoPublicada("1.5.0", 20, tamanho, sha, null)
+        VersaoPublicada("1.5.0", 20, tamanho, sha, null)
 
     @Test
     fun `consultarAtualizacao sem versao publicada volta NaoEncontrado e vai sem sessao`() {
         servidor.enqueue(MockResponse().setResponseCode(204))
 
-        val resposta = aguardar<RespostaServidor<com.example.rfid_server.dados.VersaoPublicada>> { service.consultarAtualizacao(it) }
+        val resposta = aguardar<RespostaServidor<VersaoPublicada>> { service.consultarAtualizacao(it) }
 
         assertEquals(RespostaServidor.NaoEncontrado, resposta)
         val requisicao = proximaRequisicao()
@@ -643,7 +646,7 @@ class TagServiceTest {
     fun `consultarAtualizacao le a versao publicada`() {
         servidor.enqueue(json(200, """{"versaoNome":"1.5.0","codigo":20,"tamanho":10,"sha256":"$shaApkFalso","notas":null}"""))
 
-        val resposta = aguardar<RespostaServidor<com.example.rfid_server.dados.VersaoPublicada>> { service.consultarAtualizacao(it) }
+        val resposta = aguardar<RespostaServidor<VersaoPublicada>> { service.consultarAtualizacao(it) }
 
         assertEquals(20, (resposta as RespostaServidor.Sucesso).valor.codigo)
     }
@@ -712,7 +715,7 @@ class TagServiceTest {
 
     // ================= cadastro de etiqueta =================
 
-    private fun cadastroCompleto() = com.example.rfid_server.dados.CadastroEntity(
+    private fun cadastroCompleto() = CadastroEntity(
         epc = "E-NOVA", codigoInterno = "TI-1", patrimonio = "PAT-1", numeroSerie = "SN-1",
         tipoId = 1, marcaId = 2, modeloId = 3, criadoEm = 0
     )
@@ -801,7 +804,7 @@ class TagServiceTest {
              "podeLer":true,"podeCadastrar":true,"senhaFraca":false}
         """))
 
-        val resposta = aguardar<RespostaServidor<com.example.rfid_server.SessaoOperador>> { service.entrar("ana@x.com", "Kx9mPq2v", it) }
+        val resposta = aguardar<RespostaServidor<SessaoOperador>> { service.entrar("ana@x.com", "Kx9mPq2v", it) }
 
         val sessao = (resposta as RespostaServidor.Sucesso).valor
         assertEquals("tok-1", sessao.token)
@@ -817,7 +820,7 @@ class TagServiceTest {
     fun `login recusado mostra a mensagem do servidor`() {
         servidor.enqueue(json(429, """{"status":429,"mensagem":"Muitas tentativas sem sucesso. Aguarde 15 minuto(s) e tente de novo."}"""))
 
-        val resposta = aguardar<RespostaServidor<com.example.rfid_server.SessaoOperador>> { service.entrar("ana@x.com", "errada", it) }
+        val resposta = aguardar<RespostaServidor<SessaoOperador>> { service.entrar("ana@x.com", "errada", it) }
 
         assertEquals("Muitas tentativas sem sucesso. Aguarde 15 minuto(s) e tente de novo.", (resposta as RespostaServidor.Falha).mensagem)
     }
@@ -826,7 +829,7 @@ class TagServiceTest {
     fun `login sem rede avisa que precisa de conexao`() {
         servidor.shutdown()
 
-        val resposta = aguardar<RespostaServidor<com.example.rfid_server.SessaoOperador>> { service.entrar("ana@x.com", "x", it) }
+        val resposta = aguardar<RespostaServidor<SessaoOperador>> { service.entrar("ana@x.com", "x", it) }
 
         assertEquals(MotivoFalha.SERVIDOR_FORA_DO_AR, motivo(resposta))
     }

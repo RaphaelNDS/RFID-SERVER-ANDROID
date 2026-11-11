@@ -9,6 +9,7 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.example.rfid_server.R
+import com.example.rfid_server.view.TagView
 
 /**
  * Aba "Leitura": etiquetas cadastradas (cartão com o patrimônio em destaque e os dados do equipamento embaixo) e,
@@ -16,7 +17,7 @@ import com.example.rfid_server.R
  */
 class TagAdapter(
     /** Toque numa etiqueta cadastrada: abre a ficha do bem. */
-    private val aoTocar: (com.example.rfid_server.view.TagView) -> Unit = {}
+    private val aoTocar: (TagView) -> Unit = {}
 ) : ListAdapter<ItemLeitura, RecyclerView.ViewHolder>(Diferenca { it.chave }) {
 
     class VH(view: View) : RecyclerView.ViewHolder(view) {

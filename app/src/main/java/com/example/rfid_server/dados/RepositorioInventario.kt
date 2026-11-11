@@ -1,14 +1,15 @@
 package com.example.rfid_server.dados
 
-import com.example.rfid_server.ExecutorProtegido
 import android.content.Context
 import android.util.Log
 import androidx.core.content.edit
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
-import com.example.rfid_server.CofreSessoes
-import com.example.rfid_server.SessaoAtual
+import com.example.rfid_server.sessao.CofreSessoes
+import com.example.rfid_server.ExecutorProtegido
+import com.example.rfid_server.sessao.SessaoAtual
+import com.example.rfid_server.inventario.LocalInventario
 import com.example.rfid_server.sincronizacao.Sincronizador
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -64,9 +65,9 @@ class RepositorioInventario internal constructor(
     fun abrir(local: String, aoTerminar: (Boolean) -> Unit = {}) {
         // A mesma regra da tela e do servidor (LocalInventario): sem conferir aqui, outro chamador gravaria um local que o
         // servidor recusa (400) em toda passada, até o coletor desistir
-        val nome = com.example.rfid_server.activities.LocalInventario.normalizar(local)
-        if (nome.isEmpty() || !com.example.rfid_server.activities.LocalInventario.dentroDoLimite(nome)) {
-            Log.w(TAG, "Inventário não aberto: local vazio ou com mais de ${com.example.rfid_server.activities.LocalInventario.MAXIMO} caracteres")
+        val nome = LocalInventario.normalizar(local)
+        if (nome.isEmpty() || !LocalInventario.dentroDoLimite(nome)) {
+            Log.w(TAG, "Inventário não aberto: local vazio ou com mais de ${LocalInventario.MAXIMO} caracteres")
             aoTerminar(false)
             return
         }

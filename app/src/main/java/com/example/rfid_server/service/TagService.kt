@@ -2,8 +2,8 @@ package com.example.rfid_server.service
 
 import android.content.Context
 import android.util.Log
-import com.example.rfid_server.AppConfig
-import com.example.rfid_server.SessaoOperador
+import com.example.rfid_server.configuracoes.AppConfig
+import com.example.rfid_server.sessao.SessaoOperador
 import com.example.rfid_server.api.HttpClient
 import com.example.rfid_server.api.CertificadoDiferenteException
 import com.example.rfid_server.api.CertificadoNaoConfirmadoException
@@ -34,145 +34,6 @@ import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
-
-/** Resultado de uma chamada ao servidor: separa "não existe" de "não deu para perguntar". */
-sealed class RespostaServidor<out T> {
-    data class Sucesso<T>(val valor: T) : RespostaServidor<T>()
-    object NaoEncontrado : RespostaServidor<Nothing>()
-    /**
-     * [motivoSessao]: só na recusa de sessão (SESSAO_INVALIDA), o "motivo" que o servidor manda (DESCONHECIDA,
-     * DESATIVADO, EXPIRADA...). null em servidor de antes desse campo.
-     */
-    data class Falha(val motivo: MotivoFalha, val mensagem: String, val motivoSessao: String? = null) : RespostaServidor<Nothing>()
-}
-
-enum class MotivoFalha {
-    /** Sem rede, rede lenta (tempo esgotado) ou o endereço não leva a lugar nenhum. */
-    SEM_CONEXAO,
-    /**
-     * A conexão foi recusada na hora (porta fechada): a rede chega até a máquina do servidor, mas ele não está rodando
-     * (parado, reiniciando para uma versão nova). Tratada como SEM_CONEXAO na sincronização (para tudo e tenta de novo),
-     * só com outra mensagem: o operador sabe que não é problema do coletor.
-     */
-    SERVIDOR_FORA_DO_AR,
-    CHAVE_INVALIDA,
-    ENDERECO_INVALIDO,
-    /** Erro 5xx, redirecionamento ou resposta que não é o JSON esperado: vale tentar de novo depois. */
-    ERRO_SERVIDOR,
-    /** O servidor recusou ESTA requisição (4xx): repetir não adianta. */
-    REQUISICAO_RECUSADA,
-    /** A sessão do operador não vale para esta ação (expirada, encerrada, de outro coletor, usuário excluído). */
-    SESSAO_INVALIDA,
-    /** O certificado HTTPS do servidor não foi confirmado neste coletor, ou é diferente do confirmado. */
-    CERTIFICADO,
-    /**
-     * HTTP 429: o servidor bloqueou o coletor por muitas tentativas com a chave inválida. Repetir só mantém o bloqueio:
-     * quem resolve é o responsável (chave certa nas Configurações), e a sincronização para até lá.
-     */
-    MUITAS_TENTATIVAS,
-    /**
-     * Só da sincronização (não vem do servidor): registros retidos porque o servidor recusou a sessão, mas nenhuma das
-     * sessões retidas é a sessão atual do aparelho (sessões anteriores ou de outro operador). Entrar de novo não muda
-     * nada: eles esperam o prazo de 24 h ou o servidor voltar a aceitar.
-     */
-    SESSAO_ANTERIOR_RETIDA
-}
-
-/**
- * Quem fez e quando, para os envios da fila: o servidor confere se a sessão valia NAQUELE momento
- * (a ação pode ter sido feita offline, horas antes). [sessao] null = registro de antes do login de operador.
- */
-data class Autoria(val sessao: String?, val momento: Long)
-
-/**
- * Resposta de GET /api/android/inventarios/esperado. [esperado] null = 304: a lista guardada com o ETag enviado ainda
- * é a atual. [etag] null = servidor anterior à 1.4.4 (sem ETag): a lista vem inteira sempre, como antes.
- */
-data class EsperadoBaixado(val esperado: EsperadoLocal?, val etag: String?)
-
-/** Resposta do envio das justificativas: [invalidas] = tags recusadas de vez (tag ou motivo inválido). */
-data class ResultadoJustificativas(val gravadas: Int, val invalidas: List<String>)
-
-/**
- * Resposta da transferência de um bem para outro local (servidor 1.7.0). [guia] = nº da guia de transferência, null
- * quando o bem [jaEstava] no local (reenvio: nenhuma guia nova).
- */
-data class ResultadoTransferencia(
-    val local: String?,
-    val situacao: String?,
-    val situacaoRotulo: String?,
-    val guia: Long?,
-    val jaEstava: Boolean
-)
-
-/** Histórico do bem na ficha (campos opcionais do servidor; datas em ISO-8601). */
-data class HistoricoBem(
-    val ultimoLocal: String?,
-    val ultimoInventarioEm: String?,
-    val ultimaLeituraEm: String?,
-    val ultimaLeituraPor: String?,
-    // Servidor 1.6.0 (gestão de patrimônio): situação do bem no cadastro (código e rótulo pronto para mostrar),
-    // unidade, local e responsável atuais. Servidor mais antigo não manda: ficam null
-    val situacao: String? = null,
-    val situacaoRotulo: String? = null,
-    val unidade: String? = null,
-    val local: String? = null,
-    val responsavel: String? = null,
-    // Servidor 1.12.0 (locação): com o bem ALUGADO ou EM_DEVOLUCAO, com quem está, o pedido, até quando e para onde foi
-    val pedido: String? = null,
-    val cliente: String? = null,
-    val previsaoDevolucao: String? = null,
-    val localEntrega: String? = null
-) {
-    val vazio: Boolean
-        get() = listOf(ultimoLocal, ultimoInventarioEm, ultimaLeituraEm, situacao, situacaoRotulo, unidade, local, responsavel, pedido, cliente, localEntrega)
-            .all { it == null }
-}
-
-/** Resultado de uma leitura enviada em lote (POST /api/android/leituras/lote). */
-enum class StatusLote {
-    CADASTRADA,
-    NAO_CADASTRADA,
-    /** Recusa definitiva desta leitura: não adianta reenviar. */
-    RECUSADA,
-    /**
-     * Status que este app não conhece (servidor mais novo), numa resposta 2xx: o servidor registrou a leitura,
-     * então ela sai da fila. Não vem do servidor com esse nome.
-     */
-    ACEITA,
-    /** Falha passageira no servidor: tenta de novo depois. */
-    ERRO
-}
-
-/**
- * [indice] = posição da leitura no lote enviado; [tag] vem preenchida quando é CADASTRADA.
- * [motivoSessao]: em RECUSADA por causa da sessão do operador, o "motivo" do servidor (null nas outras recusas
- * e em servidor de antes desse campo).
- */
-data class ResultadoLote(
-    val indice: Int,
-    val status: StatusLote,
-    val tag: TagView?,
-    val mensagem: String?,
-    val motivoSessao: String? = null
-)
-
-enum class StatusConexao(val descricao: String) {
-    CONECTADO("conectado"),
-    CHAVE_INVALIDA("chave do coletor inválida ou não configurada"),
-    ENDERECO_INVALIDO("endereço do servidor inválido"),
-    SEM_CONEXAO("sem conexão (o coletor está na rede?)"),
-    /** A máquina do servidor recusou a conexão na hora: a porta está fechada (servidor parado ou reiniciando). */
-    SERVIDOR_FORA_DO_AR("porta fechada neste endereço: confira o IP e a porta, ou se o servidor está rodando"),
-    RESPOSTA_INESPERADA("resposta inesperada (servidor desatualizado?)"),
-    /** HTTP 429: o servidor bloqueou este coletor por um tempo depois de muitas tentativas com chave inválida. */
-    MUITAS_TENTATIVAS("muitas tentativas com chave inválida: aguarde alguns minutos e confira a chave"),
-    CERTIFICADO_NAO_CONFIRMADO("certificado do servidor ainda não confirmado"),
-    CERTIFICADO_DIFERENTE("certificado do servidor DIFERENTE do confirmado")
-}
-
-/** Resultado do teste de conexão; nos casos de certificado, traz a impressão digital que o servidor apresentou. */
-data class ResultadoConexao(val status: StatusConexao, val impressaoDigital: String? = null)
 
 /**
  * Chamadas do app ao servidor. Tudo vai para /api/android, autenticado pela chave do

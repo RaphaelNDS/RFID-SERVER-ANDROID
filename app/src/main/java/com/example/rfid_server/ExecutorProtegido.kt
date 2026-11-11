@@ -1,5 +1,6 @@
 package com.example.rfid_server
 
+import com.example.rfid_server.leitor.LimitadorAviso
 import android.content.Context
 import android.os.Handler
 import android.os.Looper

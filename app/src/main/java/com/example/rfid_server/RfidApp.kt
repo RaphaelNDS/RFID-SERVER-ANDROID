@@ -1,5 +1,8 @@
 package com.example.rfid_server
 
+import com.example.rfid_server.configuracoes.AppConfig
+import com.example.rfid_server.leitor.CodigoDeBarras
+import com.example.rfid_server.sessao.CofreSessoes
 import android.app.Application
 import android.util.Log
 import com.example.rfid_server.erros.RegistroErros
