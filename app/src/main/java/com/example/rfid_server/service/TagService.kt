@@ -117,10 +117,15 @@ data class HistoricoBem(
     val situacaoRotulo: String? = null,
     val unidade: String? = null,
     val local: String? = null,
-    val responsavel: String? = null
+    val responsavel: String? = null,
+    // Servidor 1.12.0 (locação): com o bem ALUGADO ou EM_DEVOLUCAO, com quem está, o pedido, até quando e para onde foi
+    val pedido: String? = null,
+    val cliente: String? = null,
+    val previsaoDevolucao: String? = null,
+    val localEntrega: String? = null
 ) {
     val vazio: Boolean
-        get() = listOf(ultimoLocal, ultimoInventarioEm, ultimaLeituraEm, situacao, situacaoRotulo, unidade, local, responsavel)
+        get() = listOf(ultimoLocal, ultimoInventarioEm, ultimaLeituraEm, situacao, situacaoRotulo, unidade, local, responsavel, pedido, cliente, localEntrega)
             .all { it == null }
 }
 
@@ -364,7 +369,11 @@ class TagService internal constructor(
                     situacaoRotulo = json.optStringOrNull("situacaoRotulo")?.ifBlank { null },
                     unidade = json.optStringOrNull("unidade")?.ifBlank { null },
                     local = json.optStringOrNull("local")?.ifBlank { null },
-                    responsavel = json.optStringOrNull("responsavel")?.ifBlank { null }
+                    responsavel = json.optStringOrNull("responsavel")?.ifBlank { null },
+                    pedido = json.optStringOrNull("pedido")?.ifBlank { null },
+                    cliente = json.optStringOrNull("cliente")?.ifBlank { null },
+                    previsaoDevolucao = json.optStringOrNull("previsaoDevolucao")?.ifBlank { null },
+                    localEntrega = json.optStringOrNull("localEntrega")?.ifBlank { null }
                 )
             }
         }
