@@ -80,36 +80,48 @@
                             android:layout_height="wrap_content"/>
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <!-- QR da tela Coletores do servidor, lido com o leitor de código de barras do coletor (o gatilho
-                         também lê enquanto esta tela está aberta): preenche o servidor, a chave e o certificado -->
+                    <!-- Salvar logo depois dos campos: na tela de 320x533dp do MC3300x ele ficava abaixo da dobra
+                         com o "Ler QR Code" e a dica em cima (visto no TelasNoColetorTest em 11/11) -->
                     <Button
-                        android:id="@+id/btnLerQr"
-                        style="@style/Widget.RFID.Botao.Contorno"
-                        android:text="@string/config_ler_qr"
+                        android:id="@+id/btnSalvar"
+                        android:text="@string/config_salvar"
                         android:layout_marginTop="12dp"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"/>
+
+                    <!-- QR da tela Coletores do servidor, lido com o leitor de código de barras do coletor (o gatilho
+                         também lê enquanto esta tela está aberta): preenche o servidor, a chave e o certificado.
+                         Lado a lado com o Testar para não empurrar a tela para baixo -->
+                    <LinearLayout
+                        android:orientation="horizontal"
+                        android:layout_marginTop="8dp"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                        <Button
+                            android:id="@+id/btnLerQr"
+                            style="@style/Widget.RFID.Botao.Contorno"
+                            android:text="@string/config_ler_qr"
+                            android:layout_marginEnd="4dp"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"/>
+
+                        <Button
+                            android:id="@+id/btnTestarServidor"
+                            style="@style/Widget.RFID.Botao.Contorno"
+                            android:text="@string/config_testar_conexao"
+                            android:layout_marginStart="4dp"
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"/>
+                    </LinearLayout>
 
                     <TextView
                         android:text="@string/config_ler_qr_dica"
                         android:textColor="@color/texto_secundario"
                         android:textSize="13sp"
                         android:layout_marginTop="4dp"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"/>
-
-                    <Button
-                        android:id="@+id/btnSalvar"
-                        android:text="@string/config_salvar"
-                        android:layout_marginTop="16dp"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"/>
-
-                    <Button
-                        android:id="@+id/btnTestarServidor"
-                        style="@style/Widget.RFID.Botao.Contorno"
-                        android:text="@string/config_testar_conexao"
-                        android:layout_marginTop="8dp"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"/>
                 </LinearLayout>
