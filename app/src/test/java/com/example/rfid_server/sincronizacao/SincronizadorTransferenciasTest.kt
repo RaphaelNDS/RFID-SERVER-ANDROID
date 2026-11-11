@@ -105,14 +105,36 @@ class SincronizadorTransferenciasTest {
     }
 
     @Test
-    fun `erro do servidor ou sessao recusada fica pendente para a proxima passada`() {
+    fun `erro do servidor fica pendente para a proxima passada`() {
         fila.adicionar("inv-1", "E1", "SALA 12", null, agora)
 
         sincronizador { RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "HTTP 500") }.processar()
-        sincronizador { RespostaServidor.Falha(MotivoFalha.SESSAO_INVALIDA, "Sessão encerrada") }.processar()
 
         assertEquals(1, fila.pendentes().size)
         assertTrue(erros.isEmpty())
+    }
+
+    @Test
+    fun `sessao encerrada fica recusada e deixa pedir de novo`() {
+        // Antes ficava "aguardando envio" 7 dias: com a sessão de quem pediu encerrada o servidor nunca aceita
+        fila.adicionar("inv-1", "E1", "SALA 12", "token-velho", agora)
+
+        sincronizador { RespostaServidor.Falha(MotivoFalha.SESSAO_INVALIDA, "Sessão encerrada") }.processar()
+
+        val item = fila.doInventario("inv-1").getValue("E1")
+        assertEquals(FilaTransferencias.Estado.RECUSADA, item.estado)
+        assertTrue(fila.pendentes().isEmpty())
+    }
+
+    @Test
+    fun `erros seguidos do servidor param a etapa`() {
+        for (i in 1..5) fila.adicionar("inv-1", "E$i", "SALA 12", null, agora)
+
+        sincronizador { RespostaServidor.Falha(MotivoFalha.ERRO_SERVIDOR, "HTTP 500") }.processar()
+
+        // Para no limite de erros seguidos em vez de esperar o tempo limite de cada pedido
+        assertEquals(RegraFalhas.LIMITE_ERROS_SEGUIDOS, enviados.size)
+        assertEquals(5, fila.pendentes().size)
     }
 
     @Test

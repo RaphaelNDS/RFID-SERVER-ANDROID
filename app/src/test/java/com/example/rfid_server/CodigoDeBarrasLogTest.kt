@@ -14,14 +14,16 @@ class CodigoDeBarrasLogTest {
     }
 
     @Test
-    fun `chave sozinha nao vai para o log`() {
-        val texto = CodigoDeBarras.paraLog("AbCd3fGh1jKl")
-        assertFalse(texto.contains("AbCd3fGh1jKl"))
-        assertEquals("12 caracteres (pode ser a chave do coletor; não registrado)", texto)
+    fun `na tela sensivel nenhum codigo vai para o log, qualquer que seja o formato da chave`() {
+        for (chave in listOf("AbCd3fGh1jKl", "ABCD1234EFGH", "a1b2-c3d4-e5f6", "123e4567-e89b-12d3-a456-426614174000")) {
+            val texto = CodigoDeBarras.paraLog(chave, sensivel = true)
+            assertFalse(texto, texto.contains(chave))
+            assertEquals("${chave.length} caracteres (tela com a chave do coletor: conteúdo não registrado)", texto)
+        }
     }
 
     @Test
-    fun `patrimonio e local aparecem no log`() {
+    fun `fora da tela sensivel patrimonio e local aparecem no log`() {
         assertEquals("000123", CodigoDeBarras.paraLog("000123"))
         assertEquals("12345/2", CodigoDeBarras.paraLog("12345/2"))
         assertEquals("SALA 10", CodigoDeBarras.paraLog("SALA 10"))

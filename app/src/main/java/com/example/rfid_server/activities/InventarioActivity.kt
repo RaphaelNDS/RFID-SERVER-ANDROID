@@ -154,8 +154,15 @@ class InventarioActivity : AppCompatActivity() {
     private var recalcularDepois = false
     private var ultimoCalculo: Long? = null
 
-    // Muda quando o inventário sai da tela: cálculo que termina depois disso é descartado
+    // Muda quando o inventário sai da tela: cálculo que termina depois disso é descartado. Volatile: as consultas das
+    // fora da lista leem na thread delas, para nem chamar o servidor por um inventário que já saiu da tela
+    @Volatile
     private var geracao = 0
+
+    // Consultas das fora da lista: falha do ambiente (sem rede, servidor fora do ar...) suspende as que estão na fila
+    // até este instante (elapsedRealtime). Sem isto, até 300 consultas esperavam o tempo limite da conexão uma a uma
+    @Volatile
+    private var consultasSuspensasAte = 0L
 
     // Etiqueta nova no inventário: bip/vibração
     // Som pela situação: com a lista do esperado, etiqueta fora dela dá bip duplo (o operador percebe sem olhar a tela)
@@ -496,12 +503,24 @@ class InventarioActivity : AppCompatActivity() {
     private fun consultarForaDaLista(lidas: List<LidaInventario>) {
         val pedir = registroConsultas.paraConsultar(lidas.filter { it.foraDaLista }.map { it.epc }, SystemClock.elapsedRealtime())
         if (pedir.isEmpty()) return
-        val servico = com.example.rfid_server.service.TagService(applicationContext)
+        val servico = tagService
         val geracaoDoPedido = geracao
         pedir.forEach { epc ->
             try {
                 consultas.execute {
-                    val resposta = servico.buscarTagAgora(epc)
+                    // Inventário trocado ou fechado: nem chama o servidor (a consulta seria descartada)
+                    if (geracaoDoPedido != geracao) return@execute
+                    val resposta: RespostaServidor<com.example.rfid_server.view.TagView> =
+                        if (SystemClock.elapsedRealtime() < consultasSuspensasAte) {
+                            RespostaServidor.Falha(com.example.rfid_server.service.MotivoFalha.SEM_CONEXAO, "consultas suspensas depois de falha do ambiente")
+                        } else {
+                            servico.buscarTagAgora(epc).also {
+                                if (it is RespostaServidor.Falha && com.example.rfid_server.sincronizacao.RegraFalhas.paraTudo(it)) {
+                                    consultasSuspensasAte = SystemClock.elapsedRealtime() + 60_000L
+                                    Log.w(TAG, "Consultas das etiquetas fora da lista suspensas por um tempo: ${it.mensagem}")
+                                }
+                            }
+                        }
                     runOnUiThread {
                         if (isDestroyed || geracaoDoPedido != geracao) return@runOnUiThread
                         when (resposta) {
