@@ -86,6 +86,15 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"/>
 
+        <!-- Ficha do bem procurado: onde está ou para onde foi (alugado: cliente, pedido, local de entrega), sem
+             precisar achar a etiqueta antes -->
+        <Button
+            android:id="@+id/btnFichaLocalizar"
+            style="@style/Widget.RFID.Botao.Texto"
+            android:text="@string/localizar_ficha"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"/>
+
         <Button
             android:id="@+id/btnAlterarBusca"
             style="@style/Widget.RFID.Botao.Texto"

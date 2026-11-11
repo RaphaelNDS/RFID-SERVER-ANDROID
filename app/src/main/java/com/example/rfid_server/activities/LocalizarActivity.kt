@@ -99,6 +99,7 @@ class LocalizarActivity : AppCompatActivity() {
         linhaProcurando = findViewById(R.id.linhaProcurando)
         txtProcurando = findViewById(R.id.txtProcurando)
         findViewById<Button>(R.id.btnAlterarBusca).setOnClickListener { alterarBusca() }
+        findViewById<Button>(R.id.btnFichaLocalizar).setOnClickListener { mostrarFicha() }
         epcLocalizando?.let {
             txtStatus.setText(R.string.localizar_aperte_gatilho)
             mostrarProcurando(it, patrimonioLocalizando)
@@ -301,6 +302,20 @@ class LocalizarActivity : AppCompatActivity() {
         }
         cartaoBusca.isVisible = false
         linhaProcurando.isVisible = true
+    }
+
+    /** Ficha do bem procurado (onde está ou para onde foi), sem precisar achar a etiqueta antes. */
+    private fun mostrarFicha() {
+        val epc = epcLocalizando ?: return
+        Log.i(TAG, "Ficha do bem procurado aberta no Localizar: $epc")
+        FichaBem.mostrar(
+            this,
+            com.example.rfid_server.view.TagView(
+                epc = epc, codigoInterno = "", tipo = null, marca = null, modelo = null,
+                patrimonio = patrimonioLocalizando.orEmpty(), numeroSerie = ""
+            ),
+            jaLocalizando = true
+        )
     }
 
     /** "Alterar": volta o cartão de busca com o campo pronto para digitar (a localização atual segue até buscar outro). */

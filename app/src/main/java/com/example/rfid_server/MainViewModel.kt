@@ -92,6 +92,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    /** Cadastradas da leitura atual por situação no cadastro (sem busca); vazio se o servidor não manda a situação. */
+    fun resumoPorSituacao(semSituacao: String): List<Pair<String, Int>> =
+        BuscaLeituras.contagemPorSituacao(leiturasTodas.value.orEmpty(), semSituacao)
+
     /** Planilha de TODA a leitura atual (sem o filtro da busca). */
     fun planilha(): String = BuscaLeituras.csv(leiturasTodas.value.orEmpty(), naoCadastradasTodas.value.orEmpty())
 
