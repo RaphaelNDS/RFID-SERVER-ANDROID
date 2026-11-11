@@ -95,6 +95,20 @@ class HistoricoInventariosTest {
     }
 
     @Test
+    fun `lista com as justificadas de cada um, do mais novo para o mais antigo`() {
+        val historico = HistoricoInventarios(pasta.root)
+        historico.salvar(resumo("inv-a", finalizadoEm = 1_000))
+        historico.salvar(resumo("inv-b", finalizadoEm = 2_000))
+        historico.justificar("inv-a", listOf("E2"), Motivo.EMPRESTADO)
+
+        val lista = historico.listarComJustificadas()
+
+        assertEquals(listOf("inv-b", "inv-a"), lista.map { it.first.inventarioId })
+        assertEquals(setOf("E2"), lista.single { it.first.inventarioId == "inv-a" }.second)
+        assertEquals(emptySet<String>(), lista.single { it.first.inventarioId == "inv-b" }.second)
+    }
+
+    @Test
     fun `justificar inventario fora do historico nao cria arquivo`() {
         val historico = HistoricoInventarios(pasta.root)
         historico.justificar("inv-x", listOf("E1"), Motivo.BAIXADO)

@@ -389,8 +389,20 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         executor.execute {
             val r = reader?.takeIf { it.isConnected }
             if (r == null) {
-                // Para voltar ao RFID não precisa conectar: a próxima conexão de uma tela de leitura configura o RFID
-                if (ligado) tentarConectar()
+                // Para voltar ao RFID não precisa conectar: a próxima conexão de uma tela de leitura configura o RFID.
+                // Para passar ao código de barras, conecta só para mudar o modo, sem a sequência de tentativas: sem
+                // leitor (aparelho sem RFID, leitor fora do encaixe) não registra "Leitor RFID não conectou" no servidor
+                // nem mostra "Conectando...", porque ninguém está lendo RFID. Com tentativas já marcadas (uma tela de
+                // leitura esperando o leitor), deixa com elas
+                if (ligado && proximaTentativa == null) {
+                    if (conectarAgora()) {
+                        atualizarDetalhe { it.copy(motivoDesconexao = null) }
+                        atualizarEstado(EstadoLeitor.CONECTADO)
+                        desconectarSeOcioso()
+                    } else {
+                        Log.i(TAG, "Sem leitor RFID para passar o gatilho ao código de barras: ${descricaoLog(motivoFalhaConexao)}")
+                    }
+                }
                 return@execute
             }
             if (ligado) aplicarModoGatilho(r, ENUM_TRIGGER_MODE.BARCODE_MODE)

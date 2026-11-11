@@ -372,7 +372,7 @@ class Sincronizador internal constructor(
         umaPorVez.sortBy { it.id }
         var enviadasUmaPorVez = 0
         val contador = RegraFalhas.Contador()
-        for (leitura in umaPorVez) {
+        for ((indice, leitura) in umaPorVez.withIndex()) {
             // Sessão recusada nesta passada e ainda no prazo: as outras leituras dela nem são tentadas agora
             if (leitura.sessaoOperador in sessoesRetidas) {
                 leiturasRetidas++
@@ -386,7 +386,8 @@ class Sincronizador internal constructor(
                 // Disjuntor (o servidor recusando tudo) e falhas do ambiente param na hora; erro do servidor só
                 // nesta leitura: ela fica na fila com o erro e as outras seguem (ver RegraFalhas)
                 if (disjuntor.disparou || contador.falhou(falha)) {
-                    val restantes = umaPorVez.size - enviadasUmaPorVez
+                    // Esta e as que ainda não foram tentadas (antes contava só as enviadas, e retidas ou com erro sumiam da conta)
+                    val restantes = umaPorVez.size - indice
                     Log.w(TAG, "Sincronização interrompida: ${falha.mensagem}. $restantes leitura(s) continuam guardadas no aparelho")
                     return falha
                 }
@@ -398,13 +399,14 @@ class Sincronizador internal constructor(
             // Retida pela sessão recusada: ficou na fila, não foi enviada (não zera os erros seguidos nem conta como enviada)
             if (leiturasRetidas != retidasAntes) continue
 
+            // O servidor respondeu (aceitou, ou recusou de vez esta leitura): conta como tratada uma por vez
             contador.deuCerto()
             enviadasUmaPorVez++
         }
 
         val apagadas = dao.apagarArquivadasConcluidas() + dao.apagarRecusadasAntigas(relogio() - GUARDA_RECUSADAS_MS)
         Log.i(TAG, "Sincronização concluída: ${pendentes.size} leitura(s) processada(s)" +
-            (if (lotesEnviados > 0) " ($lotesEnviados lote(s)" + (if (enviadasUmaPorVez > 0) " e $enviadasUmaPorVez uma por vez)" else ")") else "") +
+            (if (lotesEnviados > 0) " ($lotesEnviados lote(s)" + (if (enviadasUmaPorVez > 0) " e $enviadasUmaPorVez tratada(s) uma por vez)" else ")") else "") +
             if (apagadas > 0) "; $apagadas leitura(s) de sessões anteriores removidas do aparelho" else "")
 
         // Falha passageira em algumas leituras: ficam na fila e a nova tentativa é agendada
@@ -422,6 +424,10 @@ class Sincronizador internal constructor(
         var aceitas = 0
         var recusadas = 0
         var erros = 0
+
+        // Sessões recusadas no lote: avisadas DEPOIS da transação, uma vez cada. Dentro dela, cada item recusado decifrava o
+        // token, gravava preferências e avisava as telas com o banco travado (o gatilho esperava para gravar a leitura)
+        val sessoesRecusadas = LinkedHashMap<String, Pair<String, String>>()
 
         // Tudo numa transação: o servidor já registrou o lote, e uma gravação pela metade reenviaria leituras aceitas
         emTransacao {
@@ -460,7 +466,7 @@ class Sincronizador internal constructor(
                     StatusLote.RECUSADA -> {
                         val mensagem = resultado.mensagem ?: "Recusada pelo servidor"
                         val sessao = leitura.sessaoOperador
-                        if (resultado.motivoSessao != null && sessao != null) aoRecusarSessao(sessao, resultado.motivoSessao, mensagem)
+                        if (resultado.motivoSessao != null && sessao != null) sessoesRecusadas.putIfAbsent(sessao, resultado.motivoSessao to mensagem)
                         // Recusa pela sessão que o servidor diz poder voltar (ex.: DESCONHECIDA): espera como no 401.
                         // Só com o "motivo" preenchido: no servidor antigo a recusa de item no lote é sempre definitiva
                         if (resultado.motivoSessao != null && sessao != null &&
@@ -481,6 +487,8 @@ class Sincronizador internal constructor(
                 }
             }
         }
+        // Fora da transação: se for a sessão atual e ela não servir mais, o operador volta ao login
+        sessoesRecusadas.forEach { (sessao, recusa) -> aoRecusarSessao(sessao, recusa.first, recusa.second) }
 
         Log.i(TAG, "Lote de ${lote.size} leitura(s) enviado: $cadastradas cadastrada(s), $naoCadastradas não cadastrada(s)" +
             (if (aceitas > 0) ", $aceitas aceita(s) sem classificação" else "") +
