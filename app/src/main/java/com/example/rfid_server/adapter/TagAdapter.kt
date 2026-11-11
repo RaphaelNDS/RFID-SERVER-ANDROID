@@ -67,10 +67,13 @@ class TagAdapter(
                 h.txtCodigos.text = if (linhas.serie != null) ctx.getString(R.string.tag_codigo_serie, linhas.codigo, linhas.serie)
                     else ctx.getString(R.string.tag_codigo, linhas.codigo)
 
-                // Linha 4 (só quando há): bem baixado ou extraviado no cadastro, em vermelho
+                // Linha 4 (só quando há): bem que não deveria estar aqui (baixado, extraviado, vendido) ou alugado com a
+                // devolução não registrada, em vermelho
                 val alerta = item.tag.alertaSituacao()
                 h.txtAlerta.visibility = if (alerta != null) View.VISIBLE else View.GONE
-                h.txtAlerta.text = alerta?.let { ctx.getString(R.string.tag_alerta_situacao, it) }
+                h.txtAlerta.text = alerta?.let {
+                    ctx.getString(if (item.tag.situacao == "ALUGADO") R.string.tag_alerta_alugado else R.string.tag_alerta_situacao, it)
+                }
             }
         }
     }

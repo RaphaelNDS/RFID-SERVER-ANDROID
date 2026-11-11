@@ -51,7 +51,9 @@ class LidaInventarioAdapter(private val aoTocarForaDaLista: (LidaInventario) -> 
         // Baixado ou extraviado no cadastro: em vermelho (não deveria estar circulando); sem cadastro: dito com clareza
         val alerta = item.ficha?.alertaSituacao()
         holder.foraDaLista.text = when {
-            alerta != null -> ctx.getString(R.string.inventario_lida_alerta, alerta)
+            alerta != null -> ctx.getString(
+                if (item.ficha?.situacao == "ALUGADO") R.string.inventario_lida_alerta_alugado else R.string.inventario_lida_alerta, alerta
+            )
             item.semCadastro -> ctx.getString(R.string.inventario_lida_sem_cadastro)
             podeTransferir && item.podePedirTransferencia -> ctx.getString(R.string.inventario_lida_fora_da_lista_transferir)
             else -> ctx.getString(R.string.inventario_lida_fora_da_lista)
