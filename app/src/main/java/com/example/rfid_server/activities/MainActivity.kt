@@ -142,6 +142,9 @@ class MainActivity : AppCompatActivity() {
 
         // Títulos das abas com a quantidade de cada lista ("Leitura (12)"), atualizados quando a lista muda
         viewModel.leituras.observe(this) { atualizarAba(TitulosAbas.ABA_LEITURA) }
+        // Equipamento que não deveria estar aqui (alugado, vendido, baixado) classificado agora: som próprio
+        val novosAlertas = NovosAlertas()
+        viewModel.comAlerta.observe(this) { if (novosAlertas.mudou(it)) aviso.naoDeveriaEstar() }
         viewModel.naoCadastradas.observe(this) { atualizarAba(TitulosAbas.ABA_NAO_CADASTRADAS) }
 
         // Rodapé: as mesmas ações que antes eram ícones na barra

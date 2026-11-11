@@ -74,6 +74,11 @@ class FotosDasTelasNoColetorTest {
                 LeituraEntity(epc = "E28011606000020000000003", lidoEm = agora, situacao = Situacao.PENDENTE)
             ).forEach { dao.inserir(it) }
             foto("01-principal")
+            // Alugado classificado DEPOIS de a tela abrir: toca o alerta de "não deveria estar aqui" (log "Alerta sonoro")
+            dao.inserir(LeituraEntity(epc = "424B503031323500000000AA", lidoEm = System.currentTimeMillis(), situacao = Situacao.CADASTRADA,
+                envioConcluido = true, codigoInterno = "TI-0414", tipo = "Coletor", marca = "Zebra", modelo = "MC3300", patrimonio = "0125/2019",
+                numeroSerie = "SN-9", situacaoBem = "ALUGADO", situacaoBemRotulo = "Alugado"))
+            Thread.sleep(2_000)
             // Menu ⋮ → "Resumo da leitura", com a parte "Por situação" (locadora)
             androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu(contexto)
             androidx.test.espresso.Espresso.onView(androidx.test.espresso.matcher.ViewMatchers.withText(R.string.main_por_tipo))
