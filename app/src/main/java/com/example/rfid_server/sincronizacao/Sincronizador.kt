@@ -308,8 +308,15 @@ class Sincronizador internal constructor(
         var lotesEnviados = 0
         var loteDisponivel = true
         val contadorLotes = RegraFalhas.Contador()
+        // Sessão que teve um lote recusado nesta passada: os outros lotes dela vão direto uma por vez (antes cada lote
+        // era mandado e recusado de novo, com a mesma espera, a cada passada durante as 24 h da retenção)
+        val sessoesComLoteRecusado = mutableSetOf<String>()
 
         for ((sessao, lote) in lotes) {
+            if (sessao in sessoesComLoteRecusado) {
+                umaPorVez += lote
+                continue
+            }
             if (!loteDisponivel) {
                 umaPorVez += lote
                 continue
@@ -339,7 +346,10 @@ class Sincronizador internal constructor(
                     if (resposta.motivo == MotivoFalha.SESSAO_INVALIDA || resposta.motivo == MotivoFalha.REQUISICAO_RECUSADA) {
                         Log.w(TAG, "Servidor recusou um lote de ${lote.size} leitura(s) (${resposta.mensagem}): enviando uma por vez")
                         // Se for a sessão atual e ela não servir mais, o operador volta ao login (as do lote seguem a regra de sempre)
-                        if (resposta.motivo == MotivoFalha.SESSAO_INVALIDA) aoRecusarSessao(sessao, resposta.motivoSessao, resposta.mensagem)
+                        if (resposta.motivo == MotivoFalha.SESSAO_INVALIDA) {
+                            aoRecusarSessao(sessao, resposta.motivoSessao, resposta.mensagem)
+                            sessoesComLoteRecusado += sessao
+                        }
                         umaPorVez += lote
                         continue
                     }
@@ -531,6 +541,18 @@ class Sincronizador internal constructor(
         val sessao = leitura.sessaoOperador
         // Sessão atual que não serve mais (ex.: usuário desativado): o operador volta ao login. A leitura segue a regra abaixo
         if (falha.motivo == MotivoFalha.SESSAO_INVALIDA && sessao != null) aoRecusarSessao(sessao, falha.motivoSessao, falha.mensagem)
+
+        // A leitura já chegou ao servidor (pelo lote) e só a consulta da etiqueta foi recusada: não é uma recusa da
+        // leitura nem motivo para retê-la. Antes da retenção: senão ela ficava até 24 h presa, contando como retida
+        // ("saia e entre de novo") embora o servidor já tivesse a leitura. Sai da fila sem classificação
+        if (leitura.envioConcluido &&
+            (falha.motivo == MotivoFalha.REQUISICAO_RECUSADA || falha.motivo == MotivoFalha.SESSAO_INVALIDA)
+        ) {
+            Log.w(TAG, "Tag ${leitura.epc}: leitura já registrada no servidor, mas a consulta da etiqueta foi recusada (${falha.mensagem}): fica sem classificação")
+            dao.desistirDaClassificacao(leitura.id, falha.mensagem)
+            return null
+        }
+
         if (falha.motivo == MotivoFalha.SESSAO_INVALIDA && sessao != null &&
             MotivoSessao.podeVoltar(falha.motivoSessao) && dentroDoPrazo(sessao)
         ) {
@@ -542,13 +564,6 @@ class Sincronizador internal constructor(
         // Recusa definitiva desta tag (ex.: 400): tentar de novo não adianta e travaria a fila inteira
         // Sessão inválida PARA ESTA leitura, recusada há mais que o prazo (ex.: usuário excluído), também é definitiva
         if (falha.motivo == MotivoFalha.REQUISICAO_RECUSADA || falha.motivo == MotivoFalha.SESSAO_INVALIDA) {
-            // A leitura já chegou ao servidor (pelo lote) e só a consulta da etiqueta foi recusada: não é uma recusa da
-            // leitura. Sai da fila sem ir para "Recusadas", sem aviso de envio recusado e sem contar no disjuntor
-            if (leitura.envioConcluido) {
-                Log.w(TAG, "Tag ${leitura.epc}: leitura já registrada no servidor, mas a consulta da etiqueta foi recusada (${falha.mensagem}): fica sem classificação")
-                dao.desistirDaClassificacao(leitura.id, falha.mensagem)
-                return null
-            }
             // Sessão inválida não conta no disjuntor: as leituras de um usuário desativado nunca vão passar,
             // e devolvê-las à fila travaria as dos outros operadores
             val disparou = recusar(leitura, falha.mensagem, contaNoDisjuntor = falha.motivo == MotivoFalha.REQUISICAO_RECUSADA)

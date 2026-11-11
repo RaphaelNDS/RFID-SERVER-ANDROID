@@ -42,7 +42,12 @@ class AvisoSessao(
     // Confere a cada 30 s e também logo depois do fim exato da sessão: antes, por até 30 s depois de vencer, o gatilho
     // era ignorado sem aviso (as leituras sem operador são descartadas) e o Iniciar do inventário dizia "em andamento"
     private val laco = LacoConferencia(Handler(Looper.getMainLooper()), INTERVALO_MS, proximaEm = {
-        PoliticaAvisoSessao.esperaAteConferir(AppConfig.getSessao(activity)?.expiraEm, System.currentTimeMillis(), INTERVALO_MS)
+        // Fim pelo relógio OU pelo tempo desde o login (relógio atrasado): confere logo nessa hora, senão o gatilho
+        // ficava até 30 s ignorado sem aviso na tela
+        val agora = System.currentTimeMillis()
+        PoliticaAvisoSessao.esperaAteConferir(
+            AppConfig.getSessao(activity)?.fimEm(agora, android.os.SystemClock.elapsedRealtime()), agora, INTERVALO_MS
+        )
     }) { verificar() }
 
     // Sessão encerrada pelo servidor durante a sincronização (outra thread): confere na hora, sem esperar os 30 s.

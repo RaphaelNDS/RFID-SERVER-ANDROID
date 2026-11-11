@@ -42,6 +42,18 @@ data class SessaoOperador(
         return agoraDecorrido - inicioDecorrido < expiraEm - inicio
     }
 
+    /**
+     * Quando a sessão vence, no relógio do aparelho, considerando também o tempo desde o login (como [validaEm]): com o
+     * relógio atrasado ela vence antes do [expiraEm]. Usado para conferir logo no fim (AvisoSessao).
+     */
+    fun fimEm(agora: Long, agoraDecorrido: Long? = null): Long {
+        val inicio = entrouEm ?: return expiraEm
+        val inicioDecorrido = entrouDecorrido ?: return expiraEm
+        if (agoraDecorrido == null || agoraDecorrido < inicioDecorrido) return expiraEm
+        val restantePeloDecorrido = (expiraEm - inicio) - (agoraDecorrido - inicioDecorrido)
+        return minOf(expiraEm, agora + restantePeloDecorrido)
+    }
+
     companion object {
         /** Resposta do servidor ao login. Lança org.json.JSONException ou DateTimeParseException se vier fora do formato. */
         fun deJson(json: String): SessaoOperador {
@@ -79,7 +91,10 @@ object SessaoAtual {
         } else {
             Log.i(TAG, "Sessão de ${MascaraSensivel.email(sessao.email)} expirou: é preciso entrar de novo")
         }
-        AppConfig.limparSessao(context)
+        // Só se ainda for a mesma: uma sessão renovada agora por outra thread (tela de aviso, login) não é apagada
+        if (!AppConfig.limparSessaoSeFor(context, sessao.token)) {
+            return AppConfig.getSessao(context)?.takeIf { it.validaEm(agora, agoraDecorrido) }
+        }
         // Quem descobriu pode ser a leitura do gatilho (outra thread): a tela aberta vai para o login na hora
         avisarOuvintes()
         return null
