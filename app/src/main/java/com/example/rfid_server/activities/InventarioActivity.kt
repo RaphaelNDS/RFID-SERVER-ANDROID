@@ -533,6 +533,8 @@ class InventarioActivity : AppCompatActivity() {
                                 resposta.valor.alertaSituacao()?.let {
                                     Log.w(TAG, "Etiqueta $epc (patrimônio ${resposta.valor.patrimonio}) lida no inventário de " +
                                         "${inventarioAtual?.local} consta como $it no cadastro")
+                                    // Som próprio: o operador percebe sem olhar a tela (o cartão fica em vermelho)
+                                    aviso.naoDeveriaEstar()
                                 }
                             }
                             is com.example.rfid_server.service.RespostaServidor.NaoEncontrado -> semCadastroForaDaLista += epc

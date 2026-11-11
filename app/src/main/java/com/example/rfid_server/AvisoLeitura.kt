@@ -32,6 +32,9 @@ class AvisoLeitura(context: Context) {
 
     private val limitador = LimitadorAviso(INTERVALO_MINIMO_MS)
 
+    // Vários alertas chegando juntos (consultas do inventário, classificação de um lote) tocam uma vez só
+    private val limitadorAlerta = LimitadorAviso(INTERVALO_MINIMO_ALERTA_MS)
+
     // Segundo bip do [erro]
     private val principal = Handler(Looper.getMainLooper())
 
@@ -83,6 +86,24 @@ class AvisoLeitura(context: Context) {
         } catch (e: RuntimeException) {
             // Tela fechando ao mesmo tempo (gerador já liberado): perder um bip não tem problema
             Log.d(TAG, "Bip não emitido: ${e.message}")
+        }
+    }
+
+    /**
+     * Equipamento que não deveria estar aqui (alugado com a devolução não registrada, vendido, baixado, extraviado):
+     * três bips agudos e vibração longa, diferente do bip de etiqueta, do duplo de fora da lista e dos graves de erro.
+     * Toca sempre, mesmo com o "aviso a cada etiqueta nova" desligado: o operador precisa perceber sem olhar a tela.
+     */
+    fun naoDeveriaEstar() {
+        if (!limitadorAlerta.liberar()) return
+        Log.i(TAG, "Alerta sonoro: equipamento que não deveria estar aqui")
+        tom(ToneGenerator.TONE_PROP_BEEP, DURACAO_BIP_ALERTA_MS)
+        principal.postDelayed({ tom(ToneGenerator.TONE_PROP_BEEP, DURACAO_BIP_ALERTA_MS) }, INTERVALO_BIPS_ALERTA_MS)
+        principal.postDelayed({ tom(ToneGenerator.TONE_PROP_BEEP, DURACAO_BIP_ALERTA_MS) }, 2 * INTERVALO_BIPS_ALERTA_MS)
+        try {
+            vibrador?.vibrate(VibrationEffect.createWaveform(VIBRACAO_ALERTA, -1))
+        } catch (e: RuntimeException) {
+            Log.d(TAG, "Vibração de alerta não emitida: ${e.message}")
         }
     }
 
@@ -148,6 +169,12 @@ class AvisoLeitura(context: Context) {
         // Fora da lista do inventário: bip duplo (TONE_PROP_BEEP2) e vibração mais longa que a de etiqueta esperada
         private const val DURACAO_FORA_DA_LISTA_MS = 160
         private const val DURACAO_VIBRACAO_FORA_DA_LISTA_MS = 120L
+
+        // Não deveria estar aqui: três bips agudos (TONE_PROP_BEEP) e vibração longa
+        private const val DURACAO_BIP_ALERTA_MS = 90
+        private const val INTERVALO_BIPS_ALERTA_MS = 160L
+        private const val INTERVALO_MINIMO_ALERTA_MS = 1_500L
+        private val VIBRACAO_ALERTA = longArrayOf(0, 400)
 
         // Todas encontradas: tom de confirmação (TONE_PROP_ACK) e três vibrações curtas
         private const val DURACAO_CONCLUIDO_MS = 400

@@ -96,6 +96,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun resumoPorSituacao(semSituacao: String): List<Pair<String, Int>> =
         BuscaLeituras.contagemPorSituacao(leiturasTodas.value.orEmpty(), semSituacao)
 
+    /** Etiquetas da leitura atual (sem busca) com alerta no cadastro: alugado, vendido, baixado, extraviado. */
+    val comAlerta: LiveData<Set<String>> = leiturasTodas.map<List<com.example.rfid_server.adapter.ItemLeitura>, Set<String>> { lista ->
+        lista.mapNotNullTo(HashSet()) { item -> (item as? com.example.rfid_server.adapter.ItemLeitura.Cadastrada)?.tag?.takeIf { it.alertaSituacao() != null }?.epc }
+    }.distinctUntilChanged()
+
     /** Planilha de TODA a leitura atual (sem o filtro da busca). */
     fun planilha(): String = BuscaLeituras.csv(leiturasTodas.value.orEmpty(), naoCadastradasTodas.value.orEmpty())
 
