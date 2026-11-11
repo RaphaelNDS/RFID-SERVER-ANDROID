@@ -18,7 +18,7 @@ data class TagView(
      * (as outras situações aparecem na ficha). Null quando não há o que avisar.
      */
     fun alertaSituacao(): String? = when (situacao) {
-        "BAIXADO", "EXTRAVIADO" -> situacaoRotulo ?: situacao
+        "BAIXADO", "EXTRAVIADO", "ALUGADO", "VENDIDO" -> situacaoRotulo ?: situacao
         else -> null
     }
 }

@@ -100,6 +100,10 @@ class TagServiceTest {
         assertEquals("Baixado", baixado.alertaSituacao())
         assertEquals("Emprestado: só na ficha, sem alerta no cartão", null, emprestado.alertaSituacao())
         assertEquals("Extraviado sem rótulo usa o código", "EXTRAVIADO", baixado.copy(situacao = "EXTRAVIADO", situacaoRotulo = null).alertaSituacao())
+        // Locação (servidor 1.12.0): alugado lido aqui = devolução não registrada; vendido não deveria estar aqui
+        assertEquals("Alugado", baixado.copy(situacao = "ALUGADO", situacaoRotulo = "Alugado").alertaSituacao())
+        assertEquals("Vendido", baixado.copy(situacao = "VENDIDO", situacaoRotulo = "Vendido").alertaSituacao())
+        assertEquals(null, baixado.copy(situacao = "DISPONIVEL", situacaoRotulo = "Disponível").alertaSituacao())
     }
 
     @Test
