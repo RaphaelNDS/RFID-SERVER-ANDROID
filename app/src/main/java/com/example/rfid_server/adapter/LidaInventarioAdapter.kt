@@ -44,7 +44,7 @@ class LidaInventarioAdapter(private val aoTocarForaDaLista: (LidaInventario) -> 
         val ctx = holder.itemView.context
 
         // Fora da lista com a ficha consultada no servidor: patrimônio e "Tipo · Marca · Modelo" do cadastro
-        val descricao = item.ficha?.let { listOfNotNull(it.tipo, it.marca, it.modelo).joinToString(" · ") }.orEmpty()
+        val descricao = item.ficha?.descricao().orEmpty()
         holder.texto.text = (item.patrimonioConhecido?.let { ctx.getString(R.string.inventario_lida_com_patrimonio, it, item.epc) } ?: item.epc) +
             if (descricao.isNotEmpty()) "\n$descricao" else ""
         holder.foraDaLista.isVisible = item.foraDaLista

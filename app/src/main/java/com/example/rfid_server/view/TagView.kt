@@ -13,6 +13,9 @@ data class TagView(
     /** Texto pronto da situação ("Baixado"). */
     val situacaoRotulo: String? = null
 ) {
+    /** "Notebook · Dell · Latitude" (só o que houver; partes em branco ficam de fora). A mesma em todas as telas. */
+    fun descricao(): String = listOfNotNull(tipo, marca, modelo).map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" · ")
+
     /**
      * Texto do alerta para o cartão da leitura: só para bem baixado ou extraviado, que não deveria estar circulando
      * (as outras situações aparecem na ficha). Null quando não há o que avisar.

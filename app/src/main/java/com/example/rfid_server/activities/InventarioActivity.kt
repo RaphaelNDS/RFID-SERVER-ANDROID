@@ -580,7 +580,7 @@ class InventarioActivity : AppCompatActivity() {
         etiquetas.mapNotNull { epc ->
             val ficha = fichasForaDaLista[epc] ?: return@mapNotNull null
             val alerta = ficha.alertaSituacao() ?: return@mapNotNull null
-            val descricao = listOfNotNull(ficha.tipo, ficha.marca, ficha.modelo).joinToString(" · ")
+            val descricao = ficha.descricao()
             val bem = ficha.patrimonio.ifBlank { null }?.let { "Patrimônio $it" } ?: "EPC $epc"
             epc to (if (descricao.isEmpty()) "$bem ($alerta)" else "$bem - $descricao ($alerta)")
         }.toMap()
@@ -837,8 +837,8 @@ class InventarioActivity : AppCompatActivity() {
     private fun descricaoDoBem(lida: LidaInventario): String {
         val bem = lida.patrimonioConhecido?.let { getString(R.string.inventario_patrimonio_curto, it) }
             ?: getString(R.string.inventario_transferir_sem_patrimonio, lida.epc)
-        val descricao = lida.ficha?.let { listOfNotNull(it.tipo, it.marca, it.modelo) }.orEmpty()
-        return (listOf(bem) + descricao).joinToString(" · ")
+        val descricao = lida.ficha?.descricao().orEmpty()
+        return listOf(bem, descricao).filter { it.isNotEmpty() }.joinToString(" · ")
     }
 
     /** Confirma, com observação opcional (vai para o motivo da guia no servidor), e põe na fila de envio. */

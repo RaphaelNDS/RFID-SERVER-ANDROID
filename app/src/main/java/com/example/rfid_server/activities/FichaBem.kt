@@ -53,7 +53,7 @@ object FichaBem {
     }
 
     private fun textoCadastro(activity: AppCompatActivity, tag: TagView): String = buildList {
-        listOfNotNull(tag.tipo, tag.marca, tag.modelo).joinToString(" · ").takeIf { it.isNotBlank() }?.let { add(it) }
+        tag.descricao().takeIf { it.isNotBlank() }?.let { add(it) }
         if (tag.codigoInterno.isNotBlank()) add(activity.getString(R.string.ficha_codigo_interno, tag.codigoInterno))
         if (tag.numeroSerie.isNotBlank()) add(activity.getString(R.string.ficha_serie, tag.numeroSerie))
         add(activity.getString(R.string.ficha_etiqueta, tag.epc))
