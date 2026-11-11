@@ -35,6 +35,16 @@ class HistoricoInventariosTest {
     }
 
     @Test
+    fun `alertas do cadastro voltam iguais do historico`() {
+        val original = resumo("inv-a", 3_000L).copy(alertas = mapOf("X9" to "Patrimônio PAT-77 (Baixado)"))
+        val historico = HistoricoInventarios(pasta.root)
+
+        historico.salvar(original)
+
+        assertEquals(original, historico.listar().single())
+    }
+
+    @Test
     fun `sem lista do esperado continua sem comparacao`() {
         val historico = HistoricoInventarios(pasta.root)
         historico.salvar(resumo("inv-2", 2_000L, comLista = false))

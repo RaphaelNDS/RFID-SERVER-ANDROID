@@ -44,6 +44,9 @@ import kotlin.math.roundToInt
 
 class MainActivity : AppCompatActivity() {
 
+    // "Letra maior" do menu da tela principal (TamanhoTexto)
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(TamanhoTexto.aplicar(newBase))
+
     private lateinit var rfidManager: RfidManager
     private lateinit var repositorio: RepositorioLeituras
     private lateinit var sincronizador: Sincronizador
@@ -258,7 +261,9 @@ class MainActivity : AppCompatActivity() {
     private fun mostrarOperador(sessao: com.example.rfid_server.SessaoOperador) {
         // Primeiro nome: com o nome completo o subtítulo cortava ("Até 13:16 · Oper…" nas fotos do coletor)
         val nome = sessao.nome.trim().substringBefore(" ").ifEmpty { sessao.nome }
-        supportActionBar?.subtitle = getString(R.string.main_operador, nome, AvisoSessao.horario(sessao.expiraEm))
+        // Com a letra maior não cabem os dois: fica o nome (quem está usando importa mais que o horário da sessão)
+        supportActionBar?.subtitle =
+            if (AppConfig.isLetraMaior(this)) nome else getString(R.string.main_operador, nome, AvisoSessao.horario(sessao.expiraEm))
     }
 
     /**
@@ -405,6 +410,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_main, menu)
+        menu.findItem(R.id.menu_letra_maior)?.isChecked = AppConfig.isLetraMaior(this)
         return true
     }
 
@@ -433,6 +439,15 @@ class MainActivity : AppCompatActivity() {
 
             R.id.menu_recusadas -> {
                 mostrarRecusadas()
+                true
+            }
+
+            R.id.menu_letra_maior -> {
+                // Vale para esta tela na hora (recriada) e para as outras quando abrirem
+                val ligada = !AppConfig.isLetraMaior(this)
+                AppConfig.setLetraMaior(this, ligada)
+                Log.i(TAG, "Operador ${if (ligada) "ligou" else "desligou"} a letra maior")
+                recreate()
                 true
             }
 

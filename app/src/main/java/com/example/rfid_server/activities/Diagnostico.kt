@@ -17,6 +17,7 @@ import com.example.rfid_server.api.UltimaSincronizacaoOk
 import com.example.rfid_server.dados.BancoLocal
 import com.example.rfid_server.erros.RegistroErros
 import com.example.rfid_server.sincronizacao.SincronizadorJustificativas
+import com.example.rfid_server.sincronizacao.SincronizadorTransferencias
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -37,6 +38,7 @@ data class DadosDiagnostico(
     val itensInventarioPendentes: Int,
     val cadastrosPendentes: Int,
     val justificativasPendentes: Int,
+    val transferenciasPendentes: Int = 0,
     val errosGuardados: Int,
     val leituraMaisAntiga: Long?,
     val ultimaSincronizacaoOk: Long?,
@@ -104,6 +106,7 @@ object Diagnostico {
             itensInventarioPendentes = banco.inventarioDao().contarItensNaoEnviadosAgora(),
             cadastrosPendentes = banco.cadastroDao().contarPendentesAgora(),
             justificativasPendentes = SincronizadorJustificativas.fila(app).pendentes().size,
+            transferenciasPendentes = SincronizadorTransferencias.fila(app).pendentes().size,
             errosGuardados = RegistroErros.quantidadeGuardada(app),
             leituraMaisAntiga = banco.leituraDao().lidoEmPendenteMaisAntiga(),
             ultimaSincronizacaoOk = UltimaSincronizacaoOk.momento,
@@ -126,10 +129,10 @@ object Diagnostico {
         appendLine()
         appendLine("Leitor: ${d.leitor}" + (d.bateria?.let { " · bateria $it%" } ?: ""))
         appendLine()
-        val total = d.leiturasPendentes + d.itensInventarioPendentes + d.cadastrosPendentes + d.justificativasPendentes
+        val total = d.leiturasPendentes + d.itensInventarioPendentes + d.cadastrosPendentes + d.justificativasPendentes + d.transferenciasPendentes
         appendLine("Aguardando envio: $total")
         appendLine("  leituras ${d.leiturasPendentes} · inventário ${d.itensInventarioPendentes}")
-        appendLine("  cadastros ${d.cadastrosPendentes} · justificativas ${d.justificativasPendentes}")
+        appendLine("  cadastros ${d.cadastrosPendentes} · justificativas ${d.justificativasPendentes} · transferências ${d.transferenciasPendentes}")
         if (d.leituraMaisAntiga != null) appendLine("  leitura mais antiga: ${data(d.leituraMaisAntiga)}")
         appendLine("Erros guardados para o servidor: ${d.errosGuardados}")
         appendLine("Último envio completo: ${d.ultimaSincronizacaoOk?.let(::data) ?: "nenhum desde que o app abriu"}")

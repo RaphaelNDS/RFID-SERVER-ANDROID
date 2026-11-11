@@ -29,6 +29,9 @@ import com.example.rfid_server.service.TagService
  */
 class LoginActivity : AppCompatActivity() {
 
+    // "Letra maior" do menu da tela principal (TamanhoTexto)
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(TamanhoTexto.aplicar(newBase))
+
     private lateinit var edtEmail: EditText
     private lateinit var edtSenha: EditText
     private lateinit var btnEntrar: Button
@@ -164,7 +167,7 @@ class LoginActivity : AppCompatActivity() {
                     is RespostaServidor.Sucesso -> {
                         val sessao = resposta.valor
                         AppConfig.saveSessao(this, sessao)
-                        Log.i(TAG, "Operador ${MascaraSensivel.email(sessao.email)} entrou no coletor (pode cadastrar: ${if (sessao.podeCadastrar) "sim" else "não"})")
+                        Log.i(TAG, "Operador ${MascaraSensivel.email(sessao.email)} entrou no coletor (pode cadastrar: ${if (sessao.podeCadastrar) "sim" else "não"}, pode transferir: ${if (sessao.podeTransferir) "sim" else "não"})")
 
                         if (sessao.senhaFraca) {
                             Toast.makeText(this, R.string.login_senha_fraca, Toast.LENGTH_LONG).show()

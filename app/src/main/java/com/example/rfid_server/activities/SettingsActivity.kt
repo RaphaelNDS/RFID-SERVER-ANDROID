@@ -31,6 +31,9 @@ import com.google.android.material.textfield.TextInputLayout
 
 class SettingsActivity : AppCompatActivity() {
 
+    // "Letra maior" do menu da tela principal (TamanhoTexto)
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(TamanhoTexto.aplicar(newBase))
+
     private lateinit var edtIp: EditText
     private lateinit var edtChave: EditText
     private lateinit var layoutChave: TextInputLayout
@@ -100,10 +103,43 @@ class SettingsActivity : AppCompatActivity() {
 
         // QR de configuração (tela Coletores do servidor): preenche servidor e chave; o responsável confere e salva com o PIN
         CodigoDeBarras.ouvir(this) { codigo ->
-            val config = ConfigQr.ler(codigo) ?: return@ouvir false
-            confirmarQr(config)
-            true
+            val config = ConfigQr.ler(codigo)
+            when {
+                config != null -> {
+                    confirmarQr(config)
+                    true
+                }
+                // QR só com a chave, lido com o campo da chave selecionado: o campo é de senha, e o código não ia para ele
+                edtChave.hasFocus() && AppConfig.chaveValida(codigo) && !codigo.contains('|') -> {
+                    Log.i(TAG, "Chave do coletor lida por código de barras no campo da chave")
+                    edtChave.setText(codigo)
+                    Toast.makeText(this, R.string.config_chave_do_qr, Toast.LENGTH_LONG).show()
+                    true
+                }
+                else -> {
+                    Log.i(TAG, "Código lido nas Configurações não é o QR de configuração (RFIDCFG1|...): ${codigo.take(12)}…")
+                    false
+                }
+            }
         }
+
+        // Botão: liga o leitor do coletor; o gatilho também lê o QR enquanto esta tela está aberta (ver onResume)
+        findViewById<Button>(R.id.btnLerQr).setOnClickListener {
+            if (!CliqueUnico.permitir()) return@setOnClickListener
+            Log.i(TAG, "Operador pediu para ler o QR de configuração")
+            if (!CodigoDeBarras.lerAgora(this)) Toast.makeText(this, R.string.config_ler_qr_sem_leitor, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    // No MC3300xR o gatilho é do RFID: nesta tela ele passa ao leitor de código de barras (QR de configuração)
+    override fun onResume() {
+        super.onResume()
+        RfidManager.get(this).gatilhoParaCodigoDeBarras(true)
+    }
+
+    override fun onPause() {
+        RfidManager.get(this).gatilhoParaCodigoDeBarras(false)
+        super.onPause()
     }
 
     /**

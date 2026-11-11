@@ -34,6 +34,8 @@ import androidx.recyclerview.widget.RecyclerView
 import com.example.rfid_server.CodigoDeBarras
 import com.example.rfid_server.CofreSessoes
 import com.example.rfid_server.sincronizacao.FilaJustificativas
+import com.example.rfid_server.sincronizacao.FilaTransferencias
+import com.example.rfid_server.sincronizacao.SincronizadorTransferencias
 import com.example.rfid_server.sincronizacao.SincronizadorJustificativas
 import com.example.rfid_server.ConfigQr
 import com.example.rfid_server.AppConfig
@@ -70,6 +72,9 @@ import java.util.concurrent.RejectedExecutionException
  * Localizar já com o EPC dele (sem depender do servidor). A lista fica guardada no coletor e vale sem rede.
  */
 class InventarioActivity : AppCompatActivity() {
+
+    // "Letra maior" do menu da tela principal (TamanhoTexto)
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(TamanhoTexto.aplicar(newBase))
 
     private lateinit var repositorio: RepositorioInventario
     private lateinit var rfidManager: RfidManager
@@ -130,6 +135,16 @@ class InventarioActivity : AppCompatActivity() {
     // ou com a memória cheia (a gravação falha), a tela travava ou fechava. Também calcula a comparação
     private val arquivos = Executors.newSingleThreadExecutor()
 
+    // Fichas das fora da lista (patrimônio, tipo e situação no cadastro), consultadas no servidor uma a uma fora da
+    // thread principal. Os mapas e o registro só são mexidos na thread principal
+    private val consultas = Executors.newSingleThreadExecutor()
+    private val registroConsultas = ConsultasForaDaLista()
+    private val fichasForaDaLista = HashMap<String, com.example.rfid_server.view.TagView>()
+    private val semCadastroForaDaLista = HashSet<String>()
+    // Transferências para este local pedidas no inventário aberto (FilaTransferencias), por EPC: lidas do arquivo ao
+    // abrir o inventário e a cada mudança da sincronização (que é quem envia e grava a resposta do servidor)
+    private val transferencias = HashMap<String, FilaTransferencias.Item>()
+
     // Comparação agrupada: no máximo um cálculo a cada RitmoComparacao.INTERVALO_MS, e um de cada vez.
     // Só a thread principal mexe nestes campos
     private val principal = Handler(Looper.getMainLooper())
@@ -189,7 +204,7 @@ class InventarioActivity : AppCompatActivity() {
         txtAguardando = findViewById(R.id.txtAguardando)
         txtChameResponsavel = findViewById(R.id.txtChameResponsavel)
 
-        adapterLidas = LidaInventarioAdapter { localizarForaDaLista(it) }
+        adapterLidas = LidaInventarioAdapter { tocouForaDaLista(it) }
         adapterFaltando = EsperadoAdapter { localizar(it) }
         recycler = findViewById<RecyclerView>(R.id.recyclerItens).apply {
             layoutManager = LinearLayoutManager(this@InventarioActivity)
@@ -264,6 +279,8 @@ class InventarioActivity : AppCompatActivity() {
         repositorio.inventarioAberto.observe(this) { mostrar(it) }
         Sincronizador.get(this).estado.observe(this) {
             estadoSincronizacao = it
+            // A passada pode ter enviado uma transferência: a aba Lidas mostra a resposta do servidor
+            carregarTransferencias()
             atualizarResumo()
         }
         FaixaRecusa.ligar(this, repositorio)
@@ -323,6 +340,7 @@ class InventarioActivity : AppCompatActivity() {
         if (::aviso.isInitialized) aviso.liberar()
         principal.removeCallbacks(rodarComparacao)
         arquivos.shutdown()
+        consultas.shutdownNow()
     }
 
     // ================= TELA =================
@@ -354,6 +372,7 @@ class InventarioActivity : AppCompatActivity() {
 
         if (mudou) {
             observarItens(inventario.id)
+            carregarTransferencias()
             carregarEsperado(inventario.local)
             ativarLeitor()
         }
@@ -391,6 +410,10 @@ class InventarioActivity : AppCompatActivity() {
         patrimoniosEsperados = emptyMap()
         temListaEsperada = false
         situacao = null
+        registroConsultas.limpar()
+        fichasForaDaLista.clear()
+        semCadastroForaDaLista.clear()
+        transferencias.clear()
         avisouCompleto = false
 
         // Cálculo agendado é cancelado; o que já está rodando termina, mas é descartado (outra geração)
@@ -457,12 +480,59 @@ class InventarioActivity : AppCompatActivity() {
     /** Aplica na tela o resultado do cálculo (thread principal). */
     private fun aplicarSituacao(nova: SituacaoTelaInventario) {
         situacao = nova
-        adapterLidas.atualizar(nova.lidas)
+        adapterLidas.atualizar(comFichas(nova.lidas))
+        consultarForaDaLista(nova.lidas)
         adapterFaltando.atualizar(nova.faltando)
         atualizarAbas(nova)
         atualizarCampoFiltro()
         atualizarResumo()
     }
+
+    /**
+     * Consulta no servidor a ficha das fora da lista ainda não consultadas: a aba Lidas passa a mostrar o patrimônio e
+     * o tipo, e avisa bem baixado ou extraviado (que não deveria estar circulando) ou etiqueta não cadastrada. Sem
+     * rede, tenta de novo mais tarde (ConsultasForaDaLista); nada disso impede ler nem finalizar.
+     */
+    private fun consultarForaDaLista(lidas: List<LidaInventario>) {
+        val pedir = registroConsultas.paraConsultar(lidas.filter { it.foraDaLista }.map { it.epc }, SystemClock.elapsedRealtime())
+        if (pedir.isEmpty()) return
+        val servico = com.example.rfid_server.service.TagService(applicationContext)
+        val geracaoDoPedido = geracao
+        pedir.forEach { epc ->
+            try {
+                consultas.execute {
+                    val resposta = servico.buscarTagAgora(epc)
+                    runOnUiThread {
+                        if (isDestroyed || geracaoDoPedido != geracao) return@runOnUiThread
+                        when (resposta) {
+                            is com.example.rfid_server.service.RespostaServidor.Sucesso -> {
+                                fichasForaDaLista[epc] = resposta.valor
+                                resposta.valor.alertaSituacao()?.let {
+                                    Log.w(TAG, "Etiqueta $epc (patrimônio ${resposta.valor.patrimonio}) lida no inventário de " +
+                                        "${inventarioAtual?.local} consta como $it no cadastro")
+                                }
+                            }
+                            is com.example.rfid_server.service.RespostaServidor.NaoEncontrado -> semCadastroForaDaLista += epc
+                            else -> registroConsultas.falhou(epc, SystemClock.elapsedRealtime())
+                        }
+                        situacao?.let { adapterLidas.atualizar(comFichas(it.lidas)) }
+                    }
+                }
+            } catch (e: RejectedExecutionException) {
+                return // tela fechando
+            }
+        }
+    }
+
+    /** Lidas com alerta no cadastro (baixado, extraviado), já consultadas: EPC → texto para o resumo. */
+    private fun alertasDasLidas(etiquetas: Collection<String>): Map<String, String> =
+        etiquetas.mapNotNull { epc ->
+            val ficha = fichasForaDaLista[epc] ?: return@mapNotNull null
+            val alerta = ficha.alertaSituacao() ?: return@mapNotNull null
+            val descricao = listOfNotNull(ficha.tipo, ficha.marca, ficha.modelo).joinToString(" · ")
+            val bem = ficha.patrimonio.ifBlank { null }?.let { "Patrimônio $it" } ?: "EPC $epc"
+            epc to (if (descricao.isEmpty()) "$bem ($alerta)" else "$bem - $descricao ($alerta)")
+        }.toMap()
 
     private fun atualizarAbas(situacaoAtual: SituacaoTelaInventario) {
         val nova = situacaoAtual.comparacao
@@ -683,7 +753,94 @@ class InventarioActivity : AppCompatActivity() {
     /** Lida fora da lista: o operador vai achar a etiqueta para ver o que ela é e por que está ali. */
     private fun localizarForaDaLista(lida: LidaInventario) {
         Log.i(TAG, "Operador foi localizar a etiqueta ${lida.epc}, lida fora da lista em ${inventarioAtual?.local}")
-        abrirLocalizar(lida.epc, lida.patrimonio)
+        abrirLocalizar(lida.epc, lida.patrimonioConhecido)
+    }
+
+    /** Lidas com o que já se sabe das fora da lista: ficha do cadastro, sem cadastro e transferência pedida. */
+    private fun comFichas(lidas: List<LidaInventario>) =
+        LidaInventario.comFichas(lidas, fichasForaDaLista, semCadastroForaDaLista, transferencias)
+
+    /**
+     * Fora da lista tocada: quem pode transferir (podeTransferir no login, servidor 1.7.0) escolhe entre localizar e
+     * trazer o bem para este local no cadastro; os outros vão direto ao Localizar, como antes.
+     */
+    private fun tocouForaDaLista(lida: LidaInventario) {
+        val podeTransferir = SessaoAtual.get(this)?.podeTransferir == true
+        if (!podeTransferir || !lida.podePedirTransferencia) {
+            localizarForaDaLista(lida)
+            return
+        }
+        if (!CliqueUnico.permitir()) return
+        AlertDialog.Builder(this)
+            .setTitle(descricaoDoBem(lida))
+            .setItems(arrayOf(getString(R.string.inventario_fora_localizar), getString(R.string.inventario_fora_transferir))) { _, escolha ->
+                if (escolha == 0) localizarForaDaLista(lida) else confirmarTransferencia(lida)
+            }
+            .setNegativeButton(R.string.comum_cancelar, null)
+            .show()
+    }
+
+    /** "Patrimônio 0123/2019 · Notebook · Dell · Latitude" (ou o EPC, sem patrimônio). */
+    private fun descricaoDoBem(lida: LidaInventario): String {
+        val bem = lida.patrimonioConhecido?.let { getString(R.string.inventario_patrimonio_curto, it) }
+            ?: getString(R.string.inventario_transferir_sem_patrimonio, lida.epc)
+        val descricao = lida.ficha?.let { listOfNotNull(it.tipo, it.marca, it.modelo) }.orEmpty()
+        return (listOf(bem) + descricao).joinToString(" · ")
+    }
+
+    /** Confirma, com observação opcional (vai para o motivo da guia no servidor), e põe na fila de envio. */
+    private fun confirmarTransferencia(lida: LidaInventario) {
+        val inventario = inventarioAtual ?: return
+        if (isFinishing || isDestroyed) return
+        val campo = android.widget.EditText(this).apply {
+            setHint(R.string.inventario_transferir_dica)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            filters = arrayOf(android.text.InputFilter.LengthFilter(FilaTransferencias.MAXIMO_OBSERVACAO))
+        }
+        val margem = (20 * resources.displayMetrics.density).toInt()
+        val moldura = android.widget.FrameLayout(this).apply {
+            setPadding(margem, margem / 2, margem, 0)
+            addView(campo)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.inventario_transferir_titulo)
+            .setMessage(getString(R.string.inventario_transferir_mensagem, descricaoDoBem(lida), inventario.local))
+            .setView(moldura)
+            .setPositiveButton(R.string.inventario_transferir_confirmar) { _, _ ->
+                pedirTransferencia(inventario, lida.epc, campo.text.toString())
+            }
+            .setNegativeButton(R.string.comum_cancelar, null)
+            .show()
+    }
+
+    private fun pedirTransferencia(inventario: InventarioEntity, epc: String, observacao: String) {
+        val token = SessaoAtual.token(this)
+        val agora = System.currentTimeMillis()
+        val app = applicationContext
+        Log.i(TAG, "Operador pediu a transferência da etiqueta $epc para ${inventario.local}")
+        // Gravado fora da tela, no executor do histórico: termina mesmo com a tela fechada. A sincronização envia
+        carregar({
+            val sessao = token?.let { CofreSessoes.get(app).referencia(it) }
+            SincronizadorTransferencias.fila(app).adicionar(inventario.id, epc, inventario.local, sessao, agora, observacao)
+            Sincronizador.get(app).solicitarEmBreve()
+            SincronizadorTransferencias.fila(app).doInventario(inventario.id)
+        }) { mostrarTransferencias(inventario.id, it) }
+    }
+
+    /** Relê as transferências do inventário aberto (a sincronização grava a resposta do servidor no arquivo). */
+    private fun carregarTransferencias() {
+        val inventario = inventarioAtual ?: return
+        val app = applicationContext
+        carregar({ SincronizadorTransferencias.fila(app).doInventario(inventario.id) }) { mostrarTransferencias(inventario.id, it) }
+    }
+
+    private fun mostrarTransferencias(inventarioId: String, doInventario: Map<String, FilaTransferencias.Item>) {
+        if (inventarioAtual?.id != inventarioId) return
+        adapterLidas.podeTransferir = SessaoAtual.get(this)?.podeTransferir == true
+        if (doInventario == transferencias) return
+        transferencias.clear()
+        transferencias.putAll(doInventario)
+        situacao?.let { adapterLidas.atualizar(comFichas(it.lidas)) }
     }
 
     private fun abrirLocalizar(epc: String, patrimonio: String?) {
@@ -783,6 +940,8 @@ class InventarioActivity : AppCompatActivity() {
                 val esperadoAgora = esperado
                 val finalizadoEm = System.currentTimeMillis()
                 val operador = SessaoAtual.get(this)?.nome
+                // Alertas das fora da lista já consultadas (os mapas são da thread principal: fotografia agora)
+                val alertasAgora = alertasDasLidas(fichasForaDaLista.keys)
                 var final: ComparacaoInventario? = null
                 var etiquetasGravadas: List<String> = emptyList()
 
@@ -799,7 +958,8 @@ class InventarioActivity : AppCompatActivity() {
                     val resumo = total?.let {
                         ResumoFinalizacao(
                             inventario.local, finalizadoEm, operador, it, final, inventario.id,
-                            etiquetasGravadas, esperadoAgora?.itens.orEmpty()
+                            etiquetasGravadas, esperadoAgora?.itens.orEmpty(),
+                            alertasAgora.filterKeys { epc -> epc in etiquetasGravadas }
                         )
                     }
                     // Guarda o resumo para "Inventários anteriores" (o inventário sai do coletor quando chega ao
@@ -856,6 +1016,10 @@ class InventarioActivity : AppCompatActivity() {
                     else getString(R.string.inventario_resumo_faltando_tipos, c.faltando.size, tipos)
                 )
                 append("\n").append(getString(R.string.inventario_resumo_fora_dialogo, c.foraDaLista))
+            }
+            // Bens baixados ou extraviados lidos aqui: quem finaliza precisa ver (e o texto compartilhado lista cada um)
+            if (resumo.alertas.isNotEmpty()) {
+                append("\n").append(getString(R.string.inventario_resumo_alertas, resumo.alertas.size))
             }
         }
 

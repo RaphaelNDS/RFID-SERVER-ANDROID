@@ -112,6 +112,7 @@ class HistoricoInventarios(private val pasta: File) {
             // Itens esperados no mesmo formato da lista do esperado guardada no coletor
             .put("esperados", JSONObject(EsperadoLocal(r.local, temReferencia = true, itens = r.esperados).paraJson()).getJSONArray("itens"))
             .put("justificativas", JSONObject().apply { motivos.forEach { (epc, m) -> put(epc, m.name) } })
+            .put("alertas", JSONObject().apply { r.alertas.forEach { (epc, texto) -> put(epc, texto) } })
             .toString()
 
         private fun motivosDe(o: JSONObject): Map<String, FilaJustificativas.Motivo> {
@@ -137,7 +138,8 @@ class HistoricoInventarios(private val pasta: File) {
                 comparacao = comparacao,
                 inventarioId = o.optString("inventarioId"),
                 etiquetas = etiquetas,
-                esperados = esperado.itens
+                esperados = esperado.itens,
+                alertas = o.optJSONObject("alertas")?.let { a -> a.keys().asSequence().associateWith { a.optString(it) } }.orEmpty()
             )
         }
     }

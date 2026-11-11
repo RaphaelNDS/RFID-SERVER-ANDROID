@@ -79,6 +79,23 @@ class FotosDasTelasNoColetorTest {
         ).use { foto("04-cadastro") }
         ActivityScenario.launch(SettingsActivity::class.java).use { foto("05-configuracoes") }
 
+        // As mesmas telas com a "Letra maior" ligada (TamanhoTexto): conferir que nada importante fica cortado
+        AppConfig.setLetraMaior(contexto, true)
+        try {
+            ActivityScenario.launch(MainActivity::class.java).use {
+                val dao = BancoLocal.get(contexto).leituraDao()
+                dao.inserir(LeituraEntity(epc = "E28011606000020000000009", lidoEm = System.currentTimeMillis(), situacao = Situacao.CADASTRADA,
+                    envioConcluido = true, codigoInterno = "TI-0412", tipo = "Notebook", marca = "Dell", modelo = "Latitude 5440",
+                    patrimonio = "0123/2019", numeroSerie = "SN-8H2K"))
+                foto("L1-principal")
+            }
+            ActivityScenario.launch(InventarioActivity::class.java).use { foto("L2-inventario-inicio") }
+            ActivityScenario.launch(LocalizarActivity::class.java).use { foto("L3-localizar") }
+            ActivityScenario.launch(SettingsActivity::class.java).use { foto("L5-configuracoes") }
+        } finally {
+            AppConfig.setLetraMaior(contexto, false)
+        }
+
         AppConfig.limparSessao(contexto)
         ActivityScenario.launch(LoginActivity::class.java).use { foto("06-login") }
     }

@@ -48,6 +48,9 @@ import org.json.JSONException
  */
 class CadastroTagActivity : AppCompatActivity() {
 
+    // "Letra maior" do menu da tela principal (TamanhoTexto)
+    override fun attachBaseContext(newBase: android.content.Context) = super.attachBaseContext(TamanhoTexto.aplicar(newBase))
+
     /** Opção de um Spinner; id null = "não informado". */
     private data class Opcao(val id: Long?, val nome: String) {
         override fun toString() = nome

@@ -111,7 +111,9 @@ class Sincronizador internal constructor(
      * Roda o bloco numa transação do banco (em produção, runInTransaction; nos testes, direto). O resultado de um
      * lote é gravado de uma vez: se o app morrer no meio, nenhuma leitura aceita fica na fila para ir de novo.
      */
-    private val emTransacao: (() -> Unit) -> Unit = { it() }
+    private val emTransacao: (() -> Unit) -> Unit = { it() },
+    /** Etapa 5, depois das justificativas: transferências de bem para o local do inventário. */
+    private val transferencias: SincronizadorTransferencias? = null
 ) {
 
     private val _estado = MutableLiveData<EstadoSincronizacao>()
@@ -193,7 +195,7 @@ class Sincronizador internal constructor(
         val falhas = mutableListOf<RespostaServidor.Falha>()
         var falha: RespostaServidor.Falha? = null
         try {
-            for (etapa in listOf({ cadastros?.processar() }, { processarLeituras() }, { inventarios?.processar() }, { justificativas?.processar() }, { falhaDaRetencao() })) {
+            for (etapa in listOf({ cadastros?.processar() }, { processarLeituras() }, { inventarios?.processar() }, { justificativas?.processar() }, { transferencias?.processar() }, { falhaDaRetencao() })) {
                 val f = etapa() ?: continue
                 falhas += f
                 // O disjuntor das leituras (servidor recusando tudo) também para: os inventários seriam recusados igual
@@ -719,7 +721,12 @@ class Sincronizador internal constructor(
                         aoRecusarSessao = aoRecusarSessao,
                         agendar = { atraso, bloco -> agendador.schedule({ bloco() }, atraso, TimeUnit.MILLISECONDS) },
                         ehSessaoAtual = fimDaSessao::ehAtual,
-                        emTransacao = emTransacao
+                        emTransacao = emTransacao,
+                        transferencias = SincronizadorTransferencias(
+                            fila = SincronizadorTransferencias.fila(app),
+                            enviar = tagService::transferirAgora,
+                            registrarErro = { tipo, mensagem -> RegistroErros.registrar(app, tipo, mensagem) }
+                        )
                     )
                 }.also { instancia = it }
             }

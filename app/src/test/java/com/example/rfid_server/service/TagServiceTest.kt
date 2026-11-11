@@ -997,4 +997,51 @@ class TagServiceTest {
 
         assertEquals(StatusConexao.MUITAS_TENTATIVAS, status)
     }
+
+    // ================= transferência de local (servidor 1.7.0) =================
+
+    @Test
+    fun `transferirAgora manda local e observacao com a sessao e le a guia`() {
+        servidor.enqueue(json(200, """{"local":"SALA 12","situacao":"EM_USO","situacaoRotulo":"Em uso","transferencia":57,"jaEstava":false}"""))
+
+        val resposta = service.transferirAgora("E2801160", "SALA 12", "mudou de sala", "tok-ana")
+
+        val r = (resposta as RespostaServidor.Sucesso).valor
+        assertEquals(57L, r.guia)
+        assertEquals(false, r.jaEstava)
+        assertEquals("SALA 12", r.local)
+        val requisicao = proximaRequisicao()
+        assertEquals("POST", requisicao.method)
+        assertEquals("/api/android/tags/E2801160/transferencia", requisicao.path)
+        assertEquals("tok-ana", requisicao.getHeader(HttpClient.HEADER_SESSAO))
+        val corpo = JSONObject(requisicao.body.readUtf8())
+        assertEquals("SALA 12", corpo.getString("local"))
+        assertEquals("mudou de sala", corpo.getString("observacao"))
+    }
+
+    @Test
+    fun `transferirAgora de novo para o mesmo local vem sem guia e sem observacao no corpo`() {
+        servidor.enqueue(json(200, """{"local":"SALA 12","situacao":"EM_USO","situacaoRotulo":"Em uso","transferencia":null,"jaEstava":true}"""))
+
+        val r = (service.transferirAgora("E1", "SALA 12", null, "tok") as RespostaServidor.Sucesso).valor
+
+        assertNull(r.guia)
+        assertEquals(true, r.jaEstava)
+        assertEquals(false, JSONObject(proximaRequisicao().body.readUtf8()).has("observacao"))
+    }
+
+    @Test
+    fun `transferirAgora recusada traz o motivo do servidor`() {
+        servidor.enqueue(json(404, """{"status":404,"mensagem":"Etiqueta não cadastrada"}"""))
+        servidor.enqueue(json(409, """{"status":409,"mensagem":"Bem baixado não pode ser transferido"}"""))
+        servidor.enqueue(json(400, """{"status":400,"mensagem":"Local SALA X desconhecido ou desativado"}"""))
+        servidor.enqueue(json(403, """{"status":403,"mensagem":"Sem permissão para transferir"}"""))
+
+        listOf("Etiqueta não cadastrada", "Bem baixado não pode ser transferido", "Local SALA X desconhecido ou desativado",
+            "Sem permissão para transferir").forEach { esperado ->
+            val falha = service.transferirAgora("E1", "SALA X", null, "tok") as RespostaServidor.Falha
+            assertEquals(MotivoFalha.REQUISICAO_RECUSADA, falha.motivo)
+            assertEquals(esperado, falha.mensagem)
+        }
+    }
 }

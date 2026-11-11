@@ -202,6 +202,43 @@ class RegrasInventarioTest {
     }
 
     @Test
+    fun `consultas das fora da lista uma vez cada com limite e nova tentativa so depois da espera`() {
+        val r = ConsultasForaDaLista(maximo = 3, esperaFalhaMs = 1000)
+
+        assertEquals(listOf("A", "B", "C"), r.paraConsultar(listOf("A", "B", "C", "D"), agora = 0))
+        assertEquals("Já pedidas e limite atingido", emptyList<String>(), r.paraConsultar(listOf("A", "B", "C", "D"), agora = 10))
+
+        r.falhou("B", agora = 100)
+        assertEquals("Falha recente espera", emptyList<String>(), r.paraConsultar(listOf("B"), agora = 500))
+        assertEquals("Depois da espera tenta de novo", listOf("B"), r.paraConsultar(listOf("B"), agora = 1200))
+
+        r.limpar()
+        assertEquals(listOf("D"), r.paraConsultar(listOf("D"), agora = 2000))
+    }
+
+    @Test
+    fun `fichas entram so nas fora da lista e o patrimonio conhecido vem do cadastro`() {
+        val lidas = listOf(LidaInventario("E1", "P-1", foraDaLista = false), LidaInventario("X1", null, foraDaLista = true),
+            LidaInventario("X2", null, foraDaLista = true))
+        val ficha = com.example.rfid_server.view.TagView("X1", "CI", "Monitor", null, null, "PAT-77", "", "BAIXADO", "Baixado")
+
+        val r = LidaInventario.comFichas(lidas, mapOf("X1" to ficha, "E1" to ficha), setOf("X2"))
+
+        assertEquals(null, r[0].ficha)
+        assertEquals("P-1", r[0].patrimonioConhecido)
+        assertEquals("PAT-77", r[1].patrimonioConhecido)
+        assertEquals("Baixado", r[1].ficha!!.alertaSituacao())
+        assertTrue(r[2].semCadastro)
+    }
+
+    @Test
+    fun `texto compartilhado lista os lidos com alerta no cadastro`() {
+        val r = ResumoFinalizacao("Sala", finalizadoEm, "Ana", 3, null, alertas = mapOf("X1" to "Patrimônio PAT-77 - Monitor (Baixado)"))
+
+        assertTrue(r.textoCompartilhar(fuso).endsWith("Atenção, lidos com alerta no cadastro:\n- Patrimônio PAT-77 - Monitor (Baixado)"))
+    }
+
+    @Test
     fun `sem lista ou sem faltantes nao ha faltantes por tipo`() {
         assertNull(ResumoFinalizacao("Sala", finalizadoEm, null, 3, null).faltantesPorTipo())
         val c = ComparacaoInventario.comparar(esperado, listOf("E1", "E2", "E3"))

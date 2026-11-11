@@ -25,7 +25,9 @@ data class SessaoOperador(
     /** Relógio do aparelho na hora do login (null = sessão guardada por uma versão anterior). */
     val entrouEm: Long? = null,
     /** Tempo desde a ligação do aparelho (elapsedRealtime) na hora do login. */
-    val entrouDecorrido: Long? = null
+    val entrouDecorrido: Long? = null,
+    /** Operador pode transferir bens de local (RFID · Editar no servidor 1.7.0); servidor que não manda = não. */
+    val podeTransferir: Boolean = false
 ) {
     /**
      * A sessão vale em [agora] (relógio do aparelho)? Também confere o tempo desde a ligação ([agoraDecorrido]), que
@@ -51,7 +53,8 @@ data class SessaoOperador(
                 email = o.getString("email"),
                 podeLer = o.getBoolean("podeLer"),
                 podeCadastrar = o.getBoolean("podeCadastrar"),
-                senhaFraca = o.optBoolean("senhaFraca", false)
+                senhaFraca = o.optBoolean("senhaFraca", false),
+                podeTransferir = o.optBoolean("podeTransferir", false)
             )
         }
     }

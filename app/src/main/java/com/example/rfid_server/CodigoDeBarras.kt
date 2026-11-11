@@ -65,6 +65,34 @@ object CodigoDeBarras {
         }
     }
 
+    /**
+     * Liga o leitor de código de barras agora, como se o gatilho fosse apertado (SOFT_SCAN_TRIGGER do DataWedge): o
+     * código lido chega pelo [ouvir], como os outros. Funciona mesmo com o gatilho físico preso ao RFID. false = sem
+     * DataWedge neste aparelho (não é um coletor Zebra).
+     */
+    fun lerAgora(context: Context): Boolean {
+        try {
+            context.packageManager.getPackageInfo(PACOTE_DATAWEDGE, 0)
+        } catch (e: Exception) {
+            Log.w(TAG, "Sem DataWedge neste aparelho: não dá para ligar o leitor de código de barras")
+            return false
+        }
+        return try {
+            context.sendBroadcast(
+                Intent("com.symbol.datawedge.api.ACTION")
+                    .setPackage(PACOTE_DATAWEDGE)
+                    .putExtra("com.symbol.datawedge.api.SOFT_SCAN_TRIGGER", "START_SCANNING")
+            )
+            Log.i(TAG, "Leitor de código de barras ligado pelo botão (SOFT_SCAN_TRIGGER)")
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Não foi possível ligar o leitor de código de barras", e)
+            false
+        }
+    }
+
+    private const val PACOTE_DATAWEDGE = "com.symbol.datawedge"
+
     private fun plugin(nome: String, vararg parametros: Pair<String, String>) = Bundle().apply {
         putString("PLUGIN_NAME", nome)
         putString("RESET_CONFIG", "false")
@@ -86,7 +114,7 @@ object CodigoDeBarras {
                         Log.i(TAG, "Código de barras ignorado em ${activity.javaClass.simpleName}: há um diálogo aberto")
                         return
                     }
-                    Log.i(TAG, "Código de barras lido em ${activity.javaClass.simpleName}: ${codigo.take(40)}")
+                    Log.i(TAG, "Código de barras lido em ${activity.javaClass.simpleName}: ${paraLog(codigo)}")
                     if (!aoLer(codigo)) noCampoComFoco(activity, codigo)
                 }
             }
@@ -104,6 +132,23 @@ object CodigoDeBarras {
             }
         })
     }
+
+    /**
+     * O que do código lido pode ir para o log. O QR de configuração (ou só a chave, lida nas Configurações) leva a chave
+     * do coletor: no log fica só o endereço do servidor, ou o tamanho. Patrimônio e local aparecem (até 40 caracteres).
+     */
+    internal fun paraLog(codigo: String): String {
+        val partes = codigo.split('|')
+        if (partes.size >= 3 && partes[0].startsWith("RFIDCFG")) return "QR de configuração (${partes[0]}|${partes[1]}|…)"
+        if (pareceChave(codigo)) return "${codigo.length} caracteres (pode ser a chave do coletor; não registrado)"
+        return codigo.take(40)
+    }
+
+    // Chave do coletor: um bloco só, sem espaço, com letras e números misturados (patrimônio costuma ser só número
+    // ou ter separador)
+    private fun pareceChave(codigo: String) =
+        codigo.length >= 8 && codigo.none { it.isWhitespace() || it == '/' || it == '-' || it == '.' } &&
+            codigo.any { it.isLetter() } && codigo.any { it.isDigit() } && codigo.any { it.isLowerCase() }
 
     /** Como o teclado fazia: escreve o código no campo com foco (substitui o texto) e deixa o cursor no fim. */
     fun noCampoComFoco(activity: AppCompatActivity, codigo: String): Boolean {

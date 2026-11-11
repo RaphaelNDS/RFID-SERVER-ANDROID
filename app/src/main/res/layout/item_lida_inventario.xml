@@ -31,5 +31,15 @@
             android:visibility="gone"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"/>
+
+        <!-- Transferência para este local pedida no inventário: aguardando envio, feita (com a guia) ou recusada -->
+        <TextView
+            android:id="@+id/txtTransferencia"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:layout_marginTop="2dp"
+            android:visibility="gone"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"/>
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

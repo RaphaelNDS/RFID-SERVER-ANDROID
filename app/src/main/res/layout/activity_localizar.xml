@@ -115,7 +115,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"/>
 
-            <!-- Ocupa o que sobra, até 30sp e encolhendo (autoSize) para caber: em 320x533dp, com o cartão de
+            <!-- Em dp, e não sp: já é grande e encolhe para caber (a fonte do sistema aumentada cortava o texto).
+                 Ocupa o que sobra, até 30sp e encolhendo (autoSize) para caber: em 320x533dp, com o cartão de
                  busca aberto, o texto em 30sp fixo espremia e cortava a barra de baixo. A barra fica sempre inteira -->
             <TextView
                 android:id="@+id/txtStatus"
@@ -125,8 +126,8 @@
                 android:gravity="center"
                 android:accessibilityLiveRegion="polite"
                 app:autoSizeTextType="uniform"
-                app:autoSizeMinTextSize="14sp"
-                app:autoSizeMaxTextSize="30sp"
+                app:autoSizeMinTextSize="14dp"
+                app:autoSizeMaxTextSize="30dp"
                 android:layout_weight="1"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"/>

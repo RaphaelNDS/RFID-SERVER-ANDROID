@@ -109,6 +109,43 @@ data class SituacaoTelaInventario(
     }
 }
 
+/**
+ * Quais etiquetas fora da lista consultar no servidor (ficha do bem): cada uma uma vez só, no máximo [maximo] por
+ * inventário (uma sala inteira fora da lista não vira centenas de consultas), e a que falhou (sem rede) só de novo
+ * depois de [esperaFalhaMs]. Sem dependência do Android, para os testes; usado só na thread principal.
+ */
+class ConsultasForaDaLista(private val maximo: Int = 300, private val esperaFalhaMs: Long = 60_000) {
+    private val pedidas = HashSet<String>()
+    private val falhas = HashMap<String, Long>()
+
+    /** Marca e devolve as de [epcs] que devem ser consultadas agora. */
+    fun paraConsultar(epcs: List<String>, agora: Long): List<String> {
+        val novas = ArrayList<String>()
+        for (epc in epcs) {
+            if (epc in pedidas) continue
+            val falhou = falhas[epc]
+            if (falhou != null && agora - falhou < esperaFalhaMs) continue
+            if (falhou == null && pedidas.size + falhas.size >= maximo) break
+            falhas.remove(epc)
+            pedidas += epc
+            novas += epc
+        }
+        return novas
+    }
+
+    /** A consulta não deu certo (sem rede, servidor fora): pode ser pedida de novo depois da espera. */
+    fun falhou(epc: String, agora: Long) {
+        pedidas.remove(epc)
+        falhas[epc] = agora
+    }
+
+    /** Novo inventário: tudo de novo. */
+    fun limpar() {
+        pedidas.clear()
+        falhas.clear()
+    }
+}
+
 /** Resumo do inventário finalizado: aparece num diálogo e pode ser compartilhado (texto simples). */
 data class ResumoFinalizacao(
     val local: String,
@@ -121,7 +158,12 @@ data class ResumoFinalizacao(
     /** EPCs gravados no inventário na finalização (para a planilha). */
     val etiquetas: List<String> = emptyList(),
     /** Itens esperados (para a planilha dizer o patrimônio das encontradas). */
-    val esperados: List<ItemEsperado> = emptyList()
+    val esperados: List<ItemEsperado> = emptyList(),
+    /**
+     * Lidas que o cadastro marca como baixadas ou extraviadas (EPC → "Patrimônio 123 - Monitor (Baixado)"): bens que
+     * não deveriam estar circulando, para quem recebe o resumo agir.
+     */
+    val alertas: Map<String, String> = emptyMap()
 ) {
     /** Esperadas de um tipo de bem: quantas eram e quantas foram lidas. */
     data class ContagemTipo(val tipo: String, val encontradas: Int, val esperadas: Int) {
@@ -188,6 +230,7 @@ data class ResumoFinalizacao(
         val c = comparacao
         if (c == null) {
             append("Sem lista do esperado para comparar (primeiro inventário do local ou lista indisponível)")
+            anexarAlertas()
             return@buildString
         }
 
@@ -209,6 +252,13 @@ data class ResumoFinalizacao(
                 justificativas[item.epc]?.let { append(" (").append(it).append(')') }
             }
         }
+        anexarAlertas()
+    }
+
+    private fun StringBuilder.anexarAlertas() {
+        if (alertas.isEmpty()) return
+        appendLine().appendLine().append("Atenção, lidos com alerta no cadastro:")
+        alertas.values.forEach { appendLine().append("- ").append(it) }
     }
 
     companion object {

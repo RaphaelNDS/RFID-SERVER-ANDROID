@@ -146,9 +146,38 @@ data class LidaInventario(
     /** Patrimônio, quando a etiqueta está na lista do esperado. */
     val patrimonio: String?,
     /** Lida mas não esperada no local (só quando há lista do esperado para comparar). */
-    val foraDaLista: Boolean
+    val foraDaLista: Boolean,
+    /** Cadastro da fora da lista consultado no servidor (patrimônio, tipo, situação); null enquanto não consultou. */
+    val ficha: com.example.rfid_server.view.TagView? = null,
+    /** O servidor respondeu que a etiqueta fora da lista não está cadastrada. */
+    val semCadastro: Boolean = false,
+    /** Transferência para este local pedida pelo operador (pendente ou já respondida pelo servidor); null = nenhuma. */
+    val transferencia: com.example.rfid_server.sincronizacao.FilaTransferencias.Item? = null
 ) {
+    /** Patrimônio para mostrar: o da lista do esperado ou, na fora da lista, o do cadastro consultado. */
+    val patrimonioConhecido: String? get() = patrimonio ?: ficha?.patrimonio?.ifBlank { null }
+
+    /**
+     * Dá para pedir a transferência para este local: fora da lista, cadastro consultado (o servidor recusa etiqueta sem
+     * cadastro), bem não baixado (o servidor recusa com 409) e sem pedido pendente ou já feito. Extraviado pode: achar
+     * o bem extraviado na sala é justamente o caso de trazê-lo para o local onde está.
+     */
+    val podePedirTransferencia: Boolean
+        get() = foraDaLista && ficha != null && !semCadastro && ficha.situacao != "BAIXADO" &&
+            transferencia?.estado.let { it == null || it == com.example.rfid_server.sincronizacao.FilaTransferencias.Estado.RECUSADA }
+
     companion object {
+        /** Junta às lidas o que já se sabe das fora da lista ([fichas] por EPC, as [semCadastro] e as [transferencias]). */
+        fun comFichas(
+            lidas: List<LidaInventario>, fichas: Map<String, com.example.rfid_server.view.TagView>, semCadastro: Set<String>,
+            transferencias: Map<String, com.example.rfid_server.sincronizacao.FilaTransferencias.Item> = emptyMap()
+        ): List<LidaInventario> =
+            if (fichas.isEmpty() && semCadastro.isEmpty() && transferencias.isEmpty()) lidas
+            else lidas.map {
+                if (it.foraDaLista) it.copy(ficha = fichas[it.epc], semCadastro = it.epc in semCadastro, transferencia = transferencias[it.epc])
+                else it
+            }
+
         /**
          * Monta a aba Lidas: com lista do esperado ([patrimoniosEsperados] = EPC → patrimônio), as fora da lista
          * vêm primeiro (são as que pedem atenção), cada grupo na ordem de leitura. Sem lista (null), nenhuma

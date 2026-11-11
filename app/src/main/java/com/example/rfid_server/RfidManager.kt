@@ -293,8 +293,8 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
             erro = e
         }
         try {
-            // leitura SOMENTE no gatilho
-            r.Config.setTriggerMode(ENUM_TRIGGER_MODE.RFID_MODE, true)
+            // Leitura RFID SOMENTE no gatilho; com uma tela de código de barras aberta, o gatilho fica com o leitor de códigos
+            r.Config.setTriggerMode(modoGatilho(), true)
         } catch (e: Exception) {
             Log.e(TAG, "Erro ao configurar o gatilho do leitor RFID", e)
             // O gatilho é o mais grave (sem ele a leitura não começa): é o que a faixa mostra
@@ -339,6 +339,39 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
             if (soEtiquetasEmpresa) "só etiquetas da empresa (${FiltroLeitura.PREFIXO_EMPRESA}…)" else "todas as etiquetas")
     }
 
+
+    // ================= GATILHO: RFID OU CÓDIGO DE BARRAS =================
+
+    // No MC3300xR o mesmo gatilho serve ao RFID e ao leitor de código de barras, e o modo RFID fica gravado no leitor:
+    // sem voltar ao modo de código de barras, o gatilho não lia o QR de configuração nas Configurações
+    @Volatile
+    private var gatilhoNoCodigoDeBarras = false
+
+    private fun modoGatilho(): ENUM_TRIGGER_MODE =
+        if (gatilhoNoCodigoDeBarras) ENUM_TRIGGER_MODE.BARCODE_MODE else ENUM_TRIGGER_MODE.RFID_MODE
+
+    /**
+     * Tela que lê código de barras com o gatilho (Configurações, para o QR de configuração): [ligado] = o gatilho vai
+     * para o leitor de código de barras enquanto ela está aberta; false = volta ao RFID. Sem o leitor conectado, conecta
+     * só para mudar o modo (e solta depois, como sempre que nenhuma tela lê RFID).
+     */
+    fun gatilhoParaCodigoDeBarras(ligado: Boolean) {
+        gatilhoNoCodigoDeBarras = ligado
+        executor.execute {
+            val r = reader?.takeIf { it.isConnected }
+            if (r == null) {
+                // Para voltar ao RFID não precisa conectar: a próxima conexão de uma tela de leitura configura o RFID
+                if (ligado) tentarConectar()
+                return@execute
+            }
+            try {
+                r.Config.setTriggerMode(modoGatilho(), true)
+                Log.i(TAG, "Gatilho do coletor no ${if (ligado) "leitor de código de barras" else "RFID"}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Erro ao mudar o gatilho para o ${if (ligado) "código de barras" else "RFID"}", e)
+            }
+        }
+    }
     /** As Configurações mudaram a potência: aplica já, se o leitor estiver conectado (senão, vale na próxima conexão). */
     fun aplicarPotencia() {
         executor.execute {
@@ -373,7 +406,16 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
         bateriaPeloSdk = false
         try {
             reader?.Events?.removeEventsListener(this)
-            if (reader?.isConnected == true) reader?.disconnect()
+            if (reader?.isConnected == true) {
+                // O modo RFID fica gravado no leitor: sem isto, com o app sem ler (tela de login, Configurações, outro
+                // app), o gatilho do coletor não lia código de barras
+                try {
+                    reader?.Config?.setTriggerMode(ENUM_TRIGGER_MODE.BARCODE_MODE, true)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Não foi possível devolver o gatilho ao leitor de código de barras ao soltar o leitor RFID: ${e.message}")
+                }
+                reader?.disconnect()
+            }
             readers?.Dispose()
         } catch (e: Exception) {
             Log.e(TAG, "Erro ao desconectar do leitor RFID", e)
@@ -753,6 +795,8 @@ class RfidManager private constructor(private val appContext: Context) : RfidEve
 
     private fun tratarGatilho(e: RfidStatusEvents) {
         val evento = e.StatusEventData.HandheldTriggerEventData.handheldEvent
+        // Gatilho emprestado ao leitor de código de barras (Configurações): não começa leitura RFID
+        if (gatilhoNoCodigoDeBarras) return
 
         // Na thread do leitor (a mesma de conectar e desconectar), e não na de eventos do SDK: como no exemplo da Zebra,
         // o perform()/stop() não segura o despacho de eventos, apertar e soltar ficam sempre nessa ordem e não competem

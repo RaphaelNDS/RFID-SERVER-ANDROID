@@ -139,6 +139,7 @@ object AppConfig {
             putString(KEY_SESSAO_EMAIL, sessao.email)
             putBoolean(KEY_SESSAO_LER, sessao.podeLer)
             putBoolean(KEY_SESSAO_CADASTRAR, sessao.podeCadastrar)
+            putBoolean(KEY_SESSAO_TRANSFERIR, sessao.podeTransferir)
             // Início pelo relógio e pelo tempo desde a ligação: atrasar o relógio não estende a sessão (SessaoOperador.validaEm)
             putLong(KEY_SESSAO_ENTROU_EM, sessao.entrouEm ?: System.currentTimeMillis())
             putLong(KEY_SESSAO_ENTROU_DECORRIDO, sessao.entrouDecorrido ?: SystemClock.elapsedRealtime())
@@ -159,6 +160,7 @@ object AppConfig {
             email = prefs.getString(KEY_SESSAO_EMAIL, "").orEmpty(),
             podeLer = prefs.getBoolean(KEY_SESSAO_LER, false),
             podeCadastrar = prefs.getBoolean(KEY_SESSAO_CADASTRAR, false),
+            podeTransferir = prefs.getBoolean(KEY_SESSAO_TRANSFERIR, false),
             entrouEm = prefs.getLong(KEY_SESSAO_ENTROU_EM, -1L).takeIf { it >= 0 },
             entrouDecorrido = prefs.getLong(KEY_SESSAO_ENTROU_DECORRIDO, -1L).takeIf { it >= 0 }
         )
@@ -167,7 +169,7 @@ object AppConfig {
     fun limparSessao(context: Context) {
         gravarSegredos(context) {
             remove(KEY_SESSAO_TOKEN).remove(KEY_SESSAO_EXPIRA).remove(KEY_SESSAO_NOME)
-                .remove(KEY_SESSAO_EMAIL).remove(KEY_SESSAO_LER).remove(KEY_SESSAO_CADASTRAR)
+                .remove(KEY_SESSAO_EMAIL).remove(KEY_SESSAO_LER).remove(KEY_SESSAO_CADASTRAR).remove(KEY_SESSAO_TRANSFERIR)
                 .remove(KEY_SESSAO_ENTROU_EM).remove(KEY_SESSAO_ENTROU_DECORRIDO)
         }
     }
@@ -188,7 +190,7 @@ object AppConfig {
             val email = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_SESSAO_EMAIL, "").orEmpty()
             gravarSegredos(context) {
                 remove(KEY_SESSAO_TOKEN).remove(KEY_SESSAO_EXPIRA).remove(KEY_SESSAO_NOME)
-                    .remove(KEY_SESSAO_EMAIL).remove(KEY_SESSAO_LER).remove(KEY_SESSAO_CADASTRAR)
+                    .remove(KEY_SESSAO_EMAIL).remove(KEY_SESSAO_LER).remove(KEY_SESSAO_CADASTRAR).remove(KEY_SESSAO_TRANSFERIR)
                 .remove(KEY_SESSAO_ENTROU_EM).remove(KEY_SESSAO_ENTROU_DECORRIDO)
                 putString(KEY_SESSAO_MOTIVO_FIM, motivoServidor)
                 putString(KEY_SESSAO_MOTIVO_FIM_EMAIL, email)
@@ -277,6 +279,14 @@ object AppConfig {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         return prefs.getBoolean(KEY_AVISO_LEITURA, true)
     }
+
+    // Letra maior em todas as telas (TamanhoTexto), escolhida pelo operador no menu da tela principal
+    fun setLetraMaior(context: Context, ligada: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean(KEY_LETRA_MAIOR, ligada) }
+    }
+
+    fun isLetraMaior(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_LETRA_MAIOR, false)
 
     /** Email do último operador que entrou, para já vir preenchido na tela de login. */
     fun getUltimoEmail(context: Context): String {
@@ -411,6 +421,7 @@ object AppConfig {
     private const val KEY_SESSAO_EMAIL = "sessao_email"
     private const val KEY_SESSAO_LER = "sessao_pode_ler"
     private const val KEY_SESSAO_CADASTRAR = "sessao_pode_cadastrar"
+    private const val KEY_SESSAO_TRANSFERIR = "sessao_pode_transferir"
     private const val KEY_SESSAO_ENTROU_EM = "sessao_entrou_em"
     private const val KEY_SESSAO_ENTROU_DECORRIDO = "sessao_entrou_decorrido"
     private const val KEY_SESSAO_MOTIVO_FIM = "sessao_motivo_fim"
@@ -418,6 +429,7 @@ object AppConfig {
     private const val KEY_SESSAO_MOTIVO_FIM_EM = "sessao_motivo_fim_em"
     private const val KEY_ULTIMO_EMAIL = "ultimo_email"
     private const val KEY_AVISO_LEITURA = "aviso_leitura"
+    private const val KEY_LETRA_MAIOR = "letra_maior"
     /** Só para trazer o que a versão 1.5.0 e anteriores guardavam aqui (ver esperadoGuardado). */
     private const val KEY_ESPERADO_PREFIXO = "esperado_"
     private const val PASTA_ESPERADO = "esperado"
