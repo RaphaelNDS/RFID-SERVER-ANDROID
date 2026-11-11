@@ -4,10 +4,10 @@ import android.content.Context
 import android.os.Build
 import android.os.StatFs
 import android.util.Log
-import com.example.rfid_server.AppConfig
+import com.example.rfid_server.configuracoes.AppConfig
 import com.example.rfid_server.BuildConfig
-import com.example.rfid_server.CofreSessoes
-import com.example.rfid_server.SessaoAtual
+import com.example.rfid_server.sessao.CofreSessoes
+import com.example.rfid_server.sessao.SessaoAtual
 import com.example.rfid_server.dados.BancoLocal
 import com.example.rfid_server.erros.RegistroErros
 import okhttp3.Headers

@@ -1,7 +1,7 @@
 package com.example.rfid_server.sincronizacao
 
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
-import com.example.rfid_server.activities.RegrasFaixaSincronizacao
+import com.example.rfid_server.telas.RegrasFaixaSincronizacao
 import com.example.rfid_server.api.HttpClient
 import com.example.rfid_server.dados.CadastroEntity
 import com.example.rfid_server.dados.FakeCadastroDao

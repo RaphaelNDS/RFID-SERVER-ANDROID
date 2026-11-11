@@ -1,6 +1,6 @@
 package com.example.rfid_server.service
 
-import com.example.rfid_server.SessaoOperador
+import com.example.rfid_server.sessao.SessaoOperador
 import com.example.rfid_server.api.HttpClient
 import com.example.rfid_server.dados.CadastroEntity
 import com.example.rfid_server.dados.VersaoPublicada

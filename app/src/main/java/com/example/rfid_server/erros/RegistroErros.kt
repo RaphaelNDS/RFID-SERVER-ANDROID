@@ -3,7 +3,7 @@ package com.example.rfid_server.erros
 import android.content.Context
 import android.util.Log
 import com.example.rfid_server.BuildConfig
-import com.example.rfid_server.SessaoAtual
+import com.example.rfid_server.sessao.SessaoAtual
 import com.example.rfid_server.service.MotivoFalha
 import com.example.rfid_server.service.RespostaServidor
 import com.example.rfid_server.service.TagService

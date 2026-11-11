@@ -2,8 +2,8 @@ package com.example.rfid_server.service
 
 import android.content.Context
 import android.util.Log
-import com.example.rfid_server.AppConfig
-import com.example.rfid_server.SessaoOperador
+import com.example.rfid_server.configuracoes.AppConfig
+import com.example.rfid_server.sessao.SessaoOperador
 import com.example.rfid_server.api.HttpClient
 import com.example.rfid_server.api.CertificadoDiferenteException
 import com.example.rfid_server.api.CertificadoNaoConfirmadoException

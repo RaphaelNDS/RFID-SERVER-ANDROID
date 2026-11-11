@@ -6,10 +6,10 @@ import androidx.core.content.edit
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.MutableLiveData
-import com.example.rfid_server.CofreSessoes
+import com.example.rfid_server.sessao.CofreSessoes
 import com.example.rfid_server.ExecutorProtegido
-import com.example.rfid_server.SessaoAtual
-import com.example.rfid_server.activities.LocalInventario
+import com.example.rfid_server.sessao.SessaoAtual
+import com.example.rfid_server.inventario.LocalInventario
 import com.example.rfid_server.sincronizacao.Sincronizador
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap

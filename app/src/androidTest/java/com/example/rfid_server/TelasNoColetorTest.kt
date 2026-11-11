@@ -1,5 +1,8 @@
 package com.example.rfid_server
 
+import com.example.rfid_server.leitor.AvisoLeitura
+import com.example.rfid_server.leitor.CodigoEtiqueta
+import com.example.rfid_server.leitor.FiltroLeitura
 import android.graphics.drawable.AdaptiveIconDrawable
 import androidx.core.content.ContextCompat
 import androidx.test.core.app.ActivityScenario
@@ -10,8 +13,8 @@ import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.example.rfid_server.activities.LoginActivity
-import com.example.rfid_server.activities.SettingsActivity
+import com.example.rfid_server.sessao.LoginActivity
+import com.example.rfid_server.configuracoes.SettingsActivity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

@@ -1,6 +1,6 @@
 package com.example.rfid_server.dados
 
-import com.example.rfid_server.SessaoOperador
+import com.example.rfid_server.sessao.SessaoOperador
 import com.example.rfid_server.sincronizacao.FilaTransferencias
 import com.example.rfid_server.view.TagView
 import org.junit.Assert.assertEquals

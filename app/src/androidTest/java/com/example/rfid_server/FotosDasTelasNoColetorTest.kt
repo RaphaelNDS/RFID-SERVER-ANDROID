@@ -1,16 +1,18 @@
 package com.example.rfid_server
 
+import com.example.rfid_server.configuracoes.AppConfig
+import com.example.rfid_server.sessao.SessaoOperador
 import android.content.Intent
 import android.graphics.Bitmap
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.example.rfid_server.activities.CadastroTagActivity
-import com.example.rfid_server.activities.InventarioActivity
-import com.example.rfid_server.activities.LocalizarActivity
-import com.example.rfid_server.activities.LoginActivity
-import com.example.rfid_server.activities.MainActivity
-import com.example.rfid_server.activities.SettingsActivity
+import com.example.rfid_server.cadastro.CadastroTagActivity
+import com.example.rfid_server.inventario.InventarioActivity
+import com.example.rfid_server.localizar.LocalizarActivity
+import com.example.rfid_server.sessao.LoginActivity
+import com.example.rfid_server.leituras.MainActivity
+import com.example.rfid_server.configuracoes.SettingsActivity
 import com.example.rfid_server.dados.BancoLocal
 import com.example.rfid_server.dados.LeituraEntity
 import com.example.rfid_server.dados.Situacao

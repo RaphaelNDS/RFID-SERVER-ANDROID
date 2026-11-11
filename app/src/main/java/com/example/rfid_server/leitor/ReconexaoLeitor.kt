@@ -1,0 +1,57 @@
+package com.example.rfid_server.leitor
+
+/**
+ * Regras da reconexão automática do leitor RFID: quanto esperar antes de cada nova tentativa e
+ * quais tentativas vão para o log (sem isso, um leitor desligado encheria o log a cada poucos segundos).
+ * Sem dependência do Android, para poder ser testado no computador.
+ */
+object ReconexaoLeitor {
+
+    /** Espera depois de o leitor avisar que desconectou (encaixe, bateria): ele costuma voltar logo. */
+    const val ESPERA_APOS_DESCONEXAO_MS = 2_000L
+
+    /**
+     * Espera antes da próxima tentativa, depois de [tentativa] tentativas sem sucesso (1, 2, 3...). Leitor que não
+     * volta em uns 2 min (sem leitor, quebrado, fora do encaixe) passa a ser procurado a cada 30 s e depois a cada
+     * 1 min: antes eram 10 s para sempre, procurando o leitor em todos os meios (Readers ALL) e gastando bateria.
+     * O botão Reconectar da faixa tenta na hora e recomeça a contagem.
+     */
+    fun esperaMs(tentativa: Int): Long = when {
+        tentativa <= 2 -> 3_000
+        tentativa <= 5 -> 5_000
+        tentativa <= 17 -> 10_000
+        tentativa <= 35 -> 30_000
+        else -> 60_000
+    }
+
+    /** Registra no log as 3 primeiras falhas e depois só 1 a cada 6 (cerca de uma por minuto). */
+    fun deveRegistrar(tentativa: Int): Boolean = tentativa <= 3 || tentativa % 6 == 0
+
+    /**
+     * Sem nenhuma tela de leitura aberta por este tempo (app em segundo plano, tela de configurações...), o leitor
+     * é desconectado: economiza bateria e libera o leitor para outros apps. Passar de uma tela de leitura para
+     * outra leva milissegundos e não desconecta.
+     */
+    const val DESCONECTAR_OCIOSO_MS = 2 * 60_000L
+
+    /**
+     * Mensagem registrada para o servidor quando o leitor volta depois de uma queda: quanto tempo ficou fora
+     * ([duracaoMs]) e quantas tentativas de conexão foram feitas até voltar (incluindo a que deu certo).
+     */
+    fun mensagemVolta(duracaoMs: Long, tentativas: Int): String {
+        val minutos = duracaoMs.coerceAtLeast(0) / 60_000
+        val tempo = if (minutos < 1) "menos de 1 min" else "$minutos min"
+        val vezes = if (tentativas == 1) "1 tentativa" else "$tentativas tentativas"
+        return "Leitor RFID voltou depois de $tempo e $vezes"
+    }
+
+    /**
+     * Índice da potência na lista do leitor (do menor para o maior valor) para [percentual] da máxima.
+     * 100 = a última (máxima). Nunca fica fora da lista.
+     */
+    fun indicePotencia(quantidadeNiveis: Int, percentual: Int): Int {
+        if (quantidadeNiveis <= 0) return 0
+        val ultimo = quantidadeNiveis - 1
+        return Math.round(ultimo * percentual.coerceIn(0, 100) / 100.0).toInt().coerceIn(0, ultimo)
+    }
+}

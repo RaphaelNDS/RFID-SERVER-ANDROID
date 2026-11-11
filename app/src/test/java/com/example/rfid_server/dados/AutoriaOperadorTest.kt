@@ -1,7 +1,7 @@
 package com.example.rfid_server.dados
 
 import androidx.arch.core.executor.testing.InstantTaskExecutorRule
-import com.example.rfid_server.SessaoOperador
+import com.example.rfid_server.sessao.SessaoOperador
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

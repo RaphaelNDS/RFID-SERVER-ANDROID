@@ -1,5 +1,7 @@
 package com.example.rfid_server
 
+import com.example.rfid_server.configuracoes.AppConfig
+import com.example.rfid_server.sessao.SessaoOperador
 import android.graphics.Bitmap
 import androidx.core.content.FileProvider
 import androidx.test.core.app.ActivityScenario
@@ -14,8 +16,8 @@ import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
-import com.example.rfid_server.activities.HistoricoInventarios
-import com.example.rfid_server.activities.InventarioActivity
+import com.example.rfid_server.inventario.HistoricoInventarios
+import com.example.rfid_server.inventario.InventarioActivity
 import com.example.rfid_server.dados.EsperadoLocal
 import com.example.rfid_server.dados.ItemEsperado
 import com.example.rfid_server.sincronizacao.FilaJustificativas
