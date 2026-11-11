@@ -20,6 +20,12 @@
     <!-- Atualização pelo servidor: o app baixa o APK novo e pede ao Android para instalar (o operador confirma) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- Android 11+: sem isto o app não enxerga o DataWedge (getPackageInfo falha) e o botão "Ler QR Code" acha que
+         o aparelho não tem leitor de código de barras -->
+    <queries>
+        <package android:name="com.symbol.datawedge" />
+    </queries>
+
     <!-- RfidApp: guarda os travamentos do app para enviar ao servidor (tela Coletores → Erros) -->
     <!-- allowBackup="false": nada do coletor (chave, sessão, PIN, fila de leituras) vai para backup/adb backup.
          As regras de backup_rules/data_extraction_rules continuam como segunda barreira.
