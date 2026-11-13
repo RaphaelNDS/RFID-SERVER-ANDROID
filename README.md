@@ -14,9 +14,9 @@ A API dos coletores é a mesma nas duas branches do servidor (até a 1.28.0): a 
 só na web, e o coletor faz leitura, consulta, cadastro, transferência e inventário. Bem Alugado, Vendido, Baixado ou
 Extraviado lido no coletor continua com o alerta (2.7.7).
 
-**Manuais** (no repositório do servidor, branch locadora):
-[como instalar o servidor e conectar os coletores](https://github.com/RaphaelNDS/RFID-Server/blob/locadora/docs/manual-conexao.md) ·
-[principais erros e como resolver](https://github.com/RaphaelNDS/RFID-Server/blob/locadora/docs/erros-comuns.md).
+**Manuais** (no repositório do servidor):
+[como instalar o servidor e conectar os coletores](https://github.com/RaphaelNDS/RFID-Server/blob/master/docs/manual-conexao.md) ·
+[principais erros e como resolver](https://github.com/RaphaelNDS/RFID-Server/blob/master/docs/erros-comuns.md).
 O APK de produção de cada versão fica nas [Releases](https://github.com/RaphaelNDS/RFID-SERVER-ANDROID/releases).
 
 ```
