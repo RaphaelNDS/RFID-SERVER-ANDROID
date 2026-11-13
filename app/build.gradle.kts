@@ -14,6 +14,11 @@ plugins {
 // instalar por cima da versão anterior. Para forçar um valor: ./gradlew assembleRelease -Prfid.codigoVersao=N
 val versaoApp = "2.7.9"
 
+// Branch locadora (versão de produção da locadora, acompanha a branch locadora do servidor): o nome da versão leva
+// "-locadora" (ex.: 2.7.9-locadora), na tela de Configurações, no cabeçalho X-Versao-App e no nome do APK, para
+// distinguir da versão do master. A atualização automática compara pelo versionCode, não pelo nome
+val nomeVersao = "$versaoApp-locadora"
+
 // Abaixo disto o Android recusa instalar por cima (a 1.3.0 instalada nos coletores tem versionCode 6)
 val codigoVersaoMinimo = 7
 
@@ -104,7 +109,7 @@ android {
         minSdk = 26
         targetSdk = 37
         versionCode = codigoVersao
-        versionName = versaoApp
+        versionName = nomeVersao
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -199,7 +204,7 @@ androidComponents {
         val copia = tasks.register<CopiarApkComVersao>("copiarApkComVersao$sufixo") {
             pastaApk.set(variante.artifacts.get(SingleArtifact.APK))
             carregador.set(variante.artifacts.getBuiltArtifactsLoader())
-            destino.set(layout.buildDirectory.file("outputs/apk/${variante.name}/RFID-Android-$versaoApp-${variante.name}.apk"))
+            destino.set(layout.buildDirectory.file("outputs/apk/${variante.name}/RFID-Android-$nomeVersao-${variante.name}.apk"))
         }
         tasks.matching { it.name == "assemble$sufixo" }.configureEach { finalizedBy(copia) }
     }
