@@ -7,9 +7,16 @@ equipamentos por patrimônio, faz inventários por local e (se tiver permissão)
 O servidor fica em outro repositório: **RFID-Server** (pasta `RFID_Servidor/rfid-server`), que tem o
 README com a API, a segurança e a instalação do lado do servidor.
 
-**Manuais** (no repositório do servidor):
-[como instalar o servidor e conectar os coletores](https://github.com/RaphaelNDS/RFID-Server/blob/master/docs/manual-conexao.md) ·
-[principais erros e como resolver](https://github.com/RaphaelNDS/RFID-Server/blob/master/docs/erros-comuns.md).
+**Branches:** a **locadora** é a versão da locadora, a que vai para os coletores em produção, e acompanha a branch
+**locadora** do servidor (de onde sai o jar de produção: locação, pedidos, clientes, manutenção e kits). O **master**
+acompanha o master do servidor, que passa a ser o aplicativo simples de entrada e saída de equipamentos e inventário.
+A API dos coletores é a mesma nas duas branches do servidor (até a 1.28.0): a saída e a devolução da locação são feitas
+só na web, e o coletor faz leitura, consulta, cadastro, transferência e inventário. Bem Alugado, Vendido, Baixado ou
+Extraviado lido no coletor continua com o alerta (2.7.7).
+
+**Manuais** (no repositório do servidor, branch locadora):
+[como instalar o servidor e conectar os coletores](https://github.com/RaphaelNDS/RFID-Server/blob/locadora/docs/manual-conexao.md) ·
+[principais erros e como resolver](https://github.com/RaphaelNDS/RFID-Server/blob/locadora/docs/erros-comuns.md).
 O APK de produção de cada versão fica nas [Releases](https://github.com/RaphaelNDS/RFID-SERVER-ANDROID/releases).
 
 ```
@@ -220,7 +227,7 @@ Gradle para um JDK 17/21.
 ```
 
 **CI:** `.github/workflows/android.yml` roda testes, lint e o build de produção (sem assinatura, com
-`-Prfid.semAssinatura=true`) a cada push e PR na master.
+`-Prfid.semAssinatura=true`) a cada push e PR na master e na locadora.
 
 ### APK de produção
 
