@@ -1,13 +1,14 @@
-# CI do app Android: testes, lint e build do APK de produção (sem assinatura) a cada push e pull request na master.
+# CI do app Android: testes, lint e build do APK de produção (sem assinatura) a cada push e pull request na master e na
+# locadora (versão da locadora, a de produção, que acompanha a branch locadora do servidor).
 # A chave de assinatura fica fora do git: aqui o APK sai sem assinar (-Prfid.semAssinatura=true) e serve só para
 # provar que o build e o R8 funcionam. O APK que vai para os coletores continua sendo gerado na máquina com a chave.
 name: Android
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, locadora ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, locadora ]
 
 jobs:
   build:
